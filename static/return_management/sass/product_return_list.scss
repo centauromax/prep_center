@@ -167,3 +167,8 @@ table.dataTable thead .filter-row input {
 .dataTables_scrollBody {
     overflow: scroll !important;
 }
+
+.dataTables_paginate .paginate_button.previous,
+.dataTables_paginate .paginate_button.next {
+    display: none;
+}

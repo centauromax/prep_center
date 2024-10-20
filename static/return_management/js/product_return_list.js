@@ -3,31 +3,36 @@ $(document).ready(function() {
         paging: true,
         pageLength: 500,
         lengthChange: false,
-        searching: true,
-        scrollY: 'calc(100vh - 300px)', // Adjust based on header/footer height
+        searching: false,
+        scrollY: 'calc(100vh - 265px)', // Regola in base all'altezza di header/footer
         scrollX: true,
         scrollCollapse: true,
         fixedHeader: true,
         language: {
             paginate: {
-                next: 'Next',
-                previous: 'Previous'
+                next: '', // Remove the "Successivo" label
+                previous: '' // Remove the "Precedente" label
             },
-            info: 'Showing _START_ to _END_ of _TOTAL_ entries'
+            info: 'Visualizzazione da _START_ a _END_ di _TOTAL_ elementi'
         },
+        dom: "<'top'f>rt<'bottom'lp><'clear'>",
         drawCallback: function(settings) {
-            // Update the info text dynamically
-            var info = this.api().page.info();
+            var api = this.api();
+            var info = api.page.info();
             $('#tableInfo').html(
                 'Showing ' + (info.start + 1) + ' to ' + info.end + ' of ' + info.recordsTotal + ' entries'
             );
 
             // Move pagination to custom footer
-            $('#tablePagination').html($(this.api().table().container()).find('.dataTables_paginate'));
+            var pagination = $(api.table().container()).find('.dataTables_paginate');
+            if (pagination.length) {
+                $('#tablePagination').html(pagination.clone(true, true));
+            }
         },
         initComplete: function() {
-            // Apply column-specific search
-            this.api().columns().every(function() {
+            var api = this.api();
+            // Applica la ricerca per colonna
+            api.columns().every(function() {
                 var column = this;
                 $('input', column.header()).on('keyup change clear', function() {
                     if (column.search() !== this.value) {
@@ -38,10 +43,8 @@ $(document).ready(function() {
         }
     });
 
-    // Global search
+    // Ricerca globale
     $('#globalSearch').on('keyup', function() {
         table.search(this.value).draw();
     });
 });
-
-
