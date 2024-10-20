@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+        <!-- Load static files -->
+    {% load static %}
+    <title>My Django App</title>
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'return_management/css/product_return_list.css' %}">
+</head>
+<body>
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="top-bar__content">
+            <h1 class="top-bar__app-name">My Django App</h1>
+            <span class="top-bar__user-name">Username</span>
+        </div>
+    </header>
+
+    <!-- Middle Container -->
+    <div class="middle-container">
+        <div class="middle-container__controls">
+            <label class="middle-container__label">Search:</label>
+            <input type="text" class="middle-container__search-box" id="globalSearch">
+            <button class="middle-container__button">Action</button>
+        </div>
+    </div>
+
+    <!-- Main Body -->
+    <div class="main-body">
+        <table id="productTable" class="display">
+            <thead>
+                <tr class="filter-row">
+                    <th><input type="text" placeholder="Search Approved"></th>
+                    <th><input type="text" placeholder="Search Box"></th>
+                    <th><input type="text" placeholder="Search Box Type"></th>
+                    <th><input type="text" placeholder="Search Picked"></th>
+                    <th><input type="text" placeholder="Search Shipped"></th>
+                    <th><input type="text" placeholder="Search IPN"></th>
+                    <th><input type="text" placeholder="Search Brand"></th>
+                    <th><input type="text" placeholder="Search Product Description"></th>
+                    <th><input type="text" placeholder="Search Additional Info"></th>
+                    <th><input type="text" placeholder="Search Other Info"></th>
+                    <th><input type="text" placeholder="Search Destination"></th>
+                    <th><input type="text" placeholder="Search Verification Request"></th>
+                    <th><input type="text" placeholder="Search ASIN"></th>
+                    <th><input type="text" placeholder="Search SKU"></th>
+                    <th><input type="text" placeholder="Search FNSKU"></th>
+                    <th><input type="text" placeholder="Search EAN"></th>
+                    <th><input type="text" placeholder="Search Serial Number"></th>
+                    <th><input type="text" placeholder="Search State (Amz)"></th>
+                    <th><input type="text" placeholder="Search Reason (Amz)"></th>
+                    <th><input type="text" placeholder="Search Customer Notes"></th>
+                    <th><input type="text" placeholder="Search Notes"></th>
+                </tr>
+                <tr>
+                    <th>Approved</th>
+                    <th>Box</th>
+                    <th>Box Type</th>
+                    <th>Picked</th>
+                    <th>Shipped</th>
+                    <th>IPN</th>
+                    <th>Brand</th>
+                    <th>Product Description</th>
+                    <th>Additional Info</th>
+                    <th>Other Info</th>
+                    <th>Destination</th>
+                    <th>Verification Request</th>
+                    <th>ASIN</th>
+                    <th>SKU</th>
+                    <th>FNSKU</th>
+                    <th>EAN</th>
+                    <th>Serial Number</th>
+                    <th>State (Amz)</th>
+                    <th>Reason (Amz)</th>
+                    <th>Customer Notes</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in product_returns %}
+                <tr>
+                    <td>
+                        <input type="checkbox" {% if product.approved %}checked{% endif %} disabled>
+                    </td>
+                    <td>
+                        {% if product.box > 0 %}
+                            {{ product.box }}
+                        {% endif %}
+                    </td>
+                    <td>{{ product.box_type }}</td>
+                    <td>
+                        {% if product.picked %}
+                            {{ product.picked|date:"Y/m/d" }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if product.shipped %}
+                            {{ product.shipped|date:"Y/m/d" }}
+                        {% endif %}
+                    </td>
+                    <td>{{ product.lpn }}</td>
+                    <td>{{ product.brand }}</td>
+                    <td title="{{ product.product_description }}">{{ product.product_description }}</td>
+                    <td>{{ product.additional_info }}</td>
+                    <td title="{{ product.other_info }}">{{ product.other_info }}</td>
+                    <td>{{ product.destination }}</td>
+                    <td>
+                        <input type="checkbox" {% if product.verification_request %}checked{% endif %} disabled>
+                    </td>
+                    <td>{{ product.asin }}</td>
+                    <td>{{ product.sku }}</td>
+                    <td>{{ product.fnsku }}</td>
+                    <td>{{ product.ean }}</td>
+                    <td>{{ product.serial_number }}</td>
+                    <td>{{ product.state_amz }}</td>
+                    <td>{{ product.reason_amz }}</td>
+                    <td title="{{ product.customer_notes }}">{{ product.customer_notes }}</td>
+                    <td title="{{ product.notes }}">{{ product.notes }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer__content">
+            <div class="footer__info" id="tableInfo"></div>
+            <div class="footer__pagination" id="tablePagination"></div>
+        </div>
+    </footer>
+
+    <!-- jQuery and DataTables JS -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <!-- Custom JS -->
+    <script src="scripts.js"></script>
+    <script src="{% static 'return_management/js/product_return_list.js' %}"></script>
+</body>
+</html>

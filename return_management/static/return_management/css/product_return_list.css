@@ -1,0 +1,160 @@
+/* Variabili tradotte */
+.top-bar {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    height: 60px; /* $top-bar-height */
+    background-color: #3498db; /* $primary-color */
+    color: #fff;
+}
+
+.top-bar__content {
+    display: flex; /* @include flex-center */
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 100%;
+}
+
+.top-bar__app-name {
+    margin: 0;
+}
+
+.top-bar__user-name {
+    font-weight: bold;
+}
+
+/* Middle Container */
+.middle-container {
+    position: fixed;
+    top: 60px; /* $top-bar-height */
+    width: 100%;
+    height: 50px; /* $middle-container-height */
+    background-color: #f1f1f1;
+    border-bottom: 1px solid #ccc;
+}
+
+.middle-container__controls {
+    display: flex; /* @include flex-center */
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 100%;
+}
+
+.middle-container__label {
+    margin-right: 10px;
+}
+
+.middle-container__search-box {
+    padding: 5px;
+    width: 200px;
+}
+
+.middle-container__button {
+    padding: 5px 10px;
+    background-color: #3498db; /* $primary-color */
+    color: #fff;
+    border: none;
+    cursor: pointer;
+}
+
+/* Main Body */
+.main-body {
+    position: absolute;
+    top: calc(60px + 50px); /* $top-bar-height + $middle-container-height */
+    bottom: 40px; /* $footer-height */
+    width: 100%;
+    overflow: hidden;
+}
+
+.main-body #productTable_wrapper {
+    height: 100%;
+}
+
+.main-body .dataTables_scroll {
+    height: 100% !important;
+}
+
+.main-body .dataTables_scrollBody {
+    height: calc(100% - 68px) !important; /* Regola in base all'altezza dell'header */
+}
+
+.main-body table.display {
+    width: 100% !important;
+}
+
+.main-body .filter-row input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Footer */
+.footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 40px; /* $footer-height */
+    background-color: #f1f1f1;
+    border-top: 1px solid #ccc;
+}
+
+.footer__content {
+    display: flex; /* @include flex-center */
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 100%;
+}
+
+.footer__info {
+    color: #333; /* $text-color */
+}
+
+.footer__pagination .dataTables_paginate {
+    margin: 0;
+    display: flex;
+    list-style: none;
+}
+
+.footer__pagination .paginate_button {
+    margin: 0 2px;
+    padding: 5px 10px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    color: #333; /* $text-color */
+    text-decoration: none;
+}
+
+.footer__pagination .paginate_button:hover {
+    background-color: #e9e9e9;
+}
+
+.footer__pagination .paginate_button.current {
+    background-color: #3498db; /* $primary-color */
+    color: #fff;
+    border-color: #3498db; /* $primary-color */
+}
+
+/* DataTables Overrides */
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {
+    display: none; /* Nasconde la posizione di default */
+}
+
+/* Correzione per header fisso con due righe */
+table.dataTable thead th,
+table.dataTable thead td {
+    padding: 8px 10px;
+}
+
+table.dataTable thead .filter-row input {
+    margin-bottom: 0;
+}
+
+/* Assicura che le barre di scorrimento siano sempre visibili */
+.dataTables_scrollBody {
+    overflow: scroll !important;
+}
+

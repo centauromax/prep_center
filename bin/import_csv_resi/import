@@ -1,0 +1,2 @@
+cp "$(ls -1 $HOME/*.csv)" data.csv
+python3 import_csv.py
