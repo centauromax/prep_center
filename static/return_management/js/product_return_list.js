@@ -3,19 +3,19 @@ $(document).ready(function() {
         paging: true,
         pageLength: 500,
         lengthChange: false,
-        searching: false,
-        scrollY: 'calc(100vh - 265px)', // Regola in base all'altezza di header/footer
+        searching: true,
+        scrollY: 'calc(100vh - 280px)', // Adjust for new layout with header/footer
         scrollX: true,
         scrollCollapse: true,
         fixedHeader: true,
         language: {
             paginate: {
-                next: '', // Remove the "Successivo" label
-                previous: '' // Remove the "Precedente" label
+                next: '<i class="fas fa-chevron-right"></i>', // Use icons for navigation
+                previous: '<i class="fas fa-chevron-left"></i>'
             },
-            info: 'Visualizzazione da _START_ a _END_ di _TOTAL_ elementi'
+            info: 'Showing _START_ to _END_ of _TOTAL_ entries'
         },
-        dom: "<'top'f>rt<'bottom'lp><'clear'>",
+        dom: "<'top-bar-controls'f>rt<'bottom-footer-info'lp><'clear'>",
         drawCallback: function(settings) {
             var api = this.api();
             var info = api.page.info();
@@ -31,7 +31,7 @@ $(document).ready(function() {
         },
         initComplete: function() {
             var api = this.api();
-            // Applica la ricerca per colonna
+            // Apply search for each column
             api.columns().every(function() {
                 var column = this;
                 $('input', column.header()).on('keyup change clear', function() {
@@ -43,8 +43,18 @@ $(document).ready(function() {
         }
     });
 
-    // Ricerca globale
+    // Global search with better UI
     $('#globalSearch').on('keyup', function() {
         table.search(this.value).draw();
+    });
+
+    // Update styles for better alignment and visuals
+    $('.middle-container__button').addClass('btn btn-primary');
+    $('#globalSearch').addClass('form-control').css({
+        width: '300px',
+        'margin-left': '20px'
+    });
+    $('.dataTables_scrollBody').css({
+        'border-top': '1px solid #ccc'
     });
 });

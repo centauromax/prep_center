@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-10-24 18:58+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Analisi Dati"
+msgstr "Data Analysis"
+
+msgid "Nome Azienda"
+msgstr "Company Name"
+
+msgid "Analisi dei Dati Avanzata"
+msgstr "Advanced Data Analysis"
+
+msgid "Carica il tuo file"
+msgstr "Upload Your File"
+
+msgid "Analizza File"
+msgstr "Analyze File"
+
+msgid "Risultati dell'Analisi"
+msgstr "Analysis Results"
+
+msgid "Informazioni Aggiuntive"
+msgstr "Additional Information"
+
+msgid "Dettagli Tecnici"
+msgstr "Technical Details"
+
+msgid "Dati Dettagliati"
+msgstr "Detailed Data"
+
+msgid "Colonna 1"
+msgstr "Column 1"
+
+msgid "Colonna 2"
+msgstr "Column 2"
+
+msgid "Colonna 3"
+msgstr "Column 3"
+
+msgid "Colonna 4"
+msgstr "Column 4"

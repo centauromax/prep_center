@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-10-24 18:58+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: fbasaving/templates/fbasaving/fbasaving.html:8
+msgid "Analisi Dati"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:21
+msgid "Nome Azienda"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:45
+msgid "Analisi dei Dati Avanzata"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:55
+msgid "Carica il tuo file"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:62
+msgid "Analizza File"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:73
+msgid "Risultati dell'Analisi"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:85
+msgid "Informazioni Aggiuntive"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:93
+msgid "Dettagli Tecnici"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:105
+msgid "Dati Dettagliati"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:109
+msgid "Colonna 1"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:110
+msgid "Colonna 2"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:111
+msgid "Colonna 3"
+msgstr ""
+
+#: fbasaving/templates/fbasaving/fbasaving.html:112
+msgid "Colonna 4"
+msgstr ""

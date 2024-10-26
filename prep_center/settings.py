@@ -10,11 +10,15 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+from django.utils.translation import gettext_lazy as _
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -25,8 +29,8 @@ SECRET_KEY = 'django-insecure-9v@671$o(2p^ig7sfk%t@lp(f_hj-cl(+m!^772o5ysjd(@mj#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['18.102.30.28', 'localhost'] 
-
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '18.102.30.28'] 
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 # Application definition
 
 INSTALLED_APPS = [
@@ -37,9 +41,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'return_management',
+    'fbasaving',
 ]
 
 MIDDLEWARE = [
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -121,8 +127,10 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = '/var/www/html/webapps/projects/prep_center/static/'  # Dove i file verranno raccolti tramite collectstatic
 
+# Cartella con i file statici per l'app
 STATICFILES_DIRS = [
-    BASE_DIR / "return_management/static",  # Indica la cartella con i file statici per l'app
+    os.path.join(BASE_DIR, "return_management", "static"),
+    os.path.join(BASE_DIR, "fbasaving", "static"),
 ]
 
 # Default primary key field type
@@ -133,4 +141,45 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Pagina di login
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = '/return_management/'  # Dove reindirizzare dopo il login
+
+# Lingue disponibili
+LANGUAGES = [
+    ('it', 'Italiano'),
+    ('en', 'English'),
+]
+
+USE_I18N = True
+USE_L10N = True
+
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'fbasaving': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
+
+
 

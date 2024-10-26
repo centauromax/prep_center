@@ -1,0 +1,167 @@
+{% load static %}
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% trans "Analisi Dati" %}</title>
+    
+    <!-- CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="{% static 'fbasaving/css/style.css' %}?v=4">
+</head>
+<body>
+    <!-- Top Bar -->
+    <nav class="navbar navbar-expand-lg custom-navbar">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <img src="{% static 'images/logo.jpg' %}" alt="Logo" height="40">
+                <span class="brand-text">{% trans "Nome Azienda" %}</span>
+            </a>
+            <div class="language-switcher">
+                <form action="{% url 'set_language' %}" method="post" class="language-form">
+                    {% csrf_token %}
+                    <input name="next" type="hidden" value="{{ request.path }}">
+                    <select name="language" onchange="this.form.submit()" class="form-select form-select-sm">
+                        {% get_current_language as LANGUAGE_CODE %}
+                        {% for lang_code, lang_name in LANGUAGES %}
+                            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
+                                {{ lang_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container main-content">
+        <!-- Introduction Section -->
+        <section class="intro-section">
+            <h1>{% trans "Confronto stoccaggio Amazon vs Prep Center" %}</h1>
+            <p class="lead">
+                Carica un rapporto "Tariffe mensili di stoccaggio" per confrontare il costo che avrebbe avuto lo stoccaggio della stessa merce sul Prep Center.
+            </p>
+            <p class="lead">
+                Carica inoltre un report di uno dei mesi di ottobre-dicembre, periodo in cui le tariffe aumentano, per un'analisi più completa.
+            </p>
+        </section>
+
+        <!-- File Upload Section -->
+        <section class="upload-section">
+            <div class="card">
+                <div class="card-body">
+                    <h3>{% trans "Carica il tuo file" %}</h3>
+                    <div class="upload-area">
+                        <form id="uploadForm" method="post" enctype="multipart/form-data" action="{% url 'upload_file' %}">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <input type="file" class="form-control" id="fileInput" name="file" accept=".txt">
+                            </div>
+                            <button type="submit" class="btn btn-primary">{% trans "Analizza File" %}</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sezione Risultati -->
+        <section class="results-section mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h3>{% trans "Risultati dell'analisi" %}</h3>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <p><strong>{% trans "Costo totale Amazon" %}:</strong> <span id="totalAmazonCost"></span></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p><strong>{% trans "Costo totale Prep Center" %}:</strong> <span id="totalPrepCenterCost"></span></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p><strong>{% trans "Risparmio" %}:</strong> <span id="saving"></span></p>
+                        </div>
+                        <div class="col-md-3">
+                            <p><strong>{% trans "Percentuale di risparmio" %}:</strong> <span id="savingPercentage"></span>%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Renamed Info Sections -->
+        <div class="row info-sections">
+            <div class="col-md-6">
+                <section class="info-section">
+                    <h3>{% trans "Informazioni Aggiuntive" %}</h3>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+                    </p>
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="info-section">
+                    <h3>{% trans "Dettagli Tecnici" %}</h3>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+                    </p>
+                </section>
+            </div>
+        </div>
+
+        <!-- Renamed Info Sections 2 -->
+        <div class="row info-sections-2">
+            <div class="col-md-6">
+                <section class="info-section">
+                    <h3>{% trans "Informazioni Aggiuntive 2" %}</h3>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+                    </p>
+                </section>
+            </div>
+            <div class="col-md-6">
+                <section class="info-section">
+                    <h3>{% trans "Dettagli Tecnici 2" %}</h3>
+                    <p>
+                        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.
+                    </p>
+                </section>
+            </div>
+        </div>
+
+        <!-- DataTable Section -->
+        <section class="datatable-section" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h3>{% trans "Dati Dettagliati" %}</h3>
+                    <table id="resultsTable" class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Marketplace</th>
+                                <th>Product volume</th>
+                                <th>Total volume</th>
+                                <th>Amazon monthly cost</th>
+                                <th>Our monthly rate</th>
+                                <th>Our monthly cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- I dati verranno popolati da JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/fixedheader/3.1.8/js/dataTables.fixedHeader.min.js"></script>
+    <script src="{% static 'fbasaving/js/main.js' %}"></script>
+
+</body>
+</html>

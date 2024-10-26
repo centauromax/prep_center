@@ -25,10 +25,27 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
-from django.http import HttpResponseRedirect
+from django.conf.urls.i18n import i18n_patterns
+from django.views.i18n import set_language
+from django.http import HttpResponse
+from django.conf import settings
+from django.conf.urls.static import static
+
+def home(request):
+    return HttpResponse("Benvenuto nel Prep Center! Scegli un'app: <a href='/fbasaving/'>FBA Saving</a> o <a href='/return_management/'>Return Management</a>")
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('return_management/', include('return_management.urls')),  # Include gli URL della tua app
-    path('', lambda request: HttpResponseRedirect('/return_management/')),  # Reindirizza alla app di gestione resi
+    path('', home, name='home'),  # Aggiunta questa riga
+    path('return_management/', include('return_management.urls')),
+    path('fbasaving/', include('fbasaving.urls')),
+    path('i18n/setlang/', set_language, name='set_language'),
+    path('i18n/', include('django.conf.urls.i18n')),
 ]
+
+urlpatterns += i18n_patterns(
+    path('admin/', admin.site.urls),
+    prefix_default_language=True,
+)
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
