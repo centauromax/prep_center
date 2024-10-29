@@ -4,6 +4,10 @@ import os
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from django.conf import settings
+import pandas as pd
+import logging
+import io
+from datetime import datetime
 
 # Aggiungi il percorso del sito-packages dell'ambiente virtuale
 venv_path = os.path.dirname(os.path.dirname(sys.executable))
@@ -24,12 +28,14 @@ import logging
 import io
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+# Ottieni il logger per l'app fbasaving
+logger = logging.getLogger('fbasaving')
 
 def save_uploaded_file(file, total_amazon_cost, saving):
     # Genera il nome del file con il formato richiesto
     current_time = datetime.now()
-    file_name = f"{current_time.strftime('%Y%m%d-%H:%M')}-{int(total_amazon_cost)}-{int(saving)}"
+    # Usa - invece di : per l'ora
+    file_name = f"{current_time.strftime('%Y%m%d-%H.%M')}-{int(total_amazon_cost)}-{int(saving)}"
     
     # Ottieni l'estensione del file originale
     _, file_extension = os.path.splitext(file.name)
@@ -51,45 +57,92 @@ def save_uploaded_file(file, total_amazon_cost, saving):
     logger.info(f"File salvato in: {full_path}")
     return full_path
 
-def filter_columns(file_content, columns_to_keep, new_column_names):
+def debug_print(message):
+    """Scrive il messaggio in un file di debug dedicato"""
+    # Usa la directory corrente del progetto
+    current_dir = os.getcwd()
+    debug_file = os.path.join(current_dir, 'fbasaving_debug.log')
+    
     try:
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(debug_file, 'a') as f:
+            f.write(f'[{timestamp}] {message}\n')
+    except Exception as e:
+        print(f"Error writing to debug file: {e}", flush=True)
+
+def filter_columns(file_content):
+    try:
+        debug_print("=== STARTING FILTER_COLUMNS FUNCTION ===")
+        
         # Legge il contenuto del file in un DataFrame pandas
         df = pd.read_csv(io.StringIO(file_content.decode('utf-8')), sep=None, engine='python')
+        
+        debug_print(f"Numero di righe iniziale: {len(df)}")
+        
+        # Normalizza i nomi delle colonne
+        df.columns = df.columns.str.replace('\ufeff', '').str.strip().str.lower().str.replace(r'[^a-z0-9_]', '', regex=True)
 
-        # Debug: stampa i nomi delle colonne originali
-        logger.debug(f"Nomi colonne originali: {df.columns.tolist()}")
+        # Converti le colonne numeriche
+        def safe_convert(x):
+            if pd.isna(x):
+                return None
+            if isinstance(x, str):
+                return float(x.replace(',', '.'))
+            return float(x)
 
-        # Rimuovi eventuali caratteri BOM dai nomi delle colonne
-        df.columns = df.columns.str.replace('\ufeff', '')
+        numeric_columns = ['estimated_monthly_storage_fee', 'item_volume', 'average_quantity_on_hand']
+        for col in numeric_columns:
+            df[col] = df[col].apply(safe_convert)
 
-        # Normalizza i nomi delle colonne: rimuove spazi, converte in minuscolo, rimuove caratteri speciali
-        df.columns = df.columns.str.strip().str.lower().str.replace(r'[^a-z0-9_]', '', regex=True)
-
-        # Debug: stampa i nomi delle colonne normalizzati
-        logger.debug(f"Nomi colonne normalizzati: {df.columns.tolist()}")
-
-        # Aggiungi colonna 'average_quantity_on_hand' se non esiste
-        if 'average_quantity_on_hand' not in df.columns:
-            raise KeyError("La colonna 'average_quantity_on_hand' non è presente nel file di input.")
-
-        # Calcola 'Total volume' come item_volume * average_quantity_on_hand
-        df.loc[:, 'estimated_total_item_volume'] = df['item_volume'] * df['average_quantity_on_hand']
-
-        # Filtra le righe con 'estimated_monthly_storage_fee' diverso da zero
+        # Filtra subito le righe con storage fee = 0
         df = df[df['estimated_monthly_storage_fee'] != 0]
+        
+        debug_print(f"Righe dopo filtro storage fee: {len(df)}")
 
-        # Filtra le colonne specificate
-        filtered_df = df.loc[:, columns_to_keep]
+        # Calcola il volume totale del prodotto
+        df['total_product_volume'] = df['item_volume'] * df['average_quantity_on_hand']
 
-        # Rinomina le colonne
-        filtered_df.columns = new_column_names
+        # Calcola i rate e i costi
+        df['amazon_monthly_rate'] = (df['estimated_monthly_storage_fee'] / df['total_product_volume']).round(6)
+        df['our_monthly_rate'] = 12
+        df['our_monthly_cost'] = 12 * df['total_product_volume']
 
+        # Debug: verifica calcoli
+        debug_print("\nVerifica calcoli:")
+        sample_records = df[df['asin'].isin(['B07CYZ3R84', 'B00G7RQXCY'])]
+        for _, row in sample_records.iterrows():
+            debug_print(f"""
+            ASIN: {row['asin']}
+            Storage Fee: {row['estimated_monthly_storage_fee']}
+            Product Volume: {row['item_volume']}
+            Quantity: {row['average_quantity_on_hand']}
+            Total Volume: {row['total_product_volume']}
+            Amazon Rate: {row['amazon_monthly_rate']}
+            Our Cost: {row['our_monthly_cost']}
+            """)
+
+        # Mapping finale delle colonne
+        column_mapping = {
+            'product_name': 'Product',
+            'country_code': 'Market',
+            'item_volume': 'Product volume',
+            'total_product_volume': 'Total volume',
+            'estimated_monthly_storage_fee': 'Amazon monthly cost',
+            'amazon_monthly_rate': 'Amazon monthly rate',
+            'our_monthly_rate': 'Our monthly rate',
+            'our_monthly_cost': 'Our monthly cost'
+        }
+
+        # Seleziona e rinomina le colonne finali
+        filtered_df = df[list(column_mapping.keys())].rename(columns=column_mapping)
+        filtered_df = filtered_df.sort_values('Amazon monthly rate', ascending=False)
+        
+        debug_print(f"Numero di righe finale: {len(filtered_df)}")
+        
         return filtered_df
-    except KeyError as e:
-        logger.error(f"Errore durante il filtraggio delle colonne: Colonna non trovata {e}")
-        raise
+
     except Exception as e:
-        logger.error(f"Errore durante il filtraggio delle colonne: {e}")
+        debug_print(f"ERROR in filter_columns: {str(e)}")
         raise
 
 # Funzione per calcolare il tasso mensile Amazon
@@ -119,45 +172,22 @@ def prep_center_costs(df):
 
 def file_processing(file):
     try:
-        columns_to_keep = ["asin", "fnsku", "product_name", "country_code", "item_volume", "estimated_total_item_volume", "estimated_monthly_storage_fee"]
-        new_column_names = ["ASIN", "FNSKU", "Product", "Marketplace", "Product volume", "Total volume", "Amazon monthly cost"]
-
+        debug_print("=== Starting file_processing ===")
+        
         # Leggi il contenuto del file
         file_content = file.read()
+        debug_print("File content read successfully")
 
         # Chiama la funzione per filtrare le colonne
-        filtered_data = filter_columns(file_content, columns_to_keep, new_column_names)
+        filtered_data = filter_columns(file_content)
 
-        # Chiama la funzione per calcolare il tasso mensile Amazon
-        filtered_data = amazon_costs(filtered_data)
-
-        # Chiama la funzione per calcolare il costo mensile del prep center
-        filtered_data = prep_center_costs(filtered_data)
-
-        # Assicuriamoci che i nomi delle colonne corrispondano esattamente
-        filtered_data = filtered_data.rename(columns={
-            'product_name': 'Product',
-            'country_code': 'Marketplace',
-            'item_volume': 'Product volume',
-            'estimated_total_item_volume': 'Total volume',
-            'estimated_monthly_storage_fee': 'Amazon monthly cost',
-            'our_monthly_rate': 'Our monthly rate',
-            'our_monthly_cost': 'Our monthly cost'
-        })
-
-        # Rimuoviamo le colonne ASIN e FNSKU
-        filtered_data = filtered_data.drop(columns=['ASIN', 'FNSKU'])
-
-        # Calcoli come forniti nel tuo codice
+        # Calcoli finali
         total_amazon_cost = filtered_data['Amazon monthly cost'].sum()
         total_prep_center_cost = filtered_data['Our monthly cost'].sum()
         saving = total_amazon_cost - total_prep_center_cost
         saving_percentage = (saving / total_amazon_cost) * 100 if total_amazon_cost != 0 else 0
 
-        # Converti il DataFrame in una lista di dizionari per il rendering JSON
-        table_data = filtered_data.to_dict('records')
-
-        # Salva il file caricato (manteniamo questa funzione, ma non restituiamo il percorso)
+        # Salva il file caricato
         save_uploaded_file(file, total_amazon_cost, saving)
 
         return {
@@ -165,8 +195,9 @@ def file_processing(file):
             'total_prep_center_cost': float(total_prep_center_cost),
             'saving': float(saving),
             'saving_percentage': float(saving_percentage),
-            'table_data': table_data
+            'table_data': filtered_data.to_dict('records')
         }
     except Exception as e:
-        logger.error(f"Errore nel processamento del file: {e}")
+        debug_print(f"ERROR in file_processing: {str(e)}")
+        debug_print(f"Type of error: {type(e)}")
         raise ValueError(f"Errore nel processamento del file: {str(e)}")

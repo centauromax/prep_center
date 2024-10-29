@@ -1,6 +1,8 @@
 :root {
     --primary-color: #007ea7;
     --secondary-color: #219ebc;
+    --light-primary: #FFFCF7; /* Colore chiaro per il primo box */
+    --light-secondary: #f2f9fb; /* Colore chiaro per il secondo box */
     --accent-color: #8ecae6;
     --light-color: #f8f9fa;
     --dark-color: #023047;
@@ -20,7 +22,7 @@ body {
 /* Navbar */
 .custom-navbar {
     background-color: var(--primary-color);
-    padding: 1rem 0;
+    padding: 0.5rem 0;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
@@ -28,7 +30,8 @@ body {
     color: white !important;
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 0.5rem;
+    margin-left: -2rem !important;  /* Rimosso completamente il margine */
 }
 
 .brand-text {
@@ -55,7 +58,7 @@ body {
 } 
 
 section {
-    margin-bottom: 2rem;
+    margin-bottom: 0.5rem;
 }
 
 /* Introduction Section */
@@ -66,7 +69,7 @@ section {
 
 .intro-section h1 {
     color: var(--primary-color);
-    margin-bottom: 1.5rem;
+    margin-bottom: 3rem;
 }
 
 /* Cards */
@@ -113,6 +116,8 @@ section {
     color: var(--dark-color);
     margin-top: 2rem;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    margin-bottom: 1.5rem;
 }
 
 .results-section .card-body {
@@ -140,10 +145,6 @@ section {
 #resultsTable th:not(:first-child),
 #resultsTable td:not(:first-child) {
     width: 11.66% !important; /* (100% - 30%) / 6 */
-}
-
-#resultsTable td:nth-child(2) {
-    text-align: center;
 }
 
 #resultsTable td span {
@@ -232,6 +233,7 @@ table.dataTable {
 
 .language-switcher {
     margin-left: auto;
+    margin-right: 0 !important;  /* Rimosso completamente il margine */
 }
 
 .language-switcher .form-select {
@@ -282,10 +284,6 @@ table.dataTable {
     width: 11.66%; /* (100% - 30%) / 6 */
 }
 
-.table.table-striped td:nth-child(2) {
-    text-align: center;
-}
-
 .dataTables_wrapper .dataTables_scroll {
     clear: both;
 }
@@ -333,11 +331,6 @@ table.dataTable {
     width: 11.66% !important; /* (100% - 30%) / 6 */
 }
 
-/* Centra il contenuto della colonna Marketplace */
-#resultsTable td:nth-child(2) {
-    text-align: center;
-}
-
 /* Altezza massima del corpo della tabella scrollabile */
 .dataTables_scrollBody {
     max-height: 50vh;
@@ -377,6 +370,126 @@ table.dataTable {
     color: white;
 }
 
-#resultsTable td:nth-child(2) {
-    text-align: center;
+.dataTables_wrapper {
+    width: 100% !important;
+}
+
+.dataTables_scrollHead,
+.dataTables_scrollBody {
+    width: 100% !important;
+}
+
+.dataTables_scrollHeadInner {
+    width: 100% !important;
+}
+
+.dataTables_scrollHeadInner table {
+    width: 100% !important;
+}
+
+/* Forza l'allineamento a sinistra per gli header della tabella */
+.dt-head-left {
+    text-align: left !important;
+}
+
+/* Mantieni l'allineamento a sinistra per i dati */
+.text-left {
+    text-align: left !important;
+}
+
+/* Forza l'allineamento a sinistra per gli header della tabella */
+.dt-head-center {
+    text-align: center !important;
+}
+
+/* Mantieni l'allineamento a sinistra per i dati */
+.text-center {
+    text-align: center !important;
+}
+
+.info-box {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    padding: 1.5rem;
+    margin-top: 1rem;
+    text-align: left;
+}
+
+.info-box p {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+}
+
+.info-box p:last-child {
+    margin-bottom: 0;
+}
+
+.card, .info-box, .info-section {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    margin-bottom: 1rem;
+}
+
+.results-section .table {
+    margin: 0 auto;
+    background-color: white;
+}
+
+.results-section .table th {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.results-section .table td,
+.results-section .table th {
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.results-section .table td:nth-child(2) {
+    font-weight: bold;
+}
+
+/* Stile per il primo box */
+.single-info-box {
+    background-color: var(--light-primary);
+    color: var(--dark-color);
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-top: 2rem;
+    margin-bottom: 2rem; /* Aggiunge spaziatura tra il primo e il secondo box */
+    line-height: 1.6;
+}
+
+/* Stile per il secondo box */
+.second-info-box {
+    background-color: var(--light-secondary);
+    color: var(--dark-color);
+    border-radius: 10px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem; /* Aggiunge spaziatura tra il secondo box e la tabella */
+    line-height: 1.6;
+}
+
+/* Spaziatura tra elementi interni dei box */
+.single-info-box p {
+    margin-bottom: 1rem;
+}
+
+.single-info-box p:last-child {
+    margin-bottom: 0;
+}
+
+/* Stile per la lista dei vantaggi nel secondo box */
+.single-info-box .benefits-list {
+    margin-top: 1rem;
+    padding-left: 1.5rem;
+    list-style-type: disc;
+}
+
+.single-info-box .benefits-list li {
+    margin-bottom: 1rem;
+    line-height: 1.6;
 }
