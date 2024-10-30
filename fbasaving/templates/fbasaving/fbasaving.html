@@ -28,6 +28,7 @@
                     <input name="next" type="hidden" value="{{ request.path }}">
                     <select name="language" onchange="this.form.submit()" class="form-select form-select-sm">
                         {% get_current_language as LANGUAGE_CODE %}
+                        {% get_available_languages as LANGUAGES %}
                         {% for lang_code, lang_name in LANGUAGES %}
                         <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
                             {{ lang_name }}
@@ -164,18 +165,18 @@
         <section class="datatable-section" style="display: none;">
             <div class="card">
                 <div class="card-body">
-                    <h3>{% trans "Dati Dettagliati" %}</h3>
+                    <h3>{% trans "Dettaglio dei costi" %}</h3>
                     <table id="resultsTable" class="table table-striped">
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>Market</th>
-                                <th>Product volume</th>
-                                <th>Total volume</th>
-                                <th>Amazon monthly cost</th>
-                                <th>Amazon monthly rate</th>
-                                <th>Our monthly rate</th>
-                                <th>Our monthly cost</th>
+                                <th class="text-start">{% trans "Prodotto" %}</th>
+                                <th class="text-center">{% trans "Mercato" %}</th>
+                                <th class="text-start">{% trans "Volume prodotto" %}</th>
+                                <th class="text-start">{% trans "Volume totale" %}</th>
+                                <th class="text-start">{% trans "Costo mensile Amazon" %}</th>
+                                <th class="text-start">{% trans "Tariffa mensile Amazon" %}</th>
+                                <th class="text-start">{% trans "Nostra tariffa mensile" %}</th>
+                                <th class="text-start">{% trans "Nostro costo mensile" %}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -193,6 +194,8 @@
     <script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/fixedheader/3.1.8/js/dataTables.fixedHeader.min.js"></script>
     <script src="{% static 'fbasaving/js/main.js' %}"></script>
+
+
 
 </body>
 

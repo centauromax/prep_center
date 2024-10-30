@@ -114,21 +114,24 @@ $('#uploadForm').on('submit', function (e) {
                     scrollX: true,
                     scrollCollapse: true,
                     paging: false,
-                    searching: true,
+                    searching: false,
                     info: false,
                     autoWidth: false,
                     data: response.table_data,
                     order: [[5, 'desc']], // Ordina per la colonna 'Amazon monthly rate'
                     columns: [
-                        { data: 'Product' },
-                        { data: 'Market', className: 'text-center no-truncate dt-head-center' },
-                        { data: 'Product volume', className: 'text-left no-truncate dt-head-left' },
-                        { data: 'Total volume', className: 'text-left no-truncate dt-head-left' },
-                        { data: 'Amazon monthly cost', className: 'text-left no-truncate dt-head-left' },
-                        { data: 'Amazon monthly rate', className: 'text-left no-truncate dt-head-left' },
-                        { data: 'Our monthly rate', className: 'text-left no-truncate dt-head-left' },
-                        { data: 'Our monthly cost', className: 'text-left no-truncate dt-head-left' }
+                        { data: 'Product', className: 'text-start' },
+                        { data: 'Market', className: 'text-center' },
+                        { data: 'Product volume', className: 'text-start' },
+                        { data: 'Total volume', className: 'text-start' },
+                        { data: 'Amazon monthly cost', className: 'text-start' },
+                        { data: 'Amazon monthly rate', className: 'text-start' },
+                        { data: 'Our monthly rate', className: 'text-start' },
+                        { data: 'Our monthly cost', className: 'text-start' }
                     ],
+                    headerCallback: function(thead, data, start, end, display) {
+                        $(thead).show();  // Assicura che l'header sia visibile
+                    },
                     columnDefs: [
                         {
                             // Colonne che richiedono formattazione numerica semplice

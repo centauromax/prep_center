@@ -142,10 +142,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = '/return_management/'  # Dove reindirizzare dopo il login
 
-# Lingue disponibili
+# Definizione delle lingue disponibili
 LANGUAGES = [
-    ('it', 'Italiano'),
-    ('en', 'English'),
+    ('it', _('Italiano')),
+    ('en', _('English')),
 ]
 
 USE_I18N = True
