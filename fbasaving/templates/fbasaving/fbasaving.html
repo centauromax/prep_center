@@ -173,12 +173,14 @@
         <section class="datatable-section" style="display: none;">
             <div class="card">
                 <div class="card-body">
-                    <h3>{% trans "Dettaglio dei costi" %}</h3>
+                    <h2>Dettaglio dei costi</h2>
+                    <p style="font-size: 1.2rem; color: #666; margin-bottom: 1rem;">
+                        Tutti i dati sono stati aggregati per prodotto per tutti i magazzini e marketplace.
+                    </p>
                     <table id="resultsTable" class="table table-striped">
                         <thead>
                             <tr>
                                 <th class="text-start">{% trans "Prodotto" %}</th>
-                                <th class="text-center">{% trans "Mercato" %}</th>
                                 <th class="text-end">{% trans "Volume prodotto" %}</th>
                                 <th class="text-end">{% trans "Volume totale" %}</th>
                                 <th class="text-end">{% trans "Costo mensile Amazon" %}</th>

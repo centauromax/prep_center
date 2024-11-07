@@ -119,15 +119,31 @@ $('#uploadForm').on('submit', function (e) {
 
 // Funzione per inizializzare la DataTable con server-side processing
 function initializeDataTable() {
-    console.log('=== Initializing DataTable with server-side processing ===');
-
-    if (dataTable) {
-        console.log('Destroying existing DataTable');
-        dataTable.destroy();
+    // Distruggi la tabella esistente se presente
+    if ($.fn.DataTable.isDataTable('#resultsTable')) {
+        $('#resultsTable').DataTable().destroy();
         $('#resultsTable').empty();
     }
 
-    dataTable = $('#resultsTable').DataTable({
+    // Ricrea l'header della tabella
+    let headerHtml = `
+        <thead>
+            <tr>
+                <th class="text-start">Prodotto</th>
+                <th class="text-end">Volume prodotto</th>
+                <th class="text-end">Volume totale</th>
+                <th class="text-end">Costo mensile Amazon</th>
+                <th class="text-end">Tariffa mensile Amazon</th>
+                <th class="text-end">Nostra tariffa mensile</th>
+                <th class="text-end">Nostro costo mensile</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    `;
+    $('#resultsTable').html(headerHtml);
+
+    // Inizializza la nuova DataTable
+    $('#resultsTable').DataTable({
         serverSide: true,
         processing: true,
         ajax: {
@@ -156,10 +172,9 @@ function initializeDataTable() {
         searching: false,
         info: true,
         autoWidth: false,
-        order: [[5, 'desc']], // Ordina per la colonna 'Amazon monthly rate' in modo decrescente
+        order: [[3, 'desc']], // Ordina per la colonna 'Costo mensile Amazon' in modo decrescente
         columns: [
             { data: 'Product', className: 'text-start' },
-            { data: 'Market', className: 'text-center' },
             { data: 'Product volume', className: 'text-end' },
             { data: 'Total volume', className: 'text-end' },
             { data: 'Amazon monthly cost', className: 'text-end' },
@@ -168,12 +183,12 @@ function initializeDataTable() {
             { data: 'Our monthly cost', className: 'text-end' }
         ],
         headerCallback: function(thead, data, start, end, display) {
-            $(thead).show();  // Assicura che l'header sia visibile
+            $(thead).show();  // Forza la visualizzazione dell'header
         },
         columnDefs: [
             {
                 // Colonne che richiedono formattazione numerica semplice
-                targets: [2, 3], // Indici delle colonne 'Product volume' e 'Total volume'
+                targets: [1, 2], // Indici delle colonne 'Product volume' e 'Total volume'
                 render: function (data, type, row, meta) {
                     if (type === 'display' || type === 'filter') {
                         return formatNumber(data);
@@ -183,7 +198,7 @@ function initializeDataTable() {
             },
             {
                 // Colonne che richiedono formattazione come valuta
-                targets: [4, 5, 6, 7], // Indici delle colonne di costi e tariffe
+                targets: [3, 4, 5, 6], // Indici delle colonne di costi e tariffe
                 render: function (data, type, row, meta) {
                     if (type === 'display' || type === 'filter') {
                         return formatNumber(data, true);
@@ -192,14 +207,13 @@ function initializeDataTable() {
                 }
             },
             // Impostazione delle larghezze delle colonne
-            { width: '30%', targets: 0 },
-            { width: '8%', targets: 1 },
-            { width: '10%', targets: 2 },
-            { width: '10%', targets: 3 },
-            { width: '10%', targets: 4 },
-            { width: '12%', targets: 5 },
-            { width: '10%', targets: 6 },
-            { width: '10%', targets: 7 }
+            { width: '35%', targets: 0 },
+            { width: '11%', targets: 1 },
+            { width: '11%', targets: 2 },
+            { width: '11%', targets: 3 },
+            { width: '11%', targets: 4 },
+            { width: '11%', targets: 5 },
+            { width: '10%', targets: 6 }
         ],
         initComplete: function (settings, json) {
             console.log('=== DataTable InitComplete ===');

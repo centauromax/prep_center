@@ -53,7 +53,7 @@ def process_report_data(file_content):
 
     # Campi necessari
     required_columns = [
-        'asin', 'product_name', 'country_code', 'longest_side', 'median_side', 'shortest_side',
+        'asin', 'product_name', 'longest_side', 'median_side', 'shortest_side',
         'measurement_units', 'item_volume', 'volume_units', 'average_quantity_on_hand', 
         'average_quantity_pending_removal', 'avg_qty_for_sus', 'estimated_total_item_volume',
         'estimated_monthly_storage_fee', 'base_rate', 'currency', 'month_of_charge'
@@ -82,8 +82,8 @@ def process_report_data(file_content):
     # Filtra le righe con estimated_monthly_storage_fee a zero
     df = df[df['estimated_monthly_storage_fee'] > 0]
 
-    # Calcola il volume del prodotto
-    def calculate_product_volume(row):
+    # Converti item_volume in metri cubi se necessario
+    def convert_item_volume(row):
         if row['item_volume'] > 0.01:
             volume = convert_volume(row['item_volume'], row['volume_units'])
             logger.debug(f"ASIN {row['asin']}: Volume prodotto da item_volume: {volume}")
@@ -93,94 +93,116 @@ def process_report_data(file_content):
             logger.debug(f"ASIN {row['asin']}: Volume prodotto calcolato: {volume}")
             return volume
 
-    df['product_volume'] = df.apply(calculate_product_volume, axis=1)
+    df['item_volume_m3'] = df.apply(convert_item_volume, axis=1)
 
     # Filtra le righe con volume del prodotto a zero
-    df = df[df['product_volume'] > 0]
+    df = df[df['item_volume_m3'] > 0]
+
+    # Converti estimated_total_item_volume in metri cubi
+    df['estimated_total_item_volume_m3'] = df.apply(
+        lambda row: convert_volume(row['estimated_total_item_volume'], row['volume_units']), 
+        axis=1
+    )
+
+    # Converti i costi e le tariffe in euro
+    def convert_to_euro(value, currency):
+        # Implementa la logica di conversione in base alla valuta
+        return value  # Placeholder - implementa la conversione corretta
+
+    df['estimated_monthly_storage_fee_eur'] = df.apply(
+        lambda row: convert_to_euro(row['estimated_monthly_storage_fee'], row['currency']), 
+        axis=1
+    )
+    df['base_rate_eur'] = df.apply(
+        lambda row: convert_to_euro(row['base_rate'], row['currency']), 
+        axis=1
+    )
+
+    # Aggregazione per ASIN
+    agg_dict = {
+        'product_name': 'first',
+        'item_volume_m3': 'first',
+        'average_quantity_on_hand': 'sum',
+        'average_quantity_pending_removal': 'sum',
+        'avg_qty_for_sus': 'sum',
+        'estimated_total_item_volume_m3': 'sum',
+        'estimated_monthly_storage_fee_eur': 'sum',
+        'base_rate_eur': 'mean',
+        'month_of_charge': 'first'
+    }
+
+    df_aggregated = df.groupby('asin').agg(agg_dict).reset_index()
+    logger.debug(f"Dati aggregati per ASIN. Numero righe originali: {len(df)}, Numero righe aggregate: {len(df_aggregated)}")
 
     # Calcola il volume totale degli articoli e la tariffa Amazon
     def calculate_total_volume_and_rate(row):
-        estimated_volume = convert_volume(row['estimated_total_item_volume'], row['volume_units'])
         volumes = [
-            estimated_volume,
-            row['product_volume'] * (row['average_quantity_on_hand'] + row['average_quantity_pending_removal']),
-            row['product_volume'] * row['avg_qty_for_sus']
+            row['estimated_total_item_volume_m3'],
+            row['item_volume_m3'] * (row['average_quantity_on_hand'] + row['average_quantity_pending_removal']),
+            row['item_volume_m3'] * row['avg_qty_for_sus']
         ]
 
         # Calculate original rates for each volume
-        original_rates = [row['estimated_monthly_storage_fee'] / v if v > 0 else float('inf') for v in volumes]
+        original_rates = [row['estimated_monthly_storage_fee_eur'] / v if v > 0 else float('inf') for v in volumes]
         
-        if row['base_rate'] >= 5:
-            # Logica esistente per base_rate >= 5
-            rates = [max(rate, row['base_rate']) for rate in original_rates]
-            valid_rates = [(rate, vol) for rate, vol in zip(rates, volumes) if rate <= row['base_rate'] * 1.5]
+        if row['base_rate_eur'] >= 5:
+            # Logica per base_rate >= 5
+            rates = [max(rate, row['base_rate_eur']) for rate in original_rates]
+            valid_rates = [(rate, vol) for rate, vol in zip(rates, volumes) if rate <= row['base_rate_eur'] * 1.5]
             if valid_rates:
-                chosen_rate, chosen_volume = min(valid_rates, key=lambda x: abs(x[0] - row['base_rate']))
+                chosen_rate, chosen_volume = min(valid_rates, key=lambda x: abs(x[0] - row['base_rate_eur']))
             else:
-                chosen_rate = row['base_rate']
-                below_base_rate = [(rate, vol) for rate, vol in zip(original_rates, volumes) if rate < row['base_rate']]
+                chosen_rate = row['base_rate_eur']
+                below_base_rate = [(rate, vol) for rate, vol in zip(original_rates, volumes) if rate < row['base_rate_eur']]
                 if below_base_rate:
-                    closest_below_rate, closest_below_volume = min(below_base_rate, key=lambda x: abs(x[0] - row['base_rate']))
-                    if abs(closest_below_rate - row['base_rate']) / row['base_rate'] <= 0.2:
+                    closest_below_rate, closest_below_volume = min(below_base_rate, key=lambda x: abs(x[0] - row['base_rate_eur']))
+                    if abs(closest_below_rate - row['base_rate_eur']) / row['base_rate_eur'] <= 0.2:
                         chosen_volume = closest_below_volume
                     else:
-                        chosen_volume = row['estimated_monthly_storage_fee'] / row['base_rate']
+                        chosen_volume = row['estimated_monthly_storage_fee_eur'] / row['base_rate_eur']
                 else:
-                    chosen_volume = row['estimated_monthly_storage_fee'] / row['base_rate']
+                    chosen_volume = row['estimated_monthly_storage_fee_eur'] / row['base_rate_eur']
         else:
-            # Nuova logica per base_rate < 5
-            # Estrai il mese dal formato YYYY-MM
+            # Logica per base_rate < 5
             month = int(row['month_of_charge'].split('-')[1])
             
             if 1 <= month <= 9:
-                # Cerca la tariffa più bassa tra 25 e 35
                 valid_rates = [(rate, vol) for rate, vol in zip(original_rates, volumes) if 25 <= rate <= 35]
                 default_rate = 27.54
             else:  # month between 10 and 12
-                # Cerca la tariffa più bassa tra 40 e 50
                 valid_rates = [(rate, vol) for rate, vol in zip(original_rates, volumes) if 40 <= rate <= 50]
                 default_rate = 42.37
             
             if valid_rates:
-                # Prendi la tariffa più bassa nel range valido
                 chosen_rate, chosen_volume = min(valid_rates, key=lambda x: x[0])
             else:
-                # Usa la tariffa di default
                 chosen_rate = default_rate
-                chosen_volume = row['estimated_monthly_storage_fee'] / chosen_rate
+                chosen_volume = row['estimated_monthly_storage_fee_eur'] / chosen_rate
 
         logger.debug(f"ASIN {row['asin']}: Tariffa Amazon scelta: {chosen_rate}, Volume totale scelto: {chosen_volume}")
         return chosen_volume, chosen_rate
 
-    df[['total_product_volume', 'amazon_rate']] = df.apply(lambda row: pd.Series(calculate_total_volume_and_rate(row)), axis=1)
-
-    # Conversione della tariffa in euro
-    def convert_currency(value, currency):
-        # Implementa la logica di conversione in base alla valuta
-        return value  # Placeholder
-
-    df['amazon_rate_euro'] = df.apply(lambda row: convert_currency(row['amazon_rate'], row['currency']), axis=1)
+    df_aggregated[['total_product_volume', 'amazon_rate']] = df_aggregated.apply(
+        lambda row: pd.Series(calculate_total_volume_and_rate(row)), axis=1
+    )
 
     # Calcola il costo di stoccaggio del prep center
-    df['our_monthly_rate'] = 12
-    df['our_monthly_cost'] = df['our_monthly_rate'] * df['total_product_volume']
-    for index, row in df.iterrows():
-        logger.debug(f"ASIN {row['asin']}: Costo mensile prep center calcolato: {row['our_monthly_cost']}")
+    df_aggregated['our_monthly_rate'] = 12
+    df_aggregated['our_monthly_cost'] = df_aggregated['our_monthly_rate'] * df_aggregated['total_product_volume']
 
     # Mappatura finale delle colonne per l'output
     column_mapping = {
         'product_name': 'Product',
-        'country_code': 'Market',
-        'product_volume': 'Product volume',
+        'item_volume_m3': 'Product volume',
         'total_product_volume': 'Total volume',
-        'estimated_monthly_storage_fee': 'Amazon monthly cost',
+        'estimated_monthly_storage_fee_eur': 'Amazon monthly cost',
         'amazon_rate': 'Amazon monthly rate',
         'our_monthly_rate': 'Our monthly rate',
         'our_monthly_cost': 'Our monthly cost'
     }
 
     # Rinomina e ordina i dati per l'output
-    filtered_df = df[list(column_mapping.keys())].rename(columns=column_mapping)
+    filtered_df = df_aggregated[list(column_mapping.keys())].rename(columns=column_mapping)
     filtered_df = filtered_df.sort_values('Amazon monthly rate', ascending=False)
 
     logger.debug("Dati del report elaborati con successo.")
