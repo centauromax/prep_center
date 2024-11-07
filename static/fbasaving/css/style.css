@@ -154,6 +154,7 @@ section {
 
 .dataTables_wrapper .dataTables_scroll {
     clear: both;
+    margin-bottom: 15px;
 }
 
 .dataTables_scrollBody {

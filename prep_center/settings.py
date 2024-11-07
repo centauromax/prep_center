@@ -156,7 +156,8 @@ LOCALE_PATHS = [
 ]
 
 # Definisci il percorso per i log
-LOG_DIR = os.path.join(BASE_DIR, 'logs')
+#LOG_DIR = os.path.join(BASE_DIR, 'logs')
+LOG_DIR = os.path.join('/var/www/html/', 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR, exist_ok=True)
 
@@ -174,25 +175,31 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'file': {
+        'django_file': {  # Handler specifico per Django
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOG_DIR, 'debug.log'),
+            'filename': os.path.join(LOG_DIR, 'django.log'),
+            'formatter': 'verbose',
+            'mode': 'a',
+        },
+        'fbasaving_file': {  # Handler specifico per fbasaving
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'fbasaving.log'),
             'formatter': 'verbose',
             'mode': 'a',
         }
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console'],
         'level': 'DEBUG',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'django_file'],
             'level': 'INFO',
             'propagate': False,
         },
-        'fbasaving': {
-            'handlers': ['console', 'file'],
+        'fbasaving': {  # Logger specifico per fbasaving
+            'handlers': ['console', 'fbasaving_file'],
             'level': 'DEBUG',
             'propagate': False,
         },
