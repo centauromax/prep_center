@@ -105,6 +105,12 @@ $('#uploadForm').on('submit', function (e) {
             $('.results-section').show();
             $('.datatable-section').show();
 
+            // Scroll semplice di 200px verso l'alto
+            window.scrollTo({
+                top: window.scrollY + 700,
+                behavior: 'smooth'
+            });
+
         },
         error: function (xhr, status, error) {
             console.error('=== AJAX Error ===', {
@@ -129,13 +135,13 @@ function initializeDataTable() {
     let headerHtml = `
         <thead>
             <tr>
-                <th class="text-start">Prodotto</th>
-                <th class="text-end">Volume prodotto</th>
-                <th class="text-end">Volume totale</th>
-                <th class="text-end">Costo mensile Amazon</th>
-                <th class="text-end">Tariffa mensile Amazon</th>
-                <th class="text-end">Nostra tariffa mensile</th>
-                <th class="text-end">Nostro costo mensile</th>
+                <th class="text-start">${translations.product}</th>
+                <th class="text-end">${translations.productVolume}</th>
+                <th class="text-end">${translations.totalVolume}</th>
+                <th class="text-end">${translations.amazonMonthlyCost}</th>
+                <th class="text-end">${translations.amazonMonthlyRate}</th>
+                <th class="text-end">${translations.ourMonthlyRate}</th>
+                <th class="text-end">${translations.ourMonthlyCost}</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -147,7 +153,7 @@ function initializeDataTable() {
         serverSide: true,
         processing: true,
         ajax: {
-            url: '/fbasaving/data/',
+            url: dataTablesUrl,  // Usa la variabile definita nel template
             type: 'POST',
             dataType: 'json',
             data: function (d) {
@@ -281,4 +287,12 @@ function getCSRFToken() {
         }
     }
     return csrfToken;
+}
+
+// Funzione per ottenere le traduzioni
+function gettext(text) {
+    if (typeof django !== 'undefined' && django.gettext) {
+        return django.gettext(text);
+    }
+    return text;
 }

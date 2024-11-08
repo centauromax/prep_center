@@ -9,17 +9,14 @@
     <title>{% trans "Analisi Dati" %}</title>
 
     <!-- CSS -->
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- DataTables CSS per Bootstrap 5 -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
-
-    <!-- DataTables FixedHeader CSS per Bootstrap 5 -->
     <link rel="stylesheet" href="https://cdn.datatables.net/fixedheader/3.3.3/css/fixedHeader.bootstrap5.min.css">
-
-    <!-- Il tuo CSS personalizzato -->
     <link rel="stylesheet" href="{% static 'fbasaving/css/style.css' %}?v=4">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.2.7/css/fileinput.min.css" rel="stylesheet">
+
+    <script type="text/javascript" src="{% url 'fbasaving:js_catalog' %}"></script>
+
 </head>
 
 <body>
@@ -31,17 +28,12 @@
                 <span class="brand-text">FbaPrepCenterItaly</span>
             </a>
             <div class="language-switcher">
-                <form action="{% url 'set_language' %}" method="post" class="language-form">
+                <form action="{% url 'set_language' %}" method="post">
                     {% csrf_token %}
-                    <input name="next" type="hidden" value="{{ request.path }}">
-                    <select name="language" onchange="this.form.submit()" class="form-select form-select-sm">
-                        {% get_current_language as LANGUAGE_CODE %}
-                        {% get_available_languages as LANGUAGES %}
-                        {% for lang_code, lang_name in LANGUAGES %}
-                        <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>
-                            {{ lang_name }}
-                        </option>
-                        {% endfor %}
+                    <input name="next" type="hidden" value="/fbasaving/">
+                    <select name="language" onchange="this.form.submit()">
+                        <option value="it" {% if LANGUAGE_CODE == 'it' %}selected{% endif %}>Italiano</option>
+                        <option value="en" {% if LANGUAGE_CODE == 'en' %}selected{% endif %}>English</option>
                     </select>
                 </form>
             </div>
@@ -53,23 +45,13 @@
         <section class="intro-section">
             <h1>{% trans "Confronto stoccaggio Amazon vs Prep Center" %}</h1>
             <div class="info-box">
-                <p><b>Questa pagina ti aiuta a stimare il risparmio che potresti ottenere ottimizzando le spedizioni e
-                        lo stoccaggio della merce.</b></p>
-
-                <p>Lo stoccaggio su Amazon ha <b>costi significativi</b>, spesso non del tutto percepiti, che possono
-                    ridurre sensibilmente i margini di guadagno. Le tariffe base mensili sono elevate, per esempio per i
-                    prodotti standard sono di <b>27,54 €/m³</b> da gennaio a settembre e <b>42,37 €/m³</b> da ottobre a
-                    dicembre. Questi costi possono aumentare, anche in modo consistente, a causa di sovrapprezzi,
-                    calcolati in base all’indice di utilizzo dello stoccaggio, arrivando in casi estremi a oltre <b>90
-                        €/m³</b> (per maggiori dettagli, si rimanda alla pagina ufficiale delle Tariffe mensili di
-                    stoccaggio di Amazon).</p>
-
-                <p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta
-                    caricare il report "Tariffe mensili di stoccaggio" (.txt) scaricabile da Seller Central. Il sistema
-                    confronterà i costi di Amazon con quelli di FbaPrepCenterItaly, dove la tariffa mensile è fissa a
-                    <b>12 €/m³</b> tutto l’anno. Per ottenere un confronto completo, consigliamo di caricare almeno un
-                    report relativo al periodo gennaio-settembre e uno relativo al periodo ottobre-dicembre.
-                </p>
+                {% blocktrans trimmed with amazon_fees_link="https://sellercentral.amazon.it/help/hub/reference/200612770" storage_report_link="https://sellercentral.amazon.it/reportcentral/STORAGE_FEE_CHARGES/1" %}
+                <p><b>Questa pagina ti aiuta a stimare il risparmio che potresti ottenere ottimizzando le spedizioni e lo stoccaggio della merce.</b></p>
+    
+                <p>Lo stoccaggio su Amazon ha <b>costi significativi</b>, spesso non del tutto percepiti, che possono ridurre sensibilmente i margini di guadagno. Le tariffe base mensili sono elevate; per esempio, per i prodotti standard sono di <b>27,54 €/m³</b> da gennaio a settembre e <b>42,37 €/m³</b> da ottobre a dicembre. Questi costi possono aumentare anche in modo consistente, a causa di sovrapprezzi, calcolati in base all'indice di utilizzo dello stoccaggio, arrivando in casi estremi a oltre <b>90 €/m³</b> (per maggiori dettagli, si rimanda alla pagina ufficiale delle <a href="{{ amazon_fees_link }}" target="_blank">Tariffe mensili di stoccaggio di Amazon</a>).</p>
+    
+                <p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta caricare il report <a href="{{ storage_report_link }}" target="_blank">Tariffe mensili di stoccaggio</a> (.txt) scaricabile da Seller Central. Il sistema confronterà i costi di Amazon con quelli di FbaPrepCenterItaly, dove la tariffa mensile è fissa a <b>12 €/m³</b> tutto l'anno. Per ottenere un confronto completo, consigliamo di caricare almeno un report relativo al periodo gennaio-settembre e uno relativo al periodo ottobre-dicembre.</p>
+                {% endblocktrans %}
             </div>
         </section>
 
@@ -79,10 +61,14 @@
                 <div class="card-body">
                     <h4>{% trans "Carica il tuo Report" %}</h4>
                     <div class="upload-area">
-                        <form id="uploadForm" method="post" enctype="multipart/form-data" action="{% url 'upload_file' %}">
+                        <form id="uploadForm" method="post" enctype="multipart/form-data" action="{% url 'fbasaving:upload_file' %}">
                             {% csrf_token %}
-                            <div class="mb-3">
-                                <input type="file" class="form-control" id="fileInput" name="file" accept=".txt">
+                            <div class="mb-4">
+                                <input type="file" 
+                                       class="form-control" 
+                                       id="fileInput" 
+                                       name="file" 
+                                       accept=".txt">
                             </div>
                             <button type="submit" class="btn btn-primary">{% trans "Analizza Report" %}</button>
                         </form>
@@ -99,73 +85,60 @@
                     <table class="table table-bordered mx-auto" style="max-width: 800px;">
                         <thead>
                             <tr>
-                                <th class="text-nowrap">Metrica</th>
-                                <th class="text-center text-nowrap">Valore</th>
-                                <th class="text-nowrap">Descrizione</th>
+                                <th class="text-nowrap">{% trans "Metrica" %}</th>
+                                <th class="text-center text-nowrap">{% trans "Valore" %}</th>
+                                <th class="text-nowrap">{% trans "Descrizione" %}</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td class="text-nowrap">Costo totale Amazon</td>
+                                <td class="text-nowrap">{% trans "Costo totale Amazon" %}</td>
                                 <td class="text-center text-nowrap"><span id="totalAmazonCost"></span></td>
-                                <td class="text-nowrap">Costo totale di stoccaggio pagato ad Amazon</td>
+                                <td class="text-nowrap">{% trans "Costo totale di stoccaggio pagato ad Amazon" %}</td>
                             </tr>
                             <tr>
-                                <td class="text-nowrap">Costo totale Prep Center</td>
+                                <td class="text-nowrap">{% trans "Costo totale Prep Center" %}</td>
                                 <td class="text-center text-nowrap"><span id="totalPrepCenterCost"></span></td>
-                                <td class="text-nowrap">Il costo di stoccaggio se la stessa merce fosse stata
-                                    immagazzinata nel Prep Center</td>
+                                <td class="text-nowrap">{% trans "Il costo di stoccaggio se la stessa merce fosse stata immagazzinata nel Prep Center" %}</td>
                             </tr>
                             <tr>
-                                <td class="text-nowrap">Risparmio</td>
+                                <td class="text-nowrap">{% trans "Risparmio" %}</td>
                                 <td class="text-center text-nowrap"><span id="saving"></span></td>
-                                <td class="text-nowrap">Risparmio in euro dello stoccaggio su Prep Center rispetto a
-                                    quello su Amazon</td>
+                                <td class="text-nowrap">{% trans "Risparmio in euro dello stoccaggio su Prep Center rispetto a quello su Amazon" %}</td>
                             </tr>
                             <tr>
-                                <td class="text-nowrap">Percentuale di risparmio</td>
+                                <td class="text-nowrap">{% trans "Percentuale di risparmio" %}</td>
                                 <td class="text-center text-nowrap"><span id="savingPercentage"></span>%</td>
-                                <td class="text-nowrap">Risparmio percentuale</td>
+                                <td class="text-nowrap">{% trans "Risparmio percentuale" %}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Primo Box Informativo -->
+            <!-- Box Informativi -->
             <div class="single-info-box">
-                <p><b>Mantenere una parte del tuo inventario presso un Prep Center come FbaPrepCenterItaly offre vantaggi concreti
-                        sia in termini di risparmio che di efficienza operativa.</b></p>
-                <p>Ottimizzando l’uso del magazzino Amazon, riduci i costi elevati di stoccaggio a lungo termine e diminuisci il
-                    rischio di penalità legate a giacenze prolungate.</p>
+                {% blocktrans trimmed %}
+                <p><b>Mantenere una parte del tuo inventario presso un Prep Center come FbaPrepCenterItaly offre vantaggi concreti sia in termini di risparmio che di efficienza operativa.</b></p>
+                <p>Ottimizzando l'uso del magazzino Amazon, riduci i costi elevati di stoccaggio a lungo termine e diminuisci il rischio di penalità legate a giacenze prolungate.</p>
                 <p><b>Amazon premia l'uso efficiente del proprio magazzino, migliorando la visibilità dei tuoi prodotti.</b></p>
-                <p>L’algoritmo di Amazon è progettato per favorire i venditori che mantengono un flusso costante di merce,
-                    rifornendo i prodotti in base alla domanda, senza eccedenze. In questo modo, ottimizzare le tue giacenze può
-                    anche contribuire a un posizionamento migliore nelle ricerche, aumentando le probabilità di vendita.</p>
+                <p>L'algoritmo di Amazon è progettato per favorire i venditori che mantengono un flusso costante di merce, rifornendo i prodotti in base alla domanda, senza eccedenze. In questo modo, ottimizzare le tue giacenze può anche contribuire a un posizionamento migliore nelle ricerche, aumentando le probabilità di vendita.</p>
+                {% endblocktrans %}
             </div>
 
-            <!-- Secondo Box Informativo -->
             <div class="single-info-box second-info-box">
+                {% blocktrans trimmed %}
                 <p><b>I Vantaggi di Affidarsi a un Prep Center Professionale Specializzato in Amazon</b></p>
-                <p>Scegliere un Prep Center specializzato in Amazon significa avere un partner dedicato per gestire ogni fase della
-                    logistica, così da poter liberare tempo ed energie e concentrarti sul vero obiettivo: far crescere il tuo
-                    business, migliorare la gestione dei costi e rafforzare la tua presenza su Amazon.</p>
+                <p>Scegliere un Prep Center specializzato in Amazon significa avere un partner dedicato per gestire ogni fase della logistica, così da poter liberare tempo ed energie e concentrarti sul vero obiettivo: far crescere il tuo business, migliorare la gestione dei costi e rafforzare la tua presenza su Amazon.</p>
                 <p><b>Ecco gli altri vantaggi:</b></p>
                 <ul class="benefits-list">
-                    <li><b>Rispetto degli Standard di Amazon:</b> La preparazione dei prodotti è conforme ai rigidi standard Amazon
-                        (FNSKU, imballaggi, etichettatura e altro), evitando rifiuti o costi aggiuntivi dovuti a errori di
-                        conformità.</li>
-                    <li><b>Rapidità e Precisione:</b> Processiamo velocemente ordini di ogni dimensione e ci assicuriamo che i
-                        prodotti siano sempre pronti per Amazon senza ritardi, anche in periodi di picco.</li>
-                    <li><b>Maggiori Sconti dai Fornitori:</b> Con la possibilità di gestire ordini più grandi, puoi ottenere sconti
-                        migliori dai fornitori, riducendo i costi per unità e aumentando i margini di profitto.</li>
-                    <li><b>Gestione Scalabile:</b> Adattiamo le risorse e il personale ai tuoi bisogni, permettendoti di crescere
-                        senza preoccupazioni per la logistica, con la sicurezza di avere supporto anche in caso di rapida
-                        espansione.</li>
-                    <li><b>Riduzione dei Problemi Logistici:</b> Ci occupiamo di tutta la logistica operativa, dal ricevimento alla
-                        spedizione verso Amazon, liberandoti dagli imprevisti e consentendoti di focalizzarti sugli obiettivi
-                        principali del tuo business.</li>
+                    <li><b>Rispetto degli Standard di Amazon:</b> La preparazione dei prodotti è conforme ai rigidi standard Amazon (FNSKU, imballaggi, etichettatura e altro), evitando rifiuti o costi aggiuntivi dovuti a errori di conformità.</li>
+                    <li><b>Rapidità e Precisione:</b> Processiamo velocemente ordini di ogni dimensione e ci assicuriamo che i prodotti siano sempre pronti per Amazon senza ritardi, anche in periodi di picco.</li>
+                    <li><b>Maggiori Sconti dai Fornitori:</b> Con la possibilità di gestire ordini più grandi, puoi ottenere sconti migliori dai fornitori, riducendo i costi per unità e aumentando i margini di profitto.</li>
+                    <li><b>Gestione Scalabile:</b> Adattiamo le risorse e il personale ai tuoi bisogni, permettendoti di crescere senza preoccupazioni per la logistica, con la sicurezza di avere supporto anche in caso di rapida espansione.</li>
+                    <li><b>Riduzione dei Problemi Logistici:</b> Ci occupiamo di tutta la logistica operativa, dal ricevimento alla spedizione verso Amazon, liberandoti dagli imprevisti e consentendoti di focalizzarti sugli obiettivi principali del tuo business.</li>
                 </ul>
+                {% endblocktrans %}
             </div>
         </section>
 
@@ -173,9 +146,9 @@
         <section class="datatable-section" style="display: none;">
             <div class="card">
                 <div class="card-body">
-                    <h2>Dettaglio dei costi</h2>
+                    <h2>{% trans "Dettaglio dei costi" %}</h2>
                     <p style="font-size: 1.2rem; color: #666; margin-bottom: 1rem;">
-                        Tutti i dati sono stati aggregati per prodotto per tutti i magazzini e marketplace.
+                        {% trans "Tutti i dati sono stati aggregati per prodotto per tutti i magazzini e marketplace." %}
                     </p>
                     <table id="resultsTable" class="table table-striped">
                         <thead>
@@ -199,20 +172,14 @@
     </div>
 
     <!-- Scripts -->
-    <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-
-    <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-
-    <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
-
-    <!-- DataTables Bootstrap 5 JS -->
     <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
-
-    <!-- DataTables FixedHeader JS per Bootstrap 5 -->
     <script src="https://cdn.datatables.net/fixedheader/3.3.3/js/dataTables.fixedHeader.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.2.7/js/fileinput.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-fileinput/5.2.7/js/locales/it.js"></script> <!-- Aggiungi il file di traduzione -->
+
 
     <!-- Configurazione CSRF per AJAX -->
     <script>
@@ -243,8 +210,40 @@
         });
     </script>
 
-    <!-- Il tuo JavaScript personalizzato -->
+    <!-- Aggiungi questo prima degli altri script -->
+    <script>
+        const dataTablesUrl = "{% url 'fbasaving:data_tables' %}";
+        const uploadFileUrl = "{% url 'fbasaving:upload_file' %}";
+    </script>
+
+    <!-- Definizione delle traduzioni -->
+    <script>
+        const translations = {
+            product: "{% trans 'Prodotto' %}",
+            productVolume: "{% trans 'Volume prodotto' %}",
+            totalVolume: "{% trans 'Volume totale' %}",
+            amazonMonthlyCost: "{% trans 'Costo mensile Amazon' %}",
+            amazonMonthlyRate: "{% trans 'Tariffa mensile Amazon' %}",
+            ourMonthlyRate: "{% trans 'Nostra tariffa mensile' %}",
+            ourMonthlyCost: "{% trans 'Nostro costo mensile' %}"
+        };
+    </script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            $("#fileInput").fileinput({
+                language: "{{ LANGUAGE_CODE }}",  // Usa il codice lingua corrente
+                showUpload: false,
+                browseLabel: "{% trans 'Seleziona File' %}",
+                removeLabel: "{% trans 'Elimina' %}",
+                previewFileType: "any"
+            });
+        });
+    </script>
+
+<!-- Il tuo JavaScript personalizzato -->
     <script src="{% static 'fbasaving/js/main.js' %}"></script>
+
 </body>
 
 </html>

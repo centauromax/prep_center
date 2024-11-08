@@ -4,12 +4,16 @@ from django.views.decorators.csrf import csrf_exempt
 from .file_processing import file_processing
 import logging
 import json
+from django.utils.translation import get_language
 
 logger = logging.getLogger(__name__)
 logger.info("Inizio vista")
 
 def home(request):
-    return render(request, 'fbasaving/fbasaving.html')
+    context = {
+        'LANGUAGE_CODE': get_language(),
+    }
+    return render(request, 'fbasaving/fbasaving.html', context)
 
 @csrf_exempt
 def upload_file_view(request):

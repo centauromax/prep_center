@@ -45,9 +45,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -140,7 +140,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Pagina di login
 LOGIN_URL = 'login'
-LOGIN_REDIRECT_URL = '/return_management/'  # Dove reindirizzare dopo il login
 
 # Definizione delle lingue disponibili
 LANGUAGES = [
@@ -205,3 +204,12 @@ LOGGING = {
         },
     },
 }
+
+# Aggiungi questa funzione per gestire il reindirizzamento dinamicamente
+def get_redirect_url(request):
+    current_app = request.path.split('/')[1]  # Prende il nome dell'app corrente dall'URL
+    return f'/{current_app}/'
+
+# Oppure, se preferisci mantenere l'utente nella stessa pagina
+LANGUAGE_COOKIE_NAME = 'django_language'
+LANGUAGE_COOKIE_PATH = '/'
