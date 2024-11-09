@@ -213,3 +213,16 @@ def get_redirect_url(request):
 # Oppure, se preferisci mantenere l'utente nella stessa pagina
 LANGUAGE_COOKIE_NAME = 'django_language'
 LANGUAGE_COOKIE_PATH = '/'
+
+# Configurazione Email
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'mail.zacideas.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'info@zacideas.com'  # Sostituisci con il tuo indirizzo Gmail
+EMAIL_HOST_PASSWORD = 's9Y#&3In$o'   # Sostituisci con la password per le app
+
+# Configurazioni aggiuntive per le email
+DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'  # Sostituisci con il tuo indirizzo
+CONTACT_EMAIL = 'adrzan.mbox@yahoo.it'  # Sostituisci con l'indirizzo che riceverà i messaggi
+

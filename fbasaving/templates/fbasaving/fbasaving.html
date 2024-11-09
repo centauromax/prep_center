@@ -41,6 +41,18 @@
     </nav>
 
     <div class="container main-content">
+        <!-- Sistema messaggi -->
+        {% if messages %}
+        <div class="messages-container">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
         <!-- Sezione Introduzione -->
         <section class="intro-section">
             <h1>{% trans "Confronto stoccaggio Amazon vs Prep Center" %}</h1>
@@ -50,10 +62,15 @@
     
                 <p>Lo stoccaggio su Amazon ha <b>costi significativi</b>, spesso non del tutto percepiti, che possono ridurre sensibilmente i margini di guadagno. Le tariffe base mensili sono elevate; per esempio, per i prodotti standard sono di <b>27,54 €/m³</b> da gennaio a settembre e <b>42,37 €/m³</b> da ottobre a dicembre. Questi costi possono aumentare anche in modo consistente, a causa di sovrapprezzi, calcolati in base all'indice di utilizzo dello stoccaggio, arrivando in casi estremi a oltre <b>90 €/m³</b> (per maggiori dettagli, si rimanda alla pagina ufficiale delle <a href="{{ amazon_fees_link }}" target="_blank">Tariffe mensili di stoccaggio di Amazon</a>).</p>
     
-                <p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta caricare il report <a href="{{ storage_report_link }}" target="_blank">Tariffe mensili di stoccaggio</a> (.txt) scaricabile da Seller Central. Il sistema confronterà i costi di Amazon con quelli di FbaPrepCenterItaly, dove la tariffa mensile è fissa a <b>12 €/m³</b> tutto l'anno. Per ottenere un confronto completo, consigliamo di caricare almeno un report relativo al periodo gennaio-settembre e uno relativo al periodo ottobre-dicembre.</p>
+                <p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta caricare il report <a href="{{ storage_report_link }}" target="_blank">Tariffe mensili di stoccaggio</a> (in formato .txt) scaricabile da Seller Central. Il sistema confronterà i costi di Amazon con quelli di FbaPrepCenterItaly, dove la tariffa mensile è fissa a <b>12 €/m³</b> tutto l'anno. Per ottenere un confronto completo, consigliamo di caricare almeno un report relativo al periodo gennaio-settembre e uno relativo al periodo ottobre-dicembre.</p>
                 {% endblocktrans %}
             </div>
         </section>
+
+        <!-- Nuovo box sulla privacy -->
+            <div class="single-info-box privacy-box">
+                <p><b>{% trans "La tua privacy è al sicuro: il report che caricherai non contiene alcun dato riconducibile alla tua identità." %}</b></p>
+            </div>
 
         <!-- Sezione Caricamento File -->
         <section class="upload-section">
@@ -108,7 +125,7 @@
                             </tr>
                             <tr>
                                 <td class="text-nowrap">{% trans "Percentuale di risparmio" %}</td>
-                                <td class="text-center text-nowrap"><span id="savingPercentage"></span>%</td>
+                                <td class="text-center text-nowrap percentage-saving"><span id="savingPercentage"></span>%</td>
                                 <td class="text-nowrap">{% trans "Risparmio percentuale" %}</td>
                             </tr>
                         </tbody>
@@ -169,6 +186,48 @@
                 </div>
             </div>
         </section>
+
+                <!-- Aggiungi questo dopo l'ultimo box -->
+        <div class="single-info-box" style="display: none;">
+            <h4 class="text-center mb-2">{% trans "Desideri maggiori informazioni? Contattaci senza impegno." %}</h4>
+            <h5 class="text-center mb-4">{% trans "Inserisci il tuo nome e numero di telefono e ti richiameremo al più presto." %}</h5>
+            
+            <form id="contactForm" class="contact-form" method="post" action="{% url 'fbasaving:contact' %}">
+                {% csrf_token %}
+                <div class="row justify-content-center">
+                    <div class="col-md-10">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="name" class="form-label">{% trans "Nome" %}</label>
+                                    <input type="text" class="form-control" id="name" name="name" required>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">{% trans "Numero di telefono" %}</label>
+                                    <input type="tel" class="form-control" id="phone" name="phone" required>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">{% trans "Note" %} ({% trans "opzionale" %})</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="3" style="resize: vertical;"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            <button type="submit" class="btn btn-primary">{% trans "Invia" %}</button>
+                        </div>
+                        <div class="privacy-notice mt-3">
+                            <small class="text-muted">
+                                {% trans "I tuoi dati personali saranno trattati nel rispetto della normativa sulla protezione dei dati personali (Regolamento UE 2016/679 - GDPR). I dati forniti verranno utilizzati esclusivamente per rispondere alla tua richiesta di contatto e non saranno condivisi con terze parti." %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Scripts -->
@@ -244,6 +303,16 @@
 <!-- Il tuo JavaScript personalizzato -->
     <script src="{% static 'fbasaving/js/main.js' %}"></script>
 
+    <!-- Aggiungi questo prima della chiusura del body -->
+    <footer class="footer mt-5 mb-4">
+        <div class="container">
+            <div class="text-center">
+                <span>ZACIDEAS SRL - {% trans "P.IVA" %}: IT04290810276 - </span>
+                <span>{% trans "Tel." %} +39 347 3749.266 - </span>
+                <span>Copyright © 2024</span>
+            </div>
+        </div>
+    </footer>
 </body>
 
 </html>

@@ -1,13 +1,18 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
 from .file_processing import file_processing
 import logging
 import json
-from django.utils.translation import get_language
+from django.utils.translation import get_language, gettext as _
+from django.core.mail import send_mail
+from django.contrib import messages
+import os
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
-logger.info("Inizio vista")
+# Configura il logger
+logger = logging.getLogger('fbasaving')
 
 def home(request):
     context = {
@@ -91,3 +96,59 @@ def data_tables_view(request):
             return JsonResponse({'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+def contact(request):
+    if request.method == 'POST':
+        try:
+            name = request.POST.get('name')
+            phone = request.POST.get('phone')
+            notes = request.POST.get('notes', '')
+            current_language = request.LANGUAGE_CODE
+            
+            logger.debug(f"Ricevuta richiesta POST con name={name}, phone={phone}, notes={notes}, language={current_language}")
+            
+            if not name or not phone:
+                logger.warning("Campi obbligatori mancanti nel form")
+                messages.error(request, _('Per favore compila tutti i campi obbligatori.'))
+                return redirect('fbasaving:home')
+
+            # Prepara il contenuto dell'email
+            message = f'''Nome: {name}
+Telefono: {phone}
+Lingua: {current_language.upper()}\n'''
+
+            if notes:
+                message += f'Note: {notes}\n'
+            
+            # Salva il contenuto in un file
+            backup_dir = '/var/www/html/logs/contatti/da_rinviare'
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M')
+            backup_file = os.path.join(backup_dir, f'{timestamp}.txt')
+            
+            with open(backup_file, 'w', encoding='utf-8') as f:
+                f.write(message)
+            
+            logger.info(f"Backup dati salvato in: {backup_file}")
+            
+            # Invia l'email
+            try:
+                send_mail(
+                    subject=f'FBA Saving: Nuova richiesta di contatto da {name}',
+                    message=message,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[settings.CONTACT_EMAIL],
+                    fail_silently=False
+                )
+                logger.info("Email inviata con successo")
+                messages.success(request, _('Grazie! Ti contatteremo al più presto.'))
+            except Exception as e:
+                logger.error(f"Errore nell'invio dell'email: {str(e)}", exc_info=True)
+                messages.error(request, _('Si è verificato un errore nell\'invio dell\'email. Per favore riprova più tardi.'))
+            
+        except Exception as e:
+            logger.error(f"Errore generale: {str(e)}", exc_info=True)
+            messages.error(request, _('Si è verificato un errore. Per favore riprova più tardi.'))
+        
+    return redirect('fbasaving:home')

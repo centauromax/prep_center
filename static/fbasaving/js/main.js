@@ -104,6 +104,7 @@ $('#uploadForm').on('submit', function (e) {
             // Mostra le sezioni dei risultati e della tabella
             $('.results-section').show();
             $('.datatable-section').show();
+            $('.single-info-box').show();  // Mostra il box del form di contatto
 
             // Scroll semplice di 200px verso l'alto
             window.scrollTo({
@@ -296,3 +297,10 @@ function gettext(text) {
     }
     return text;
 }
+
+// Aggiungi questa funzione all'interno del document.ready
+$(document).ready(function() {
+    // Auto-hide alerts after 5 seconds
+    $('.alert').delay(5000).fadeOut(500);
+});
+

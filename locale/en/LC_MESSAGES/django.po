@@ -32,7 +32,7 @@ msgid ""
 "Le tariffe base mensili sono elevate; per esempio, per i prodotti standard sono di <b>27,54 €/m³</b> da gennaio a settembre e <b>42,37 €/m³</b> da ottobre a dicembre. "
 "Questi costi possono aumentare anche in modo consistente, a causa di sovrapprezzi, calcolati in base all'indice di utilizzo dello stoccaggio, arrivando in casi estremi a oltre <b>90 €/m³</b> "
 "(per maggiori dettagli, si rimanda alla pagina ufficiale delle <a href=\"%(amazon_fees_link)s\" target=\"_blank\">Tariffe mensili di stoccaggio di Amazon</a>).</p> "
-"<p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta caricare il report <a href=\"%(storage_report_link)s\" target=\"_blank\">Tariffe mensili di stoccaggio</a> (.txt) "
+"<p>Per un confronto realistico, basato su dati concreti di quanto pagato effettivamente ad Amazon, basta caricare il report <a href=\"%(storage_report_link)s\" target=\"_blank\">Tariffe mensili di stoccaggio</a> (in formato .txt) "
 "scaricabile da Seller Central. Il sistema confronterà i costi di Amazon con quelli di FbaPrepCenterItaly, dove la tariffa mensile è fissa a <b>12 €/m³</b> tutto l'anno. "
 "Per ottenere un confronto completo, consigliamo di caricare almeno un report relativo al periodo gennaio-settembre e uno relativo al periodo ottobre-dicembre.</p>"
 
@@ -40,8 +40,11 @@ msgstr ""
 "<p><b>This page helps you estimate the savings you could achieve by optimizing shipping and storage of goods.</b></p> "
 "<p>Amazon storage incurs <b>significant costs</b>, often not fully perceived, which can significantly reduce profit margins. Monthly base fees are high; for example, for standard products, they are <b>€27.54/m³</b> from January to September and <b>€42.37/m³</b> from October to December. "
 "These costs can increase significantly due to surcharges, calculated based on the storage usage index, and in extreme cases can exceed <b>€90/m³</b> (for more details, refer to <a href=\"%(amazon_fees_link)s\" target=\"_blank\">Amazon's official Monthly Storage Fees</a> page).</p> "
-"<p>For a realistic comparison based on actual data paid to Amazon, simply upload the <a href=\"%(storage_report_link)s\" target=\"_blank\">Monthly Storage Fees</a> report (.txt) downloadable from Seller Central. The system will compare Amazon's costs with those of FbaPrepCenterItaly, where the monthly fee is fixed at <b>€12/m³</b> throughout the year. "
+"<p>For a realistic comparison based on actual data paid to Amazon, simply upload the <a href=\"%(storage_report_link)s\" target=\"_blank\">Monthly Storage Fees</a> report (in .txt format) downloadable from Seller Central. The system will compare Amazon's costs with those of FbaPrepCenterItaly, where the monthly fee is fixed at <b>€12/m³</b> throughout the year. "
 "To achieve a complete comparison, we recommend uploading at least one report for the January-September period and one for the October-December period.</p>"
+
+msgid "La tua privacy è al sicuro: il report che caricherai non contiene alcun dato riconducibile alla tua identità."
+msgstr "Your privacy is safe: the report you will upload does not contain any data that can be traced back to your identity."
 
 #: fbasaving/templates/fbasaving/fbasaving.html:78
 msgid "Carica il tuo Report"
@@ -195,3 +198,45 @@ msgstr "Italian"
 msgid "English"
 msgstr "Inglese"
 
+msgid "Per favore compila tutti i campi obbligatori."
+msgstr "Please fill in all required fields."
+
+msgid "Grazie! Ti contatteremo al più presto."
+msgstr "Thank you! We will contact you soon."
+
+msgid "Si è verificato un errore nell'invio dell'email. Per favore riprova più tardi."
+msgstr "An error occurred while sending the email. Please try again later."
+
+msgid "Si è verificato un errore. Per favore riprova più tardi."
+msgstr "An error occurred. Please try again later."
+
+msgid "I tuoi dati personali saranno trattati nel rispetto della normativa sulla protezione dei dati personali (Regolamento UE 2016/679 - GDPR). I dati forniti verranno utilizzati esclusivamente per rispondere alla tua richiesta di contatto e non saranno condivisi con terze parti."
+msgstr "Your personal data will be processed in compliance with data protection regulations (EU Regulation 2016/679 - GDPR). The provided data will be used exclusively to respond to your contact request and will not be shared with third parties."
+
+msgid "Desideri maggiori informazioni? Contattaci senza impegno."
+msgstr "Would you like more information? Contact us without obligation."
+
+msgid "Inserisci il tuo nome e numero di telefono e ti richiameremo al più presto."
+msgstr "Enter your name and phone number and we will call you back as soon as possible."
+
+msgid "Nome"
+msgstr "Name"
+
+msgid "Numero di telefono"
+msgstr "Phone number"
+
+# Form di contatto
+msgid "Note"
+msgstr "Notes"
+
+msgid "opzionale"
+msgstr "optional"
+
+msgid "Invia"
+msgstr "Submit"
+
+msgid "P.IVA"
+msgstr "VAT number"
+
+msgid "Tel."
+msgstr "Phone"
