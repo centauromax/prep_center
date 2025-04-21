@@ -40,8 +40,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Terze parti
+    'rest_framework',
+    # App Prep Center
     'return_management',
     'fbasaving',
+    'prep_management',
 ]
 
 MIDDLEWARE = [
@@ -224,5 +228,5 @@ EMAIL_HOST_PASSWORD = 's9Y#&3In$o'   # Sostituisci con la password per le app
 
 # Configurazioni aggiuntive per le email
 DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'  # Sostituisci con il tuo indirizzo
-CONTACT_EMAIL = 'adrzan.mbox@yahoo.it'  # Sostituisci con l'indirizzo che riceverà i messaggi
+CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'  # Sostituisci con l'indirizzo che riceverà i messaggi
 

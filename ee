@@ -1,0 +1,102 @@
+#!/bin/bash
+# Script per creare automaticamente l'alberatura completa per l'app Django 'prep_management' nel progetto esistente 'prep_center'
+PROJECT_PATH="/var/www/html/webapps/projects/prep_center"
+APP_NAME="prep_management"
+APP_PATH="$PROJECT_PATH/$APP_NAME"
+# Creazione alberatura completa Django
+mkdir -p "$APP_PATH/templates/$APP_NAME"
+mkdir -p "$APP_PATH/static/$APP_NAME/css"
+# __init__.py
+touch "$APP_PATH/__init__.py"
+# admin.py
+cat > "$APP_PATH/admin.py" <<EOL
+from django.contrib import admin
+# Register your models here.
+EOL
+# apps.py
+cat > "$APP_PATH/apps.py" <<EOL
+from django.apps import AppConfig
+class PrepManagementConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = '$APP_NAME'
+EOL
+# models.py
+cat > "$APP_PATH/models.py" <<EOL
+from django.db import models
+# Create your models here.
+EOL
+# serializers.py
+cat > "$APP_PATH/serializers.py" <<EOL
+from rest_framework import serializers
+# Definisci qui i tuoi serializers.
+EOL
+# services.py (Libreria API PrepBusiness)
+cat > "$APP_PATH/services.py" <<EOL
+import requests
+class PrepBusinessAPI:
+    BASE_URL = "https://your-prepbusiness-domain/api"
+    def __init__(self, api_key):
+        self.headers = {"Authorization": f"Bearer {api_key}"}
+    def get_open_inbound_shipments(self):
+        response = requests.get(f"{self.BASE_URL}/inbound-shipments/open", headers=self.headers)
+        return response.json()
+EOL
+# tests.py
+cat > "$APP_PATH/tests.py" <<EOL
+from django.test import TestCase
+# Create your tests here.
+EOL
+# views.py
+cat > "$APP_PATH/views.py" <<EOL
+from django.shortcuts import render
+from django.http import JsonResponse
+from django.conf import settings
+from .services import PrepBusinessAPI
+def index(request):
+    return render(request, '$APP_NAME/index.html')
+def open_shipments(request):
+    api = PrepBusinessAPI(settings.PREP_BUSINESS_API_KEY)
+    data = api.get_open_inbound_shipments()
+    return JsonResponse(data, safe=False)
+EOL
+# urls.py
+cat > "$APP_PATH/urls.py" <<EOL
+from django.urls import path
+from . import views
+urlpatterns = [
+    path('', views.index, name='index'),
+    path('api/open-shipments/', views.open_shipments, name='open_shipments'),
+]
+EOL
+# Template base (index.html)
+cat > "$APP_PATH/templates/$APP_NAME/index.html" <<EOL
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prep Management</title>
+    <link rel="stylesheet" href="{% static '$APP_NAME/css/style.css' %}">
+</head>
+<body>
+    <h1>Prep Management</h1>
+</body>
+</html>
+EOL
+# CSS base
+cat > "$APP_PATH/static/$APP_NAME/css/style.css" <<EOL
+body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+EOL
+# Aggiornamento settings.py
+SETTINGS_FILE="$PROJECT_PATH/prep_center/settings.py"
+if ! grep -q "$APP_NAME" "$SETTINGS_FILE"; then
+    sed -i "/INSTALLED_APPS = \[/a \    '$APP_NAME'," "$SETTINGS_FILE"
+fi
+# Aggiornamento urls.py principale
+MAIN_URLS="$PROJECT_PATH/prep_center/urls.py"
+if ! grep -q "include('$APP_NAME.urls')" "$MAIN_URLS"; then
+    sed -i "/urlpatterns = \[/a \    path('$APP_NAME/', include('$APP_NAME.urls'))," "$MAIN_URLS"
+fi
+# Completato
+echo "Struttura completa dell'app Django '$APP_NAME' creata con successo nel progetto 'prep_center'!"
+

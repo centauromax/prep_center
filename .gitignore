@@ -1,2 +1,32 @@
 logs/
 media/report_stoccaggio/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+
+# Django
+db.sqlite3
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+
+# Environments
+env/
+venv/
+ENV/
+*.env
+
+# VSCode / Cursor
+.vscode/
+.history/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
