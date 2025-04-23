@@ -158,7 +158,6 @@ LOCALE_PATHS = [
 ]
 
 # Definisci il percorso per i log
-#LOG_DIR = os.path.join(BASE_DIR, 'logs')
 LOG_DIR = os.path.join('/var/www/html/', 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -177,14 +176,13 @@ LOGGING = {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
-        'django_file': {  # Handler specifico per Django
+        'django_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'django.log'),
-MEDIA_ROOT = BASE_DIR / 'media'
             'formatter': 'verbose',
             'mode': 'a',
         },
-        'fbasaving_file': {  # Handler specifico per fbasaving
+        'fbasaving_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'fbasaving.log'),
             'formatter': 'verbose',
@@ -201,27 +199,30 @@ MEDIA_ROOT = BASE_DIR / 'media'
             'level': 'INFO',
             'propagate': False,
         },
-        'fbasaving': {  # Logger specifico per fbasaving
+        'fbasaving': {
             'handlers': ['console', 'fbasaving_file'],
             'level': 'DEBUG',
             'propagate': False,
         },
     },
 }
+
 # Aggiungi questa funzione per gestire il reindirizzamento dinamicamente
 def get_redirect_url(request):
     current_app = request.path.split('/')[1]  # Prende il nome dell'app corrente dall'URL
     return f'/{current_app}/'
+
 # Oppure, se preferisci mantenere l'utente nella stessa pagina
 LANGUAGE_COOKIE_NAME = 'django_language'
 LANGUAGE_COOKIE_PATH = '/'
+
 # Configurazione Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'mail.zacideas.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'info@zacideas.com'  # Sostituisci con il tuo indirizzo Gmail
-EMAIL_HOST_PASSWORD = 's9Y#&3In$o'   # Sostituisci con la password per le app
+EMAIL_HOST_USER = 'info@zacideas.com'
+EMAIL_HOST_PASSWORD = 's9Y#&3In$o'
 # Configurazioni aggiuntive per le email
-DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'  # Sostituisci con il tuo indirizzo
-CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'  # Sostituisci con l'indirizzo che riceverà i messaggi
+DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'
+CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
