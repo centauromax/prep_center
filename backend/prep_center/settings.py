@@ -17,7 +17,7 @@ from django.utils.translation import gettext_lazy as _
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
 
 # Quick-start development settings - unsuitable for production
@@ -27,9 +27,9 @@ MEDIA_URL = '/media/'
 SECRET_KEY = 'django-insecure-9v@671$o(2p^ig7sfk%t@lp(f_hj-cl(+m!^772o5ysjd(@mj#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '18.102.30.28'] 
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'fbaprepcenteritaly.pythonanywhere.com'] 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 # Application definition
 
@@ -64,7 +64,7 @@ ROOT_URLCONF = 'prep_center.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -86,10 +86,10 @@ WSGI_APPLICATION = 'prep_center.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'django_db',
-        'USER': 'django_user',
-        'PASSWORD': 'WifiEx.DJ.2024!',
-        'HOST': 'localhost',
+        'NAME': 'fbaprepcenterita$django_db',
+        'USER': 'fbaprepcenterita',
+        'PASSWORD': 'WifiExpress.2023!',
+        'HOST': 'fbaprepcenteritaly.mysql.pythonanywhere-services.com',
         'PORT': '3306',
     }
 }
@@ -129,12 +129,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = '/var/www/html/webapps/projects/prep_center/static/'  # Dove i file verranno raccolti tramite collectstatic
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "return_management", "static"),
-    os.path.join(BASE_DIR, "fbasaving", "static"),
+    BASE_DIR / 'static',
 ]
 
 # Default primary key field type
@@ -155,7 +154,7 @@ USE_I18N = True
 USE_L10N = True
 
 LOCALE_PATHS = [
-    os.path.join(BASE_DIR, 'locale'),
+    BASE_DIR / 'locale',
 ]
 
 # Definisci il percorso per i log
@@ -181,6 +180,7 @@ LOGGING = {
         'django_file': {  # Handler specifico per Django
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'django.log'),
+MEDIA_ROOT = BASE_DIR / 'media'
             'formatter': 'verbose',
             'mode': 'a',
         },
@@ -208,16 +208,13 @@ LOGGING = {
         },
     },
 }
-
 # Aggiungi questa funzione per gestire il reindirizzamento dinamicamente
 def get_redirect_url(request):
     current_app = request.path.split('/')[1]  # Prende il nome dell'app corrente dall'URL
     return f'/{current_app}/'
-
 # Oppure, se preferisci mantenere l'utente nella stessa pagina
 LANGUAGE_COOKIE_NAME = 'django_language'
 LANGUAGE_COOKIE_PATH = '/'
-
 # Configurazione Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'mail.zacideas.com'
@@ -225,8 +222,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'info@zacideas.com'  # Sostituisci con il tuo indirizzo Gmail
 EMAIL_HOST_PASSWORD = 's9Y#&3In$o'   # Sostituisci con la password per le app
-
 # Configurazioni aggiuntive per le email
 DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'  # Sostituisci con il tuo indirizzo
 CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'  # Sostituisci con l'indirizzo che riceverà i messaggi
-

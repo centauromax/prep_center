@@ -1,32 +1,39 @@
+# Logs (root and backend)
 logs/
-media/report_stoccaggio/
-
-# Python
+backend/logs/
+# Media (specific for backend)
+backend/media/
+# Python Bytecode/Eggs (existing, cleaned)
 __pycache__/
 *.py[cod]
 *.egg-info/
 *.egg
-
-# Django
-db.sqlite3
+# Compiled translations (added)
+*.mo
+# C extensions (add if relevant)
+# *.so
+# Django DB & Logs (path adjusted, keep *.log)
+backend/db.sqlite3
 *.log
+# Other Django/Python files (existing)
 *.pot
-*.pyc
 *.pyo
 *.pyd
-
-# Environments
+# Local settings (added standard practice)
+local_settings.py
+# Environments (existing generic + specific path)
 env/
 venv/
 ENV/
 *.env
-
-# VSCode / Cursor
+backend/prep_center/venv/
+# IDE / Editor (existing)
 .vscode/
 .history/
 .idea/
-
-# OS
+# OS (existing)
 .DS_Store
 Thumbs.db
-
+# Build artifacts (added standard practice)
+build/
+dist/
