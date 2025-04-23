@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import os
 from pathlib import Path
+import dj_database_url
 from django.utils.translation import gettext_lazy as _
 
 
@@ -84,14 +85,7 @@ WSGI_APPLICATION = 'prep_center.wsgi.application'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'fbaprepcenterita$django_db',
-        'USER': 'fbaprepcenterita',
-        'PASSWORD': 'WifiExpress.2023!',
-        'HOST': 'fbaprepcenteritaly.mysql.pythonanywhere-services.com',
-        'PORT': '3306',
-    }
+    'default': dj_database_url.config(conn_max_age=600)
 }
 
 # Password validation
