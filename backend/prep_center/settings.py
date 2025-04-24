@@ -34,7 +34,8 @@ ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
     "127.0.0.1",
     "localhost",
-    "your-project-name.up.railway.app",  # <-- metti qui l'URL reale del progetto Railway
+    "prepcenter-production.up.railway.app",  # aggiungo il dominio del backend
+    "*.up.railway.app",  # per sicurezza, accetta tutti i sottodomini railway
 ]
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
