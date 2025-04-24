@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "echo '--- Creating directories ---' && mkdir -p /app/staticfiles backend/static/fbasaving && echo '--- Copying frontend static to backend/static/fbasaving ---' && cp -rv backend/fbasaving/static/fbasaving/* backend/static/fbasaving/ && echo '--- Listing backend/static/fbasaving ---' && ls -la backend/static/fbasaving/ && echo '--- Changing to backend dir ---' && cd backend && echo '--- Installing requirements ---' && python -m pip install -r requirements.txt && echo '--- Running collectstatic ---' && python manage.py collectstatic --noinput --clear && echo '--- Listing STATIC_ROOT (/app/staticfiles) ---' && ls -la /app/staticfiles && echo '--- Build command finished ---'"
+    "buildCommand": "echo '--- Creating directories ---' && mkdir -p backend/static/fbasaving && echo '--- Copying frontend static to backend/static/fbasaving ---' && cp -rv frontend/fbasaving/static/fbasaving/* backend/static/fbasaving/ && echo '--- Listing backend/static/fbasaving ---' && ls -la backend/static/fbasaving/ && echo '--- Changing to backend dir ---' && cd backend && echo '--- Installing requirements ---' && python -m pip install -r requirements.txt && echo '--- Running collectstatic ---' && python manage.py collectstatic --noinput --clear && echo '--- Listing new STATIC_ROOT (backend/staticfiles) ---' && ls -la staticfiles && echo '--- Build command finished ---'"
   },
   "deploy": {
     "startCommand": "cd backend && gunicorn prep_center.wsgi:application"
