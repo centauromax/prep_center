@@ -138,7 +138,6 @@ STATIC_ROOT = '/app/staticfiles'  # Percorso assoluto per Railway
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'), # Statici del backend
-    '/app/frontend/fbasaving/static', # Percorso assoluto per statici frontend
 ]
 
 # Configurazione WhiteNoise
