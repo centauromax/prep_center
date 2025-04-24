@@ -133,19 +133,15 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = '/static/'
-# Impostiamo STATIC_ROOT sul percorso assoluto CORRETTO
-STATIC_ROOT = '/app/backend/staticfiles'
+# dominio pubblico del servizio frontend:
+FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "/static/")   # fallback locale
 
-# Cartella con i file statici per l'app
-# Ripristiniamo il percorso assoluto per i file frontend
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'), # Statici del backend
-    '/app/frontend/fbasaving/static', # Percorso assoluto frontend nel build env
-]
+STATIC_URL = f"{FRONT_STATIC_DOMAIN}static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"          # per admin, collectstatic ecc.
+STATICFILES_DIRS = [BASE_DIR / "static"]        # solo eventuali asset del backend
 
 # Configurazione WhiteNoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # WHITENOISE_ROOT è commentato
 
 # Default primary key field type

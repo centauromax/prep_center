@@ -1,0 +1,9 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+
+  // installa dipendenze + collectstatic
+  "buildCommand": "pip install -r requirements.txt && python manage.py collectstatic --noinput",
+
+  // avvia gunicorn
+  "startCommand": "gunicorn --chdir . prep_center.wsgi:application"
+}
