@@ -2,7 +2,7 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "mkdir -p /app/staticfiles frontend/fbasaving/static && cp -r backend/fbasaving/static/* frontend/fbasaving/static/ && cd backend && python -m pip install -r requirements.txt && python manage.py collectstatic --noinput --clear"
+    "buildCommand": "echo '--- Creating directories ---' && mkdir -p /app/staticfiles /app/frontend/fbasaving/static && echo '--- Copying backend static to frontend static ---' && cp -rv backend/fbasaving/static/* /app/frontend/fbasaving/static/ && echo '--- Listing frontend static dir ---' && ls -la /app/frontend/fbasaving/static/ && echo '--- Changing to backend dir ---' && cd backend && echo '--- Installing requirements ---' && python -m pip install -r requirements.txt && echo '--- Running collectstatic ---' && python manage.py collectstatic --noinput --clear && echo '--- Listing STATIC_ROOT (/app/staticfiles) ---' && ls -la /app/staticfiles && echo '--- Build command finished ---'"
   },
   "deploy": {
     "startCommand": "cd backend && gunicorn prep_center.wsgi:application"
