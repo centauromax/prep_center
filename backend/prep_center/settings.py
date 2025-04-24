@@ -98,9 +98,6 @@ DATABASES = {
     'default': dj_database_url.config(conn_max_age=600)
 }
 
-print(">>> DATABASE_URL =", os.environ.get("DATABASE_URL"))
-print(">>> DJANGO DATABASE CONFIG =", DATABASES)
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -140,8 +137,8 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-    BASE_DIR.parent / 'frontend' / 'fbasaving' / 'static',
+    os.path.join(BASE_DIR, 'static'),
+    os.path.join(BASE_DIR.parent, 'frontend', 'fbasaving', 'static'),
 ]
 
 # Configurazione WhiteNoise
