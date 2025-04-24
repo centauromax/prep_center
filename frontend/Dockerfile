@@ -10,9 +10,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copia gli asset statici delle tue app
 # Manteniamo la struttura originale per semplicità nel conf
-COPY ./fbasaving/static ./fbasaving/static
+COPY ./fbasaving/static/fbasaving ./fbasaving/static
 # Aggiungi qui altre app quando necessario:
-# COPY ./altraApp/static ./altraApp/static
+# COPY ./altraApp/static/specific_assets ./altraApp/static
 
 # Esponi la porta standard di Nginx
 EXPOSE 8080
