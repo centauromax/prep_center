@@ -140,7 +140,7 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
     os.path.join(BASE_DIR.parent, 'frontend', 'fbasaving', 'static'),
 ]
-
+ 
 # Configurazione WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 WHITENOISE_ROOT = STATIC_ROOT

@@ -7,4 +7,4 @@
   "deploy": {
     "startCommand": "cd backend && gunicorn prep_center.wsgi:application"
   }
-}
+} 
