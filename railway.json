@@ -6,4 +6,4 @@
   "deploy": {
     "startCommand": "bash -c 'python backend/manage.py collectstatic --noinput --clear && gunicorn --chdir backend prep_center.wsgi:application'"
   }
-} 
+}
