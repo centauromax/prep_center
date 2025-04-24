@@ -30,7 +30,13 @@ SECRET_KEY = 'django-insecure-9v@671$o(2p^ig7sfk%t@lp(f_hj-cl(+m!^772o5ysjd(@mj#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'fbaprepcenteritaly.pythonanywhere.com'] 
+ALLOWED_HOSTS = [
+    os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
+    "127.0.0.1",
+    "localhost",
+    "your-project-name.up.railway.app",  # <-- metti qui l'URL reale del progetto Railway
+]
+
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
 # Application definition
 
