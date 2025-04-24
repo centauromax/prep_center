@@ -72,7 +72,10 @@ ROOT_URLCONF = 'prep_center.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [
+            BASE_DIR / 'templates',
+            BASE_DIR.parent / 'frontend' / 'fbasaving' / 'templates',
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -138,6 +141,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
+    BASE_DIR.parent / 'frontend' / 'fbasaving' / 'static',
 ]
 
 # Default primary key field type
