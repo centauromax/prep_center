@@ -134,8 +134,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = '/static/'
-# Impostiamo STATIC_ROOT relativo a BASE_DIR
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Impostiamo STATIC_ROOT sul percorso assoluto CORRETTO
+STATIC_ROOT = '/app/backend/staticfiles'
 
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
