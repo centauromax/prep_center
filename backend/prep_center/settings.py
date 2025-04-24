@@ -138,8 +138,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = '/app/backend/staticfiles'
 
 # Cartella con i file statici per l'app
+# Ripristiniamo il percorso assoluto per i file frontend
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'), # Statici del backend
+    '/app/frontend/fbasaving/static', # Percorso assoluto frontend nel build env
 ]
 
 # Configurazione WhiteNoise
