@@ -142,7 +142,7 @@ STATICFILES_DIRS = [
 ]
 
 # Configurazione WhiteNoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 WHITENOISE_ROOT = STATIC_ROOT
 
 # Default primary key field type
