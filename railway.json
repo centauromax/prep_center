@@ -1,10 +1,9 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "echo '--- Creating STATIC_ROOT directory ---' && mkdir -p /app/backend/staticfiles && echo '--- Changing to backend dir ---' && cd backend && echo '--- Installing requirements ---' && python -m pip install -r requirements.txt && echo '--- Running collectstatic ---' && python manage.py collectstatic --noinput --clear && echo '--- Listing new STATIC_ROOT (/app/backend/staticfiles) ---' && ls -la /app/backend/staticfiles && echo '--- Build command finished ---'"
+    "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "cd backend && gunicorn prep_center.wsgi:application"
+    "startCommand": "bash -c 'python backend/manage.py collectstatic --noinput --clear && gunicorn --chdir backend prep_center.wsgi:application'"
   }
-} 
+}
