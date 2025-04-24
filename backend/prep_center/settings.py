@@ -56,8 +56,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # Rimuoviamo WhiteNoise da qui, viene applicato in wsgi.py
-    # 'whitenoise.middleware.WhiteNoiseMiddleware',
+    # Ripristiniamo WhiteNoise qui
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
@@ -134,7 +134,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = '/app/staticfiles'  # Percorso assoluto per Railway
+# Impostiamo STATIC_ROOT relativo a BASE_DIR
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Cartella con i file statici per l'app
 STATICFILES_DIRS = [
@@ -143,6 +144,7 @@ STATICFILES_DIRS = [
 
 # Configurazione WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
+# WHITENOISE_ROOT è commentato
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
