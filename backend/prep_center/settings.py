@@ -132,23 +132,34 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.2/howto/static-files/ß
+# https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 # dominio pubblico del servizio frontend:
 # Manteniamo la lettura della variabile senza slash finale per coerenza
-FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "") # Usiamo stringa vuota come default, non "/"
+FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "") # Usiamo stringa vuota come default
 
 # Assicuriamoci che STATIC_URL finisca SEMPRE con uno slash
 # Se FRONT_STATIC_DOMAIN è vuoto, STATIC_URL sarà semplicemente "/"
 # Se FRONT_STATIC_DOMAIN è https://..., STATIC_URL sarà https://.../
 STATIC_URL = f"{FRONT_STATIC_DOMAIN}/"
 
-STATIC_ROOT = BASE_DIR / "staticfiles"          # per admin, collectstatic ecc.
-STATICFILES_DIRS = [BASE_DIR / "static"]        # solo eventuali asset del backend
+# Directory per i file statici del backend (admin, etc.)
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Configurazione WhiteNoise
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-# WHITENOISE_ROOT è commentato
+# In produzione, tutti gli static sono serviti dal frontend
+# In sviluppo, cerchiamo anche nella directory frontend
+if DEBUG:
+    STATICFILES_DIRS = [
+        BASE_DIR / "static",  # static del backend
+        BASE_DIR.parent / "frontend" / "fbasaving" / "static",  # static del frontend in development
+    ]
+else:
+    STATICFILES_DIRS = [
+        BASE_DIR / "static",  # solo static del backend (admin, etc.)
+    ]
+
+# Usiamo lo storage backend semplice dato che i file sono serviti dal frontend
+STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
