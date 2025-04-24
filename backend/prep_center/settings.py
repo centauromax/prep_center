@@ -134,9 +134,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 # dominio pubblico del servizio frontend:
-FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "/")   # fallback locale, punta alla root del servizio frontend
+# Manteniamo la lettura della variabile senza slash finale per coerenza
+FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "") # Usiamo stringa vuota come default, non "/"
 
-STATIC_URL = f"{FRONT_STATIC_DOMAIN}"
+# Assicuriamoci che STATIC_URL finisca SEMPRE con uno slash
+# Se FRONT_STATIC_DOMAIN è vuoto, STATIC_URL sarà semplicemente "/"
+# Se FRONT_STATIC_DOMAIN è https://..., STATIC_URL sarà https://.../
+STATIC_URL = f"{FRONT_STATIC_DOMAIN}/"
+
 STATIC_ROOT = BASE_DIR / "staticfiles"          # per admin, collectstatic ecc.
 STATICFILES_DIRS = [BASE_DIR / "static"]        # solo eventuali asset del backend
 
