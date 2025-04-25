@@ -3,9 +3,8 @@
   "build": {
     "builder": "NIXPACKS",
     "env": {
-      "NODE_VERSION": "18"
+      "NIXPACKS_NODE_VERSION": "18"
     },
-    "nixpacksConfigPath": "nixpacks.toml",
     "buildCommand": "cd react_src/picture_check && npm install && npm run build && cd ../.."
   },
   "deploy": {
