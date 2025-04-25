@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'return_management',
     'fbasaving',
     'prep_management',
+    'picture_check',
 ]
 
 MIDDLEWARE = [
@@ -216,6 +217,12 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'fbasaving.log'),
             'formatter': 'verbose',
             'mode': 'a',
+        },
+        'picture_check_file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'picture_check.log'),
+            'formatter': 'verbose',
+            'mode': 'a',
         }
     },
     'root': {
@@ -230,6 +237,11 @@ LOGGING = {
         },
         'fbasaving': {
             'handlers': ['console', 'fbasaving_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'picture_check': {
+            'handlers': ['console', 'picture_check_file'],
             'level': 'DEBUG',
             'propagate': False,
         },

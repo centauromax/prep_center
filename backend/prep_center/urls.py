@@ -16,5 +16,6 @@ urlpatterns += i18n_patterns(
     path('fbasaving/', include('fbasaving.urls')),
     path('return_management/', include('return_management.urls')),
     path('prep_management/', include('prep_management.urls')),
+    path('picture_check/', include('picture_check.urls')),
     prefix_default_language=False  # Non aggiunge il prefisso della lingua di default all'URL
 )
