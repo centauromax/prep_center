@@ -150,7 +150,6 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # In sviluppo, cerchiamo anche nella directory frontend
 STATICFILES_DIRS = [
     BASE_DIR / "static",  # static del backend
-    BASE_DIR.parent / "frontend" / "fbasaving" / "static",  # static del frontend
 ]
 
 # Usiamo lo storage backend semplice dato che i file sono serviti dal frontend

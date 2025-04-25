@@ -8,11 +8,8 @@ WORKDIR /usr/share/nginx/html
 # Copia la configurazione Nginx personalizzata
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copia gli asset statici delle tue app
-WORKDIR /usr/share/nginx/html
-COPY ./fbasaving/static/fbasaving/css ./fbasaving/static/css/
-COPY ./fbasaving/static/fbasaving/js ./fbasaving/static/js/
-COPY ./fbasaving/static/fbasaving/images ./fbasaving/static/images/
+# Crea le directory necessarie
+RUN mkdir -p /usr/share/nginx/html/fbasaving/static
 
 # Copia i file statici dell'app fbasaving
 COPY fbasaving/static /usr/share/nginx/html/fbasaving/static
