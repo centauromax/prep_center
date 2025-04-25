@@ -28,7 +28,9 @@ MEDIA_URL = '/media/'
 SECRET_KEY = 'django-insecure-9v@671$o(2p^ig7sfk%t@lp(f_hj-cl(+m!^772o5ysjd(@mj#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# In produzione, DEBUG deve essere False
+# In sviluppo, DEBUG può essere True
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
@@ -36,6 +38,14 @@ ALLOWED_HOSTS = [
     "localhost",
     "prepcenter-production.up.railway.app",  # aggiungo il dominio del backend
     "*.up.railway.app",  # per sicurezza, accetta tutti i sottodomini railway
+]
+
+# Configurazione CSRF per consentire richieste da altri domini
+CSRF_TRUSTED_ORIGINS = [
+    "https://prepcenter-production.up.railway.app",
+    "https://*.up.railway.app",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin-allow-popups'
