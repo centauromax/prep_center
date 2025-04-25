@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
@@ -38,22 +38,23 @@ def react_app(request):
     translation.activate('it')
     request.session[LANGUAGE_SESSION_KEY] = 'it'
     
-    # Controlla se il template React esiste
-    react_template_path = 'picture_check/react/index.html'
+    # URL base del servizio React
+    react_domain = os.getenv("REACT_DOMAIN", "")
     
-    # Stampa log per debug
-    logger.info(f"Tentativo di renderizzare l'app React da {react_template_path}")
-    
-    # Serve il template React o restituisce un errore
-    try:
-        return render(request, react_template_path)
-    except Exception as e:
-        logger.error(f"Errore nel rendering dell'app React: {e}")
-        context = {
-            'app_name': 'Picture Check React',
-            'error_message': 'App React non disponibile. Assicurati che la build sia stata completata.',
-        }
-        return render(request, 'picture_check/error.html', context)
+    if react_domain:
+        # Redirect al servizio React esterno
+        return redirect(f"{react_domain}/picture_check/index.html")
+    else:
+        # Fallback a un template locale
+        try:
+            return render(request, 'picture_check/react_fallback.html')
+        except Exception as e:
+            logger.error(f"Errore nel rendering dell'app React: {e}")
+            context = {
+                'app_name': 'Picture Check React',
+                'error_message': 'App React non disponibile.',
+            }
+            return render(request, 'picture_check/error.html', context)
 
 @api_view(['GET'])
 def get_clienti(request):

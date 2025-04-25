@@ -144,20 +144,15 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-# dominio pubblico del servizio frontend:
-# Manteniamo la lettura della variabile senza slash finale per coerenza
-FRONT_STATIC_DOMAIN = os.getenv("FRONT_STATIC_DOMAIN", "") # Usiamo stringa vuota come default
+# URL del dominio React fornito da Railway
+REACT_DOMAIN = os.getenv("REACT_DOMAIN", "")
 
-# Assicuriamoci che STATIC_URL finisca SEMPRE con uno slash
-# Se FRONT_STATIC_DOMAIN è vuoto, STATIC_URL sarà semplicemente "/"
-# Se FRONT_STATIC_DOMAIN è https://..., STATIC_URL sarà https://.../
-STATIC_URL = f"{FRONT_STATIC_DOMAIN}/"
+# STATIC_URL punta al servizio React se definito
+STATIC_URL = f"{REACT_DOMAIN}/" if REACT_DOMAIN else "/static/"
 
 # Directory per i file statici del backend (admin, etc.)
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# In produzione, tutti gli static sono serviti dal frontend
-# In sviluppo, cerchiamo anche nella directory frontend
 STATICFILES_DIRS = [
     BASE_DIR / "static",  # static del backend
 ]
