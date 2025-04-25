@@ -14,8 +14,8 @@ RUN mkdir -p /usr/share/nginx/html/fbasaving/static/js
 RUN mkdir -p /usr/share/nginx/html/fbasaving/static/images
 RUN mkdir -p /usr/share/nginx/html/images
 
-# Copia i file statici dell'app fbasaving in modo esplicito
-COPY fbasaving/static/fbasaving/css /usr/share/nginx/html/fbasaving/static/css
+# Copia i file statici dal frontend
+COPY fbasaving/static/fbasaving/css/style.css /usr/share/nginx/html/fbasaving/static/css/style.css
 COPY fbasaving/static/fbasaving/js /usr/share/nginx/html/fbasaving/static/js
 COPY fbasaving/static/fbasaving/images /usr/share/nginx/html/fbasaving/static/images
 
