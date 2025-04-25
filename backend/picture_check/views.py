@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 import logging
 import json
+from django.utils import translation
 from .models import PictureCheck, Cliente
 from .serializers import PictureCheckSerializer, ClienteSerializer
 
@@ -16,6 +17,10 @@ def home(request):
     """
     View principale per l'app picture_check
     """
+    # Forza l'uso dell'italiano per questa app
+    translation.activate('it')
+    request.session[translation.LANGUAGE_SESSION_KEY] = 'it'
+    
     context = {
         'app_name': 'Picture Check',
     }
@@ -27,6 +32,9 @@ def get_clienti(request):
     Ottiene la lista dei clienti attivi
     """
     try:
+        # Forza l'uso dell'italiano
+        translation.activate('it')
+        
         clienti = Cliente.objects.filter(attivo=True)
         serializer = ClienteSerializer(clienti, many=True)
         return Response(serializer.data)
@@ -40,6 +48,9 @@ def check_ean(request, ean):
     Verifica se per un determinato EAN sono già state fatte le foto
     """
     try:
+        # Forza l'uso dell'italiano
+        translation.activate('it')
+        
         # Verifica se l'EAN esiste già nel database
         ean_esistente = PictureCheck.objects.filter(ean=ean).exists()
         
@@ -65,6 +76,9 @@ def salva_ean(request):
     Salva un nuovo EAN per cui le foto non sono state fatte
     """
     try:
+        # Forza l'uso dell'italiano
+        translation.activate('it')
+        
         data = request.data
         logger.debug(f"Dati ricevuti per il salvataggio: {data}")
         
@@ -92,6 +106,9 @@ def lista_ean(request):
     Ottiene la lista degli ultimi EAN verificati
     """
     try:
+        # Forza l'uso dell'italiano
+        translation.activate('it')
+        
         # Recupera gli ultimi 50 EAN verificati ordinati per data più recente
         ean_list = PictureCheck.objects.all().order_by('-data')[:50]
         serializer = PictureCheckSerializer(ean_list, many=True)

@@ -8,6 +8,8 @@ Questa app permette di verificare se per un determinato codice EAN sono già sta
 Se le foto non sono ancora state scattate, il sistema emette un suono di affermazione e salva l'EAN nel database.
 Se le foto sono già state scattate, il sistema emette un suono di negazione.
 
+**Nota: questa app è disponibile solo in italiano.**
+
 ## Funzionalità
 
 - Selezione del cliente da una lista
