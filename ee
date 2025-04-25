@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "== Pulizia file e directory residui per build Docker pulita =="
+
+# Elimina file e directory noti che causano build Nixpacks/buildpacks
+rm -rf .nixpacks
+rm -f nixpacks.toml
+rm -f .buildpacks
+rm -f Procfile
+rm -f app.json
+rm -f runtime.txt
+
+# Elimina railway.json e Dockerfile NON nella root
+find . -type f -name "railway.json" ! -path "./railway.json" -exec rm -v {} \;
+find . -type f -name "Dockerfile" ! -path "./Dockerfile" -exec rm -v {} \;
+
+echo "== Pulizia completata =="
+echo "Contenuto attuale della root:"
+ls -la
+
+echo ""
+echo "Assicurati che nella root ci siano SOLO:"
+echo "- Dockerfile"
+echo "- railway.json"
+echo "- requirements.txt"
+echo "- manage.py, cartelle app Django, ecc."
+echo ""
+echo "Ora puoi fare il deploy su Railway: userà SOLO Dockerfile!"
