@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework import status
 import logging
 import json
+import os.path
 from django.utils import translation
 from .models import PictureCheck, Cliente
 from .serializers import PictureCheckSerializer, ClienteSerializer
@@ -33,6 +34,31 @@ def home(request):
             'app_name': 'Picture Check',
         }
         return render(request, 'picture_check/picture_check.html', context)
+
+def react_app(request):
+    """
+    View dedicata all'app React
+    """
+    # Forza l'uso dell'italiano per questa app
+    translation.activate('it')
+    request.session[LANGUAGE_SESSION_KEY] = 'it'
+    
+    # Controlla se il template React esiste
+    react_template_path = 'picture_check/react/index.html'
+    
+    # Stampa log per debug
+    logger.info(f"Tentativo di renderizzare l'app React da {react_template_path}")
+    
+    # Serve il template React o restituisce un errore
+    try:
+        return render(request, react_template_path)
+    except Exception as e:
+        logger.error(f"Errore nel rendering dell'app React: {e}")
+        context = {
+            'app_name': 'Picture Check React',
+            'error_message': 'App React non disponibile. Assicurati che la build sia stata completata.',
+        }
+        return render(request, 'picture_check/error.html', context)
 
 @api_view(['GET'])
 def get_clienti(request):

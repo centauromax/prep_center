@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Errore - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h4>Errore</h4>
+                </div>
+                <div class="card-body">
+                    <p class="lead">{{ error_message }}</p>
+                    <hr>
+                    <p>Verifica che:</p>
+                    <ul>
+                        <li>La build React sia stata completata</li>
+                        <li>I file siano stati copiati nelle posizioni corrette</li>
+                        <li>Il template <code>picture_check/react/index.html</code> esista</li>
+                    </ul>
+                    <a href="{% url 'picture_check:home' %}" class="btn btn-primary">Torna alla homepage</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
