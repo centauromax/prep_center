@@ -23,11 +23,11 @@ COPY . .
 # Cartella log richiesta in settings.py
 RUN mkdir -p /var/www/html/logs && chmod 777 /var/www/html/logs
 
-EXPOSE 8000
+EXPOSE 8080
 
 CMD python manage.py migrate && \
     python manage.py collectstatic --noinput && \
-    gunicorn prep_center.wsgi --bind 0.0.0.0:${PORT:-8080}
+    gunicorn prep_center.wsgi --bind 0.0.0.0:8080
 
 CMD npx serve -s build -l $PORT 
 
