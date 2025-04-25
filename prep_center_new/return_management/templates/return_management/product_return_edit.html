@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Product Returns</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid black;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 5px;
+        }
+
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Edit Product Returns</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Box</th>
+                    <th>Product Description</th>
+                    <th>Brand</th>
+                    <th>LPN</th>
+                    <th>Destination</th>
+                    <th>Additional Info</th>
+                    <!-- Aggiungi altre colonne qui -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for product in product_returns %}
+                <tr>
+                    <td><input type="text" name="box_{{ forloop.counter }}" value="{{ product.box }}"></td>
+                    <td><input type="text" name="description_{{ forloop.counter }}" value="{{ product.product_description }}"></td>
+                    <td><input type="text" name="brand_{{ forloop.counter }}" value="{{ product.brand }}"></td>
+                    <td><input type="text" name="lpn_{{ forloop.counter }}" value="{{ product.lpn }}"></td>
+                    <td><input type="text" name="destination_{{ forloop.counter }}" value="{{ product.destination }}"></td>
+                    <td><input type="text" name="additional_info_{{ forloop.counter }}" value="{{ product.additional_info }}"></td>
+                    <!-- Aggiungi altre colonne qui -->
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <button type="submit">Save Changes</button>
+    </form>
+</body>
+</html>
+
