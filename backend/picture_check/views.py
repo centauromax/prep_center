@@ -24,10 +24,15 @@ def home(request):
     translation.activate('it')
     request.session[LANGUAGE_SESSION_KEY] = 'it'
     
-    context = {
-        'app_name': 'Picture Check',
-    }
-    return render(request, 'picture_check/picture_check.html', context)
+    # Serve il template React se disponibile, altrimenti il template Django standard
+    try:
+        return render(request, 'picture_check/react/index.html')
+    except:
+        logger.warning("Template React non trovato, uso il template Django standard")
+        context = {
+            'app_name': 'Picture Check',
+        }
+        return render(request, 'picture_check/picture_check.html', context)
 
 @api_view(['GET'])
 def get_clienti(request):
