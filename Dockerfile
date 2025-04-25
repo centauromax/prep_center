@@ -1,23 +1,30 @@
-# Usa l'immagine Python ufficiale
+# ---- Fase runtime unica ----------------------------------------------------
 FROM python:3.11-slim
+
+# Evita byte-code, log su stdout
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
 WORKDIR /app
 
-# Installa le dipendenze
+# Dipendenze di sistema minime per psycopg2-binary e gunicorn
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installa requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copia il codice dell'applicazione
+# Copia il resto del progetto
 COPY . .
 
-# Imposta le variabili d'ambiente
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
+# Cartella log richiesta in settings.py
+RUN mkdir -p /var/www/html/logs && chmod 777 /var/www/html/logs
 
-# Espone la porta su cui sarà in ascolto l'app
 EXPOSE 8000
 
-# Comandi che verranno eseguiti al lancio del container
 CMD python manage.py migrate && \
     python manage.py collectstatic --noinput && \
-    gunicorn prep_center.wsgi --bind 0.0.0.0:$PORT 
+    gunicorn prep_center.wsgi --bind 0.0.0.0:${PORT:-8000} 
