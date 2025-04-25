@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodejs", "npm"]
+
+[phases.build]
+cmds = ["cd react_src/picture_check && npm install && npm run build && cd ../.."]
+
+[start]
+cmd = "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn prep_center.wsgi" 
