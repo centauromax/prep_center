@@ -28,7 +28,7 @@ MEDIA_URL = '/media/'
 SECRET_KEY = 'django-insecure-9v@671$o(2p^ig7sfk%t@lp(f_hj-cl(+m!^772o5ysjd(@mj#'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
