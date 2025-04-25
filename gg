@@ -3,6 +3,7 @@
 #INFO: Aggiunge tutti i file rilevati da git status, gestendo rename, untracked e modifiche. Commit e push automatici.
 
 cd /Users/adriano/WORK/sviluppo/prep_center
+tmpFile=/tmp/gg
 
 function ex {
 	echo -e "\nERRORE: il $1 non si e' completato correttamente\n"
@@ -12,15 +13,17 @@ function ex {
 commit_msg="$1"
 
 # Ricava la lista di file
-files_to_add=$(git status --porcelain | cut -c4- | grep -v -e swo -e swp | cut -f1,3 -d" " | tr '\n' ' ')
-if [[ -z "$(echo "$files_to_add" | tr -d '[:space:]')" ]]; then
+git status --porcelain | cut -c4- | grep -v '^["]' | grep -v -e swo -e swp | cut -f1,3 -d" " > $tmpFile
+if [[ -z $tmpFile ]]; then
   echo "Nessun file da aggiungere."
   exit 0
 fi
 
 echo
-echo git add "$files_to_add"
-git add $files_to_add || ex "comando add"
+while read file; do
+	echo git add $file
+	git add $file || ex "comando add"
+done < $tmpFile
 
 # Controllo modifiche effettive
 if git diff --cached --quiet; then
@@ -39,3 +42,4 @@ git commit -m "$commit_msg" || ex commit
 echo git push
 git push || ex push
 echo 
+rm -f $tmpFile
