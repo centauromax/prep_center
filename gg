@@ -39,5 +39,3 @@ git commit -m "$commit_msg" || ex commit
 echo git push
 git push || ex push
 echo 
-
-exit:
