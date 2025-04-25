@@ -244,6 +244,9 @@ def get_redirect_url(request):
 # Oppure, se preferisci mantenere l'utente nella stessa pagina
 LANGUAGE_COOKIE_NAME = 'django_language'
 LANGUAGE_COOKIE_PATH = '/'
+LANGUAGE_COOKIE_DOMAIN = None
+LANGUAGE_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # Configurazione Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

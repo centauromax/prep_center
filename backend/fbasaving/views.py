@@ -15,6 +15,10 @@ from datetime import datetime
 logger = logging.getLogger('fbasaving')
 
 def home(request):
+    # Logging della lingua corrente per debug
+    print(f"Current LANGUAGE_CODE: {request.LANGUAGE_CODE}")
+    print(f"Session data: {request.session.items()}")
+    
     context = {
         'LANGUAGE_CODE': get_language(),
     }

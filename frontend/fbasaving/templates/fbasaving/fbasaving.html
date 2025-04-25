@@ -28,9 +28,9 @@
                 <span class="brand-text">FbaPrepCenterItaly</span>
             </a>
             <div class="language-switcher">
-                <form action="{% url 'set_language' %}" method="post">
+                <form action="/i18n/setlang/" method="post">
                     {% csrf_token %}
-                    <input name="next" type="hidden" value="/fbasaving/">
+                    <input name="next" type="hidden" value="{{ request.path }}">
                     <select name="language" onchange="this.form.submit()">
                         <option value="it" {% if LANGUAGE_CODE == 'it' %}selected{% endif %}>Italiano</option>
                         <option value="en" {% if LANGUAGE_CODE == 'en' %}selected{% endif %}>English</option>
