@@ -27,4 +27,16 @@ EXPOSE 8000
 
 CMD python manage.py migrate && \
     python manage.py collectstatic --noinput && \
-    gunicorn prep_center.wsgi --bind 0.0.0.0:${PORT:-8000} 
+    gunicorn prep_center.wsgi --bind 0.0.0.0:${PORT:-8080}
+
+CMD npx serve -s build -l $PORT 
+
+FROM node:18-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY . .
+RUN npm run build
+RUN npm install -g serve
+EXPOSE 8080
+CMD ["serve", "-s", "build", "-l", "8080"] 
