@@ -13,13 +13,16 @@ from .serializers import PictureCheckSerializer, ClienteSerializer
 # Configura il logger
 logger = logging.getLogger('picture_check')
 
+# Costante per la chiave di sessione della lingua
+LANGUAGE_SESSION_KEY = 'django_language'
+
 def home(request):
     """
     View principale per l'app picture_check
     """
     # Forza l'uso dell'italiano per questa app
     translation.activate('it')
-    request.session[translation.LANGUAGE_SESSION_KEY] = 'it'
+    request.session[LANGUAGE_SESSION_KEY] = 'it'
     
     context = {
         'app_name': 'Picture Check',
