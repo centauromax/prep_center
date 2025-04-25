@@ -21,4 +21,4 @@ COPY fbasaving/static/fbasaving /usr/share/nginx/html/fbasaving/static
 EXPOSE 8080
 
 # Comando per avviare Nginx in foreground
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["nginx", "-g", "daemon off;"]
