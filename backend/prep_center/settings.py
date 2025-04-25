@@ -148,15 +148,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # In produzione, tutti gli static sono serviti dal frontend
 # In sviluppo, cerchiamo anche nella directory frontend
-if DEBUG:
-    STATICFILES_DIRS = [
-        BASE_DIR / "static",  # static del backend
-        BASE_DIR.parent / "frontend" / "fbasaving" / "static",  # static del frontend in development
-    ]
-else:
-    STATICFILES_DIRS = [
-        BASE_DIR / "static",  # solo static del backend (admin, etc.)
-    ]
+STATICFILES_DIRS = [
+    BASE_DIR / "static",  # static del backend
+    BASE_DIR.parent / "frontend" / "fbasaving" / "static",  # static del frontend
+]
 
 # Usiamo lo storage backend semplice dato che i file sono serviti dal frontend
 STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'

@@ -14,6 +14,9 @@ COPY ./fbasaving/static/fbasaving/css ./fbasaving/static/css/
 COPY ./fbasaving/static/fbasaving/js ./fbasaving/static/js/
 COPY ./fbasaving/static/fbasaving/images ./fbasaving/static/images/
 
+# Copia i file statici dell'app fbasaving
+COPY fbasaving/static /usr/share/nginx/html/fbasaving/static
+
 # Aggiungi qui altre app quando necessario:
 # COPY ./altraApp/static/specific_assets/css ./altraApp/static/css/
 
