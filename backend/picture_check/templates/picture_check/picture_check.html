@@ -6,27 +6,8 @@
 {% block content %}
 <div class="container mt-5">
     <h1 class="text-center mb-4">Picture Check</h1>
-    
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    Picture Check App
-                </div>
-                <div class="card-body">
-                    <p>Benvenuto nell'app Picture Check</p>
-                    
-                    <div class="mt-4">
-                        <a href="{% url 'picture_check:react_app' %}" class="btn btn-primary">
-                            Apri l'interfaccia React
-                        </a>
-                        <p class="text-muted mt-2">
-                            <small>Clicca sul pulsante per accedere alla nuova interfaccia React dell'app</small>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="alert alert-info">
+        L'interfaccia React di Picture Check è ora disponibile all'indirizzo <a href="https://prepcenterfe-production.up.railway.app/picture_check/" target="_blank">https://prepcenterfe-production.up.railway.app/picture_check/</a>.
     </div>
 </div>
 {% endblock %}
