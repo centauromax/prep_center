@@ -1,1 +1,1 @@
- 
+default_app_config = 'picture_check.apps.PictureCheckConfig' 
