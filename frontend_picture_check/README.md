@@ -1,6 +1,32 @@
-# Picture Check Frontend
+# Frontend Picture Check
 
-Frontend React per l'app Picture Check del Prep Center.
+App React per la gestione della funzionalità Picture Check.
+
+## Comandi utili
+
+- **Installazione dipendenze:**
+  ```bash
+  npm install
+  ```
+
+- **Avvio locale:**
+  ```bash
+  npm start
+  ```
+
+- **Build produzione:**
+  ```bash
+  npm run build
+  ```
+
+- **Deploy:**
+  Deploy automatico tramite Railway.
+
+---
+
+## Note
+- Assicurati che le chiamate API puntino a `https://prepcenter-production.up.railway.app`.
+- Per sviluppo locale, puoi usare `http://localhost:8000` come backend.
 
 ## Descrizione
 
