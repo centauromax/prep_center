@@ -8,11 +8,21 @@ function shouldRenderApp() {
   const path = window.location.pathname;
   const currentHost = window.location.hostname;
   
-  // Solo per picture_check - l'app React gestisce solo questi percorsi
+  // L'app React gestisce solo i percorsi picture_check
   if (path.startsWith('/picture_check/') || 
       path.startsWith('/en/picture_check/') || 
       path.startsWith('/it/picture_check/')) {
     return true;
+  }
+  
+  // Percorsi specifici da reindirizzare al backend Django direttamente
+  if (path.startsWith('/fbasaving/') || 
+      path.startsWith('/en/fbasaving/') || 
+      path.startsWith('/it/fbasaving/')) {
+    // Reindirizza direttamente al backend Django senza parametri aggiuntivi
+    const djangoBackendUrl = 'https://prepcenter-production.up.railway.app';
+    window.location.replace(djangoBackendUrl + path);
+    return false;
   }
   
   // Per evitare loop di reindirizzamento, controlliamo se abbiamo un parametro URL che indica
@@ -22,11 +32,11 @@ function shouldRenderApp() {
     // Siamo già stati reindirizzati, non reindirizzare di nuovo
     console.error('Errore: percorso non supportato:', path);
     // Mostra un messaggio all'utente
-    document.body.innerHTML = '<div style="text-align: center; margin-top: 50px;"><h1>Errore</h1><p>Questo percorso non è supportato da questa applicazione.</p><p><a href="/picture_check/">Vai a Picture Check</a></p></div>';
+    document.body.innerHTML = '<div style="text-align: center; margin-top: 50px;"><h1>Errore</h1><p>Questo percorso non è supportato da questa applicazione.</p><p><a href="/picture_check/">Vai a Picture Check</a></p><p><a href="/fbasaving/">Vai a FBA Saving</a></p></div>';
     return false;
   }
   
-  // Reindirizza al backend Django con parametro per evitare loop
+  // Per tutti gli altri percorsi, reindirizza al backend Django con parametro per evitare loop
   const djangoBackendUrl = 'https://prepcenter-production.up.railway.app';
   const targetUrl = djangoBackendUrl + path + (path.includes('?') ? '&' : '?') + 'from_redirect=1';
   
