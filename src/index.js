@@ -14,31 +14,6 @@ function shouldRenderApp() {
     return true;
   }
   
-  // Per FBASaving e altri servizi del backend, mostra una pagina informativa
-  if (path.startsWith('/fbasaving/') || 
-      path.startsWith('/en/fbasaving/') || 
-      path.startsWith('/it/fbasaving/')) {
-    // NOTA: Il backend restituisce errore 404 "Application not found", 
-    // quindi mostriamo una pagina informativa finché il backend non sarà configurato
-    document.body.innerHTML = `
-      <div style="text-align: center; font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <h1 style="color: #2c3e50;">FBA Saving</h1>
-        <p style="font-size: 18px; color: #e74c3c; margin-bottom: 20px;">Il servizio FBA Saving non è attualmente disponibile.</p>
-        <p>Il backend Django restituisce un errore 404 "Application not found".</p>
-        <p>Per favore contatta l'amministratore di sistema per verificare che:</p>
-        <ul style="text-align: left; margin: 20px auto; max-width: 500px;">
-          <li>L'app Django 'fbasaving' sia installata correttamente</li>
-          <li>Le URL siano configurate correttamente in Django</li>
-          <li>Il servizio backend sia in esecuzione</li>
-        </ul>
-        <div style="margin-top: 30px;">
-          <a href="/picture_check/" style="display: inline-block; padding: 10px 20px; background-color: #3498db; color: white; text-decoration: none; border-radius: 4px; margin-right: 10px;">Vai a Picture Check</a>
-        </div>
-      </div>
-    `;
-    return false;
-  }
-  
   // Per tutti gli altri percorsi sconosciuti
   document.body.innerHTML = `
     <div style="text-align: center; font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -46,6 +21,7 @@ function shouldRenderApp() {
       <p style="font-size: 18px; margin-bottom: 30px;">L'URL richiesto non è disponibile in questa applicazione.</p>
       <div style="margin-top: 30px;">
         <a href="/picture_check/" style="display: inline-block; padding: 10px 20px; background-color: #3498db; color: white; text-decoration: none; border-radius: 4px; margin-right: 10px;">Vai a Picture Check</a>
+        <a href="/fbasaving/" style="display: inline-block; padding: 10px 20px; background-color: #27ae60; color: white; text-decoration: none; border-radius: 4px;">Vai a FBA Saving</a>
       </div>
     </div>
   `;
