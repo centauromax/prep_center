@@ -10,6 +10,7 @@ import os.path
 from django.utils import translation
 from .models import PictureCheck, Cliente
 from .serializers import PictureCheckSerializer, ClienteSerializer
+import re
 
 # Configura il logger
 logger = logging.getLogger('picture_check')
@@ -55,6 +56,14 @@ def check_ean(request, ean):
         # Forza l'uso dell'italiano
         translation.activate('it')
         
+        # Controllo validità EAN: numerico, 13 cifre
+        if not re.fullmatch(r'\d{13}', ean):
+            return Response({
+                "ean": ean,
+                "foto_da_fare": False,
+                "messaggio": "Codice EAN non valido: deve essere una stringa numerica di 13 cifre."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         # Verifica se l'EAN esiste già nel database
         ean_esistente = PictureCheck.objects.filter(ean=ean).exists()
         
@@ -85,6 +94,14 @@ def salva_ean(request):
         
         data = request.data
         logger.debug(f"Dati ricevuti per il salvataggio: {data}")
+        
+        # Controllo validità EAN: numerico, 13 cifre
+        ean = data.get('ean', '')
+        if not re.fullmatch(r'\d{13}', ean):
+            return Response({
+                "success": False,
+                "messaggio": "Codice EAN non valido: deve essere una stringa numerica di 13 cifre."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = PictureCheckSerializer(data=data)
         if serializer.is_valid():
