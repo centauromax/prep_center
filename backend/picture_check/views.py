@@ -31,30 +31,6 @@ def home(request):
     return render(request, 'picture_check/picture_check.html', context)
 
 def react_app(request):
-    """
-    View dedicata all'app React
-    """
-    # Forza l'uso dell'italiano per questa app
-    translation.activate('it')
-    request.session[LANGUAGE_SESSION_KEY] = 'it'
-    
-    # URL base del servizio React
-    react_domain = os.getenv("REACT_DOMAIN", "")
-    
-    if react_domain:
-        # Redirect al servizio React esterno
-        return redirect(f"{react_domain}/picture_check/index.html")
-    else:
-        # Fallback a un template locale
-        try:
-            return render(request, 'picture_check/react_fallback.html')
-        except Exception as e:
-            logger.error(f"Errore nel rendering dell'app React: {e}")
-            context = {
-                'app_name': 'Picture Check React',
-                'error_message': 'App React non disponibile.',
-            }
-            return render(request, 'picture_check/error.html', context)
 
 @api_view(['GET'])
 def get_clienti(request):
