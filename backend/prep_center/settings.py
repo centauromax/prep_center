@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Terze parti
     'rest_framework',
+    'corsheaders',
     # App Prep Center
     'return_management',
     'fbasaving',
@@ -68,7 +69,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    # Ripristiniamo WhiteNoise qui
+    'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -264,3 +265,8 @@ EMAIL_HOST_PASSWORD = 's9Y#&3In$o'
 # Configurazioni aggiuntive per le email
 DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'
 CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
+
+CORS_ALLOWED_ORIGINS = [
+    "https://prepcenterfe-production.up.railway.app",
+    "http://localhost:3000",
+]
