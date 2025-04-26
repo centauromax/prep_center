@@ -14,11 +14,31 @@ function shouldRenderApp() {
     return true;
   }
   
-  // Per fbasaving, lasciamo passare la richiesta a nginx
+  // Per fbasaving, creiamo un iframe che punta direttamente al backend Django
   if (path.startsWith('/fbasaving/') || 
       path.startsWith('/en/fbasaving/') || 
       path.startsWith('/it/fbasaving/')) {
-    console.log('Richiesta per fbasaving rilevata, lascio gestire a nginx');
+    console.log('Richiesta per fbasaving rilevata, creo un iframe al backend');
+    
+    // Pulisce qualsiasi contenuto esistente
+    document.body.innerHTML = '';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflow = 'hidden';
+    
+    // Crea un iframe a schermo intero che punta al backend Django
+    const iframe = document.createElement('iframe');
+    iframe.style.width = '100%';
+    iframe.style.height = '100vh';
+    iframe.style.border = 'none';
+    iframe.style.overflow = 'hidden';
+    
+    // Su Railway, il backend Django potrebbe essere accessibile tramite un URL relativo,
+    // poiché nginx.conf è configurato per fare proxy verso http://web:8000
+    // Utilizziamo un URL relativo per massima compatibilità
+    iframe.src = `/fbasaving-api${path}`;
+    
+    document.body.appendChild(iframe);
     return false;
   }
   
