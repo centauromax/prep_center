@@ -6,7 +6,6 @@ import './styles.css';
 // Funzione per verificare se siamo nell'URL corretto prima di montare l'app
 function shouldRenderApp() {
   const path = window.location.pathname;
-  const hostname = window.location.hostname;
   
   // L'app React gestisce solo i percorsi picture_check
   if (path.startsWith('/picture_check/') || 
@@ -15,8 +14,13 @@ function shouldRenderApp() {
     return true;
   }
   
-  // Per l'URL fbasaving, lasciamo che nginx gestisca la richiesta
-  // Questo blocco è solo per dare la priorità ai percorsi picture_check
+  // Per fbasaving, lasciamo passare la richiesta a nginx
+  if (path.startsWith('/fbasaving/') || 
+      path.startsWith('/en/fbasaving/') || 
+      path.startsWith('/it/fbasaving/')) {
+    console.log('Richiesta per fbasaving rilevata, lascio gestire a nginx');
+    return false;
+  }
   
   // Per tutti gli altri percorsi sconosciuti
   document.body.innerHTML = `
