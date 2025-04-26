@@ -30,8 +30,6 @@ def home(request):
     }
     return render(request, 'picture_check/picture_check.html', context)
 
-def react_app(request):
-
 @api_view(['GET'])
 def get_clienti(request):
     """

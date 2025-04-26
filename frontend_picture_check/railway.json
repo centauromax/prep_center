@@ -12,12 +12,12 @@
         }
       },
       "start": {
-        "cmds": ["npm run start"]
+        "cmds": ["npx serve -s build -l $PORT"]
       }
     }
   },
   "deploy": {
-    "startCommand": "npm install -g http-server && http-server dist -p $PORT --cors",
+    "startCommand": "npx serve -s build -l $PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5
   }
