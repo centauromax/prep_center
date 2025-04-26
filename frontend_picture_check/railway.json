@@ -17,7 +17,7 @@
     }
   },
   "deploy": {
-    "startCommand": "npx serve -s build -l $PORT",
+    "startCommand": "python manage.py migrate && python manage.py populate_clienti && python manage.py populate_ean && gunicorn prep_center.wsgi",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5
   }
