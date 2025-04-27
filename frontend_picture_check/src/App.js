@@ -94,7 +94,7 @@ function App() {
         playAffermazione();
         
         // Salva l'EAN nel database
-        const nuovoEan = await salvaEan({
+        await salvaEan({
           ean: risposta.ean,
           cliente: clienteSelezionato
         });
