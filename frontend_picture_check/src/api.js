@@ -29,9 +29,10 @@ export async function getClienti() {
   return await fetchAPI('/clienti/');
 }
 
-// Verifica se per un determinato EAN sono già state fatte le foto
-export async function checkEan(ean) {
-  return await fetchAPI(`/check/${ean}/`);
+// Verifica se per un determinato EAN/FNSKU e Cliente sono già state fatte le foto
+export async function checkEan(ean, cliente) {
+  const clienteParam = encodeURIComponent(cliente);
+  return await fetchAPI(`/check/${ean}/?cliente=${clienteParam}`);
 }
 
 // Salva un nuovo EAN per cui le foto non sono state fatte

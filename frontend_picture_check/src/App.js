@@ -76,8 +76,8 @@ function App() {
     try {
       setIsLoading(true);
       
-      // Verifica l'EAN
-      const risposta = await checkEan(ean);
+      // Verifica l'EAN/FNSKU + Cliente
+      const risposta = await checkEan(ean, clienteSelezionato);
       let tipoEsito = 'success';
       let messaggio = risposta.messaggio;
       if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('da realizzare')) {

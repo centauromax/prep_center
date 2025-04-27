@@ -50,12 +50,19 @@ def get_clienti(request):
 @api_view(['GET'])
 def check_ean(request, ean):
     """
-    Verifica se per un determinato EAN sono già state fatte le foto
+    Verifica se per un determinato EAN/FNSKU e Cliente sono già state fatte le foto
     """
     try:
         # Forza l'uso dell'italiano
         translation.activate('it')
         
+        cliente = request.GET.get('cliente', '').strip()
+        if not cliente:
+            return Response({
+                "ean": ean,
+                "foto_da_fare": False,
+                "messaggio": "Cliente non specificato."
+            }, status=status.HTTP_400_BAD_REQUEST)
         # Controllo validità EAN/FNSKU: numerico, 12 o 13 cifre oppure alfanumerico, 10 caratteri
         if not (re.fullmatch(r'\d{12,13}', ean) or re.fullmatch(r'[A-Za-z0-9]{10}', ean)):
             return Response({
@@ -64,20 +71,20 @@ def check_ean(request, ean):
                 "messaggio": "Codice EAN/FNSKU non valido: deve essere una stringa numerica di 12 o 13 cifre o alfanumerica di 10 caratteri."
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Verifica se l'EAN esiste già nel database
-        ean_esistente = PictureCheck.objects.filter(ean=ean).exists()
+        # Verifica se la combinazione EAN/FNSKU + Cliente esiste già nel database
+        ean_esistente = PictureCheck.objects.filter(ean=ean, cliente=cliente).exists()
         
         if ean_esistente:
             return Response({
                 "ean": ean,
                 "foto_da_fare": False,
-                "messaggio": "Foto già realizzate per questo prodotto."
+                "messaggio": "Foto già realizzate per questo prodotto e cliente."
             })
         else:
             return Response({
                 "ean": ean,
                 "foto_da_fare": True,
-                "messaggio": "Foto da realizzare per questo prodotto."
+                "messaggio": "Foto da realizzare per questo prodotto e cliente."
             })
     except Exception as e:
         logger.error(f"Errore nella verifica dell'EAN {ean}: {e}")
@@ -140,5 +147,5 @@ def lista_ean(request):
     
 
 #@@@
-#from django.core.management import call_command
-#call_command('reset_ean_history.py')
+# from django.core.management import call_command
+# call_command('reset_ean_history.py')
