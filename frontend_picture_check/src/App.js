@@ -157,7 +157,7 @@ function App() {
         </div>
         
         <div className="card ean-section">
-          <h2>Verifica EAN</h2>
+          <h2>Verifica EAN/FNSKU</h2>
           <EanInput 
             ean={ean} 
             onEanChange={handleEanChange} 
@@ -174,7 +174,7 @@ function App() {
         )}
         
         <div className="card history-section">
-          <h2>Cronologia EAN</h2>
+          <h2>Cronologia EAN/FNSKU</h2>
           <EanHistory items={eanHistory} />
         </div>
       </main>

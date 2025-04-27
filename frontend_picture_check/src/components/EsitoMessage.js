@@ -8,7 +8,7 @@ function EsitoMessage({ ean, messaggio, tipoEsito }) {
   return (
     <div className="esito-message" style={{ backgroundColor: bgColor, color: '#fff' }}>
       <div className="esito-item">
-        <strong>EAN:</strong> {ean}
+        <strong>EAN/FNSKU:</strong> {ean}
       </div>
       <div className="esito-item">
         <strong>Esito:</strong> {messaggio}

@@ -24,12 +24,12 @@ function EanInput({ ean, onEanChange, onSubmit, isLoading }) {
       <div className="form-group">
         <input
           ref={inputRef}
-          id="eanInput"
+          id="eanFnskuInput"
           type="text"
           className="form-control"
           value={ean}
           onChange={(e) => onEanChange(e.target.value)}
-          placeholder="Inserisci il codice EAN"
+          placeholder="Inserisci il codice EAN/FNSKU"
           disabled={isLoading}
           autoComplete="off"
         />

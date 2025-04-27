@@ -19,7 +19,7 @@ function EanHistory({ items }) {
           <thead>
             <tr>
               <th>Data</th>
-              <th>EAN</th>
+              <th>EAN/FNSKU</th>
               <th>Cliente</th>
             </tr>
           </thead>

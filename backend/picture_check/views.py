@@ -56,12 +56,12 @@ def check_ean(request, ean):
         # Forza l'uso dell'italiano
         translation.activate('it')
         
-        # Controllo validità EAN: numerico, 13 cifre
-        if not re.fullmatch(r'\d{13}', ean):
+        # Controllo validità EAN/FNSKU: numerico, 13 cifre oppure alfanumerico, 10 caratteri
+        if not (re.fullmatch(r'\d{13}', ean) or re.fullmatch(r'[A-Za-z0-9]{10}', ean)):
             return Response({
                 "ean": ean,
                 "foto_da_fare": False,
-                "messaggio": "Codice EAN non valido: deve essere una stringa numerica di 13 cifre."
+                "messaggio": "Codice EAN/FNSKU non valido: deve essere una stringa numerica di 13 cifre o alfanumerica di 10 caratteri."
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Verifica se l'EAN esiste già nel database
@@ -95,12 +95,12 @@ def salva_ean(request):
         data = request.data
         logger.debug(f"Dati ricevuti per il salvataggio: {data}")
         
-        # Controllo validità EAN: numerico, 13 cifre
+        # Controllo validità EAN/FNSKU: numerico, 13 cifre oppure alfanumerico, 10 caratteri
         ean = data.get('ean', '')
-        if not re.fullmatch(r'\d{13}', ean):
+        if not (re.fullmatch(r'\d{13}', ean) or re.fullmatch(r'[A-Za-z0-9]{10}', ean)):
             return Response({
                 "success": False,
-                "messaggio": "Codice EAN non valido: deve essere una stringa numerica di 13 cifre."
+                "messaggio": "Codice EAN/FNSKU non valido: deve essere una stringa numerica di 13 cifre o alfanumerica di 10 caratteri."
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = PictureCheckSerializer(data=data)
@@ -140,5 +140,5 @@ def lista_ean(request):
     
 
 #@@@
-from django.core.management import call_command
-call_command('only_selley')
+#from django.core.management import call_command
+#call_command('reset_ean_history.py')
