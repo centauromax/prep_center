@@ -1,5 +1,5 @@
-import affermazioneMp3 from '../assets/affermazione.mp3';
-import negazioneMp3 from '../assets/negazione.mp3';
+import affermazioneMp3 from '../assets/affermazione.wav';
+import negazioneMp3 from '../assets/negazione.wav';
 
 const SUONO_AFFERMAZIONE = affermazioneMp3;
 const SUONO_NEGAZIONE = negazioneMp3;
