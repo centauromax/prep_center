@@ -15,7 +15,6 @@ function App() {
   const [esitoMessage, setEsitoMessage] = useState({ ean: '', messaggio: '' });
   const [eanHistory, setEanHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
   // Carica i clienti all'avvio
   useEffect(() => {
