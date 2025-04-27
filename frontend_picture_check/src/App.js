@@ -92,13 +92,14 @@ function App() {
         playAffermazione();
         
         // Salva l'EAN nel database
-        await salvaEan({
+        const nuovoEan = await salvaEan({
           ean: risposta.ean,
           cliente: clienteSelezionato
         });
         
-        // Aggiorna la cronologia
-        loadEanHistory();
+        // Aggiorna la cronologia immediatamente
+        const nuovaCronologia = await getListaEan();
+        setEanHistory(nuovaCronologia);
       } else {
         playNegazione();
       }
