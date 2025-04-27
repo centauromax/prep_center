@@ -137,3 +137,8 @@ def lista_ean(request):
     except Exception as e:
         logger.error(f"Errore nel recupero della lista degli EAN: {e}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+    
+
+#@@@
+from django.core.management import call_command
+call_command('only_selley')
