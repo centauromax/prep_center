@@ -32,7 +32,6 @@ function App() {
         setClienteSelezionato(data[0].nome);
       }
     } catch (err) {
-      setError('Errore nel caricamento dei clienti');
       console.error('Errore nel caricamento dei clienti:', err);
     } finally {
       setIsLoading(false);
@@ -46,7 +45,6 @@ function App() {
       const data = await getListaEan();
       setEanHistory(data);
     } catch (err) {
-      setError('Errore nel caricamento della cronologia EAN');
       console.error('Errore nel caricamento della cronologia EAN:', err);
     } finally {
       setIsLoading(false);
@@ -68,18 +66,15 @@ function App() {
     e.preventDefault();
     
     if (!ean) {
-      setError('Inserisci un codice EAN');
       return;
     }
     
     if (!clienteSelezionato) {
-      setError('Seleziona un cliente');
       return;
     }
     
     try {
       setIsLoading(true);
-      setError('');
       
       // Verifica l'EAN
       const risposta = await checkEan(ean);
