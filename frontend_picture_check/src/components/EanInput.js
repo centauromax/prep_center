@@ -3,15 +3,24 @@ import React, { useRef, useEffect } from 'react';
 function EanInput({ ean, onEanChange, onSubmit, isLoading }) {
   const inputRef = useRef(null);
   
-  // Focus sull'input all'avvio e quando l'EAN viene azzerato
+  // Focus sempre sull'input EAN
   useEffect(() => {
-    if (ean === '' && inputRef.current) {
+    if (inputRef.current) {
       inputRef.current.focus();
     }
-  }, [ean]);
+  }, [ean, isLoading]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(e);
+    // Refocus dopo submit
+    if (inputRef.current) {
+      setTimeout(() => inputRef.current.focus(), 0);
+    }
+  };
   
   return (
-    <form onSubmit={onSubmit} className="ean-input-form">
+    <form onSubmit={handleSubmit} className="ean-input-form">
       <div className="form-group">
         <input
           ref={inputRef}

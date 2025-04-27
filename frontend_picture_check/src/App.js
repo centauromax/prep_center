@@ -5,7 +5,7 @@ import EsitoMessage from './components/EsitoMessage';
 import EanHistory from './components/EanHistory';
 import { getClienti, checkEan, salvaEan, getListaEan } from './api';
 import { playAffermazione, playNegazione } from './utils/suoni';
-import settingsIcon from './assets/settings2.svg';
+import settingsIcon from './assets/settings.svg';
 import logoImg from './assets/logo.jpg';
 
 function App() {
