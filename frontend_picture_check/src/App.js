@@ -5,6 +5,8 @@ import EsitoMessage from './components/EsitoMessage';
 import EanHistory from './components/EanHistory';
 import { getClienti, checkEan, salvaEan, getListaEan } from './api';
 import { playAffermazione, playNegazione } from './utils/suoni';
+import settingsIcon from './assets/settings.svg';
+import logoImg from './assets/logo.png';
 
 function App() {
   const [clienti, setClienti] = useState([]);
@@ -114,12 +116,24 @@ function App() {
     }
   };
 
+  useEffect(() => {
+    document.title = 'Verifica Foto Prodotti';
+  }, []);
+
   return (
     <div className="app-container">
-      <header className="app-header">
-        <h1>Picture Check</h1>
-      </header>
-      
+      <div className="topbar">
+        <div className="topbar-left">
+          <img src={logoImg} alt="Logo" className="topbar-logo" />
+          <span className="topbar-title">FbaPrepCenterItaly</span>
+        </div>
+        <div className="topbar-center">
+          <span className="main-title">Verifica Foto Prodotti</span>
+        </div>
+        <div className="topbar-right">
+          <img src={settingsIcon} alt="Impostazioni" className="settings-icon" />
+        </div>
+      </div>
       <main className="app-content">
         {error && <div className="error-message">{error}</div>}
         

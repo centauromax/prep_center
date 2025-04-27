@@ -13,7 +13,6 @@ function EanInput({ ean, onEanChange, onSubmit, isLoading }) {
   return (
     <form onSubmit={onSubmit} className="ean-input-form">
       <div className="form-group">
-        <label htmlFor="eanInput" className="form-label">Codice EAN:</label>
         <input
           ref={inputRef}
           id="eanInput"
