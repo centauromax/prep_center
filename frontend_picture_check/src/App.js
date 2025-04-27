@@ -79,15 +79,21 @@ function App() {
       // Verifica l'EAN
       const risposta = await checkEan(ean);
       let tipoEsito = 'success';
+      let messaggio = risposta.messaggio;
       if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('da realizzare')) {
         tipoEsito = 'warning';
+        messaggio = 'Foto da inviare';
+      }
+      if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('già realizzate')) {
+        tipoEsito = 'success';
+        messaggio = 'Foto già inviata';
       }
       if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('non valido')) {
         tipoEsito = 'error';
       }
       setEsitoMessage({
         ean: risposta.ean,
-        messaggio: risposta.messaggio,
+        messaggio,
         tipoEsito
       });
       
