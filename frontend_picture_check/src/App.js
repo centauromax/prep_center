@@ -119,7 +119,7 @@ function App() {
     } catch (err) {
       setEsitoMessage({
         ean: ean,
-        messaggio: 'Codice EAN non valido: deve essere una stringa numerica di 13 cifre.',
+        messaggio: 'Codice EAN/FNSKU non valido: deve essere una stringa numerica di 12 o 13 cifre o alfanumerica di 10 caratteri.',
         tipoEsito: 'error'
       });
       console.error('Errore nella verifica dell\'EAN:', err);
