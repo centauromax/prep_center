@@ -122,6 +122,7 @@ function App() {
         messaggio: 'Codice EAN/FNSKU non valido: deve essere una stringa numerica di 12 o 13 cifre o alfanumerica di 10 caratteri.',
         tipoEsito: 'error'
       });
+      setEan('');
       console.error('Errore nella verifica dell\'EAN:', err);
     } finally {
       setIsLoading(false);
