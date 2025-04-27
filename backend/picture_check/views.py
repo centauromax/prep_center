@@ -148,4 +148,4 @@ def lista_ean(request):
 
 #@@@
 from django.core.management import call_command
-call_command('reset_ean_history.py')
+call_command('reset_ean_history')
