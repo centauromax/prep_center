@@ -84,9 +84,17 @@ function App() {
       
       // Verifica l'EAN
       const risposta = await checkEan(ean);
+      let tipoEsito = 'success';
+      if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('da realizzare')) {
+        tipoEsito = 'warning';
+      }
+      if (risposta.messaggio && risposta.messaggio.toLowerCase().includes('non valido')) {
+        tipoEsito = 'error';
+      }
       setEsitoMessage({
         ean: risposta.ean,
-        messaggio: risposta.messaggio
+        messaggio: risposta.messaggio,
+        tipoEsito
       });
       
       // Riproduci il suono appropriato
@@ -109,7 +117,11 @@ function App() {
       // Resetta il campo EAN
       setEan('');
     } catch (err) {
-      setError('Errore nella verifica dell\'EAN');
+      setEsitoMessage({
+        ean: ean,
+        messaggio: 'Codice EAN non valido: deve essere una stringa numerica di 13 cifre.',
+        tipoEsito: 'error'
+      });
       console.error('Errore nella verifica dell\'EAN:', err);
     } finally {
       setIsLoading(false);
@@ -135,8 +147,6 @@ function App() {
         <h1 className="page-title">Verifica Foto Prodotti</h1>
       </div>
       <main className="app-content">
-        {error && <div className="error-message">{error}</div>}
-        
         <div className="card cliente-section">
           <h2>Seleziona Cliente</h2>
           <ClienteSelect 
@@ -159,7 +169,7 @@ function App() {
         {esitoMessage.ean && (
           <div className="card esito-section">
             <h2>Esito Verifica</h2>
-            <EsitoMessage ean={esitoMessage.ean} messaggio={esitoMessage.messaggio} />
+            <EsitoMessage ean={esitoMessage.ean} messaggio={esitoMessage.messaggio} tipoEsito={esitoMessage.tipoEsito} />
           </div>
         )}
         
