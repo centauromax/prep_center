@@ -7,9 +7,12 @@ function EanHistory({ items }) {
     return new Date(dateString).toLocaleDateString('it-IT', options);
   };
 
+  // Ordina gli elementi per data decrescente
+  const sortedItems = [...items].sort((a, b) => new Date(b.data) - new Date(a.data));
+
   return (
     <div className="ean-history-container">
-      {items.length === 0 ? (
+      {sortedItems.length === 0 ? (
         <p className="text-center">Nessun EAN nella cronologia</p>
       ) : (
         <table className="table table-striped">
@@ -21,7 +24,7 @@ function EanHistory({ items }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => (
+            {sortedItems.map((item) => (
               <tr key={item.id}>
                 <td>{formatDate(item.data)}</td>
                 <td>{item.ean}</td>
