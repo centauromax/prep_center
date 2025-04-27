@@ -5,7 +5,7 @@ import EsitoMessage from './components/EsitoMessage';
 import EanHistory from './components/EanHistory';
 import { getClienti, checkEan, salvaEan, getListaEan } from './api';
 import { playAffermazione, playNegazione } from './utils/suoni';
-import settingsIcon from './assets/settings.svg';
+import settingsIcon from './assets/settings2.svg';
 import logoImg from './assets/logo.jpg';
 
 function App() {
@@ -125,14 +125,14 @@ function App() {
       <div className="topbar">
         <div className="topbar-left">
           <img src={logoImg} alt="Logo" className="topbar-logo" />
-          <span className="topbar-title">FbaPrepCenterItaly</span>
-        </div>
-        <div className="topbar-center">
-          <span className="main-title">Verifica Foto Prodotti</span>
+          <span className="topbar-title small-title">FbaPrepCenterItaly</span>
         </div>
         <div className="topbar-right">
           <img src={settingsIcon} alt="Impostazioni" className="settings-icon" />
         </div>
+      </div>
+      <div className="page-title-container">
+        <h1 className="page-title">Verifica Foto Prodotti</h1>
       </div>
       <main className="app-content">
         {error && <div className="error-message">{error}</div>}
@@ -170,7 +170,7 @@ function App() {
       </main>
       
       <footer className="app-footer">
-        <p>&copy; {new Date().getFullYear()} Prep Center</p>
+        <p>&copy; {new Date().getFullYear()} Zacideas srl</p>
       </footer>
     </div>
   );

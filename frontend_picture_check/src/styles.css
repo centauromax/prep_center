@@ -41,6 +41,27 @@ body {
   font-size: 1.4rem;
   font-weight: 600;
 }
+.small-title {
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+.page-title-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2.5rem;
+  margin-bottom: 1.5rem;
+}
+.page-title {
+  color: #037ea7;
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
 .topbar-center {
   flex: 1;
   display: flex;
@@ -59,8 +80,12 @@ body {
 .settings-icon {
   width: 28px;
   height: 28px;
-  filter: invert(1);
+  filter: invert(1) brightness(1.2);
   cursor: pointer;
+  transition: filter 0.2s;
+}
+.settings-icon:hover {
+  filter: invert(0.7) sepia(1) saturate(5) hue-rotate(170deg);
 }
 
 /* Header */
