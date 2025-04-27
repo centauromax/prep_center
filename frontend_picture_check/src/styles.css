@@ -80,7 +80,7 @@ body {
 .settings-icon {
   width: 22.5px;
   height: 22.5px;
-  filter: invert(1) brightness(1.2);
+  filter: brightness(1.2);
   cursor: pointer;
   transition: filter 0.2s;
 }
