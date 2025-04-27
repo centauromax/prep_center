@@ -1,6 +1,8 @@
-// Percorsi dei file audio
-const SUONO_AFFERMAZIONE = '/static/picture_check/sounds/affermazione.mp3';
-const SUONO_NEGAZIONE = '/static/picture_check/sounds/negazione.mp3';
+import affermazioneMp3 from '../assets/affermazione.mp3';
+import negazioneMp3 from '../assets/negazione.mp3';
+
+const SUONO_AFFERMAZIONE = affermazioneMp3;
+const SUONO_NEGAZIONE = negazioneMp3;
 
 // Cache degli elementi audio
 let audioAffermazione = null;
