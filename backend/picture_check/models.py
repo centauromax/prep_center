@@ -6,7 +6,7 @@ class PictureCheck(models.Model):
     """
     Modello per salvare gli EAN verificati per cui le foto non sono state ancora fatte
     """
-    data = models.DateField(verbose_name="Data Verifica")
+    data = models.DateField(auto_now_add=True, verbose_name="Data Verifica")
     ean = models.CharField(max_length=20, verbose_name="Codice EAN", db_index=True)
     cliente = models.CharField(max_length=100, verbose_name="Cliente")
     
