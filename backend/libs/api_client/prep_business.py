@@ -5,6 +5,7 @@ import requests
 import logging
 import json
 import time
+import traceback
 from typing import Dict, Any, Optional, Union, List
 
 from libs.config import (
@@ -39,6 +40,10 @@ class PrepBusinessClient:
         # Verifica che l'API key sia impostata
         if not self.api_key:
             logger.warning("API key non impostata per Prep Business API")
+        
+        # Logga le configurazioni (oscurando parte della API key per sicurezza)
+        api_key_safe = self.api_key[:4] + "..." if self.api_key and len(self.api_key) > 4 else "non impostata"
+        logger.info(f"Client API inizializzato: URL={self.api_url}, API Key={api_key_safe}, Timeout={self.timeout}s, Retry={self.max_retries}")
     
     def _get_headers(self, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
         """
@@ -85,6 +90,17 @@ class PrepBusinessClient:
         url = f"{self.api_url}/{endpoint.lstrip('/')}"
         all_headers = self._get_headers(headers)
         
+        # Rimuovi Authorization per il logging
+        log_headers = all_headers.copy()
+        if 'Authorization' in log_headers:
+            log_headers['Authorization'] = 'Bearer ***HIDDEN***'
+        
+        logger.info(f"Esecuzione richiesta {method} a {url}")
+        logger.debug(f"Headers: {log_headers}")
+        logger.debug(f"Params: {params}")
+        if data and method.upper() in ['POST', 'PUT', 'PATCH']:
+            logger.debug(f"Data: {json.dumps(data)[:200]}...")
+        
         retry_count = 0
         last_exception = None
         
@@ -101,13 +117,24 @@ class PrepBusinessClient:
                     timeout=self.timeout
                 )
                 
+                # Log della risposta
+                logger.debug(f"Risposta status code: {response.status_code}")
+                logger.debug(f"Risposta headers: {response.headers}")
+                
                 # Verifica se la risposta è valida
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except requests.exceptions.HTTPError as e:
+                    logger.error(f"Errore HTTP: {e}")
+                    logger.error(f"Risposta: {response.text[:500]}")
+                    raise
                 
                 try:
-                    return response.json()
+                    result = response.json()
+                    logger.debug(f"Risposta JSON: {json.dumps(result)[:500]}...")
+                    return result
                 except json.JSONDecodeError:
-                    logger.warning(f"Risposta non JSON: {response.text}")
+                    logger.warning(f"Risposta non JSON: {response.text[:500]}")
                     return {"text": response.text}
                     
             except requests.exceptions.RequestException as e:
@@ -121,6 +148,7 @@ class PrepBusinessClient:
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Fallimento dopo {self.max_retries} tentativi: {e}")
+                    logger.error(f"Traceback: {traceback.format_exc()}")
                     raise
         
         if last_exception:
@@ -140,8 +168,11 @@ class PrepBusinessClient:
         Returns:
             Lista di merchants
         """
+        logger.info(f"Recupero merchants con filtri: {filters}")
         response = self._make_request('GET', '/merchants', params=filters)
-        return response.get('data', [])
+        merchants = response.get('data', [])
+        logger.info(f"Recuperati {len(merchants)} merchants")
+        return merchants
     
     def get_shipments(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
