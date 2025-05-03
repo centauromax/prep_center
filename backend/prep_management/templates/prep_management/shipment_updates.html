@@ -244,6 +244,46 @@
             <p>Il webhook riceve notifiche di cambio stato delle spedizioni all'URL:</p>
             <code class="d-block p-2 bg-light">{{ request.scheme }}://{{ request.get_host }}{% url 'shipment_status_webhook' %}</code>
             
+            <div class="alert alert-warning mt-3">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Configurazione del webhook su Prep Business</h6>
+                
+                {% if is_railway %}
+                <div class="alert alert-info">
+                    <strong><i class="fas fa-cloud me-2"></i>Applicazione in esecuzione su Railway</strong>
+                    <p class="mb-0 mt-2">URL pubblico: <code>{{ railway_url }}</code></p>
+                    <p class="mb-0">URL webhook: <code>{{ railway_url }}/prep_management/webhook/</code></p>
+                </div>
+                
+                <p>Per configurare il webhook in questo ambiente Railway:</p>
+                <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook</code></pre>
+                <p class="small text-muted">Il comando rileverà automaticamente l'URL pubblico di Railway.</p>
+                {% else %}
+                <p>Per configurare il webhook su Prep Business, utilizza il comando:</p>
+                <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook --url="{{ request.scheme }}://{{ request.get_host }}{% url 'shipment_status_webhook' %}"</code></pre>
+                <p class="mt-2">Questo utilizzerà la libreria PrepBusiness per registrare il webhook nel sistema Prep Business.</p>
+                
+                <h6 class="mt-3"><i class="fas fa-cloud me-2"></i>Per ambiente Railway</h6>
+                <p>Su Railway, puoi configurare il webhook utilizzando la console di Railway:</p>
+                <ol>
+                    <li>Accedi alla dashboard di Railway</li>
+                    <li>Vai al terminale del tuo servizio</li>
+                    <li>Esegui il comando:
+                        <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook</code></pre>
+                        Il comando rileverà automaticamente l'URL pubblico di Railway.
+                    </li>
+                </ol>
+                {% endif %}
+            </div>
+            
+            <div class="mt-3">
+                <p>Altre opzioni del comando <code>setup_webhook</code>:</p>
+                <ul>
+                    <li><code>--merchant ID</code>: configura il webhook solo per un merchant specifico</li>
+                    <li><code>--list</code>: visualizza tutti i webhook configurati</li>
+                    <li><code>--delete ID</code>: elimina un webhook esistente</li>
+                </ul>
+            </div>
+            
             <h6 class="mt-4">Formato del payload JSON atteso:</h6>
             <pre class="bg-light p-3 rounded"><code>{
   "shipment_id": "ABC123456",

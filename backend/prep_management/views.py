@@ -299,6 +299,14 @@ def shipment_status_updates(request):
     for event_type, _ in ShipmentStatusUpdate.EVENT_TYPES:
         event_counts[event_type] = ShipmentStatusUpdate.objects.filter(event_type=event_type).count()
     
+    # Informazioni sull'ambiente per Railway
+    is_railway = bool(os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN'))
+    railway_url = None
+    if is_railway:
+        domain = os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+        if domain:
+            railway_url = f"https://{domain}" if not domain.startswith('http') else domain
+    
     context = {
         'updates': updates,
         'status_choices': ShipmentStatusUpdate.STATUS_CHOICES,
@@ -310,6 +318,8 @@ def shipment_status_updates(request):
         'current_event_type': event_type_filter,
         'total_updates': ShipmentStatusUpdate.objects.count(),
         'unprocessed_count': ShipmentStatusUpdate.objects.filter(processed=False).count(),
+        'is_railway': is_railway,
+        'railway_url': railway_url,
         'title': 'Aggiornamenti stato spedizioni'
     }
     

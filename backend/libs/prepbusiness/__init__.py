@@ -1,13 +1,31 @@
+"""
+PrepBusiness - Libreria client per l'API di Prep Business.
+"""
+
 from .client import PrepBusinessClient
+from .models import (
+    PrepBusinessError, AuthenticationError, PaginatedResponse,
+    Webhook, WebhooksResponse, WebhookResponse, DeleteWebhookResponse,
+    WebhookTypes, InvoiceWebhookTypes, InboundShipmentWebhookTypes, 
+    OutboundShipmentWebhookTypes, OrderWebhookTypes
+)
 from .search import SearchQuery
-from .models import Channel, ChannelType, ConnectionStatus
-from .config import Config
+
+__version__ = '1.0.0'
 
 __all__ = [
     'PrepBusinessClient',
+    'PrepBusinessError',
+    'AuthenticationError',
+    'PaginatedResponse',
+    'Webhook',
+    'WebhooksResponse',
+    'WebhookResponse',
+    'DeleteWebhookResponse',
+    'WebhookTypes',
+    'InvoiceWebhookTypes',
+    'InboundShipmentWebhookTypes',
+    'OutboundShipmentWebhookTypes',
+    'OrderWebhookTypes',
     'SearchQuery',
-    'Channel',
-    'ChannelType',
-    'ConnectionStatus',
-    'Config',
 ]
