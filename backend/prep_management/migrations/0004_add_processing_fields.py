@@ -10,11 +10,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='shipmentstatusupdate',
-            name='processed',
-            field=models.BooleanField(default=False, verbose_name='Elaborato'),
-        ),
-        migrations.AddField(
-            model_name='shipmentstatusupdate',
             name='processed_at',
             field=models.DateTimeField(null=True, blank=True, verbose_name='Data elaborazione'),
         ),
