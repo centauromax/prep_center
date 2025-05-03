@@ -5,8 +5,8 @@ import os
 from django.conf import settings
 
 # API settings per Prep Business
-PREP_BUSINESS_API_URL = os.getenv('PREP_BUSINESS_API_URL', 'https://api.prepbusiness.com/api/v1')
-PREP_BUSINESS_API_KEY = os.getenv('PREP_BUSINESS_API_KEY', '')
+PREP_BUSINESS_API_URL = db_config.get('api_url') if db_config else os.getenv('PREP_BUSINESS_API_URL', 'https://dashboard.fbaprepcenteritaly.com/api')
+PREP_BUSINESS_API_KEY = db_config.get('api_key') if db_config else os.getenv('PREP_BUSINESS_API_KEY', '')
 PREP_BUSINESS_API_TIMEOUT = int(os.getenv('PREP_BUSINESS_API_TIMEOUT', '30'))
 
 # Impostazioni di retry

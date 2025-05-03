@@ -87,7 +87,13 @@ class PrepBusinessClient:
         Raises:
             requests.RequestException: Se la richiesta fallisce dopo tutti i retry
         """
-        url = f"{self.api_url}/{endpoint.lstrip('/')}"
+        # Costruisci l'URL completo assicurandosi che non ci siano doppie barre o
+        # problemi con eventuali barre all'inizio dell'endpoint o alla fine dell'URL base
+        if self.api_url.endswith('/'):
+            url = f"{self.api_url}{endpoint.lstrip('/')}"
+        else:
+            url = f"{self.api_url}/{endpoint.lstrip('/')}"
+            
         all_headers = self._get_headers(headers)
         
         # Rimuovi Authorization per il logging
@@ -169,7 +175,11 @@ class PrepBusinessClient:
             Lista di merchants
         """
         logger.info(f"Recupero merchants con filtri: {filters}")
-        response = self._make_request('GET', '/merchants', params=filters)
+        
+        # Costruisci l'URL completo per l'endpoint merchants
+        endpoint = 'merchants'
+        
+        response = self._make_request('GET', endpoint, params=filters)
         merchants = response.get('data', [])
         logger.info(f"Recuperati {len(merchants)} merchants")
         return merchants

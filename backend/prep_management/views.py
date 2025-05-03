@@ -80,9 +80,9 @@ def api_config_debug(request):
                 'Accept': 'application/json',
             }
             
-            # Test di connessione base
+            # Test di connessione all'endpoint merchants
             response = requests.get(
-                f"{PREP_BUSINESS_API_URL}/status" if '/status' in PREP_BUSINESS_API_URL else PREP_BUSINESS_API_URL,
+                f"{PREP_BUSINESS_API_URL}/merchants",
                 headers=headers,
                 timeout=PREP_BUSINESS_API_TIMEOUT
             )
