@@ -22,6 +22,7 @@ import socket
 from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook, update_webhook
 from libs.prepbusiness.webhook_processor import WebhookProcessor
 from libs.prepbusiness.webhook_receiver import WebhookReceiver
+from .event_handlers import WebhookEventProcessor
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -147,10 +148,11 @@ def shipment_status_webhook(request):
     # Ottieni la chiave segreta per verificare i webhook
     webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
     
-    # Crea il gestore webhook
+    # Crea il gestore webhook e il processore degli eventi
     receiver = WebhookReceiver(webhook_secret=webhook_secret)
+    processor = WebhookEventProcessor()
     
-    # Definisci la funzione di callback per salvare i dati
+    # Definisci la funzione di callback per salvare e processare subito i dati
     def save_webhook_data(webhook_data):
         # Crea il record di aggiornamento
         shipment_update = ShipmentStatusUpdate(
@@ -167,6 +169,8 @@ def shipment_status_webhook(request):
             payload=webhook_data.get('payload', {})
         )
         shipment_update.save()
+        # Elabora subito l'evento appena salvato
+        processor.process_event(shipment_update.id)
         return shipment_update
     
     # Processa il webhook
@@ -230,8 +234,8 @@ def shipment_status_updates(request):
     if event_type_filter:
         updates = updates.filter(event_type=event_type_filter)
     
-    # Limita a 100 record per default
-    limit = int(request.GET.get('limit', 100))
+    # Limita a 10 record per default
+    limit = int(request.GET.get('limit', 10))
     updates = updates[:limit]
     
     # Conteggio per status
