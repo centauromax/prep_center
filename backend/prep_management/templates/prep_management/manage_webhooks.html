@@ -34,23 +34,34 @@
             </div>
             
             <div class="row">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <form method="POST">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="webhook_id" value="1025">
                         <button type="submit" class="btn btn-danger btn-lg w-100 mb-3" onclick="return confirm('Sicuro di voler eliminare il webhook ID 1025 (example.com)?')">
-                            <i class="fas fa-trash me-2"></i>1. Elimina Webhook Errato (ID: 1025)
+                            <i class="fas fa-trash me-2"></i>1. Elimina Webhook Errato
                         </button>
                     </form>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <form method="POST">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="create">
                         <input type="hidden" name="webhook_url" value="{{ suggested_url }}">
                         <button type="submit" class="btn btn-success btn-lg w-100 mb-3">
-                            <i class="fas fa-plus-circle me-2"></i>2. Crea Nuovo Webhook (URL Railway)
+                            <i class="fas fa-plus-circle me-2"></i>2. Crea Nuovo Webhook
+                        </button>
+                    </form>
+                </div>
+                <div class="col-md-4">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update">
+                        <input type="hidden" name="webhook_id" value="1025">
+                        <input type="hidden" name="webhook_url" value="{{ suggested_url }}">
+                        <button type="submit" class="btn btn-warning btn-lg w-100 mb-3">
+                            <i class="fas fa-sync me-2"></i>3. Aggiorna URL Webhook
                         </button>
                     </form>
                 </div>
@@ -97,6 +108,9 @@
                             <button class="nav-link" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="false">Crea</button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="update-tab" data-bs-toggle="tab" data-bs-target="#update" type="button" role="tab" aria-controls="update" aria-selected="false">Aggiorna</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">Elimina</button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -134,6 +148,33 @@
                                 </div>
                                 <button type="submit" class="btn btn-success">
                                     <i class="fas fa-plus-circle me-2"></i>Crea Webhook
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Aggiorna webhook -->
+                        <div class="tab-pane fade" id="update" role="tabpanel" aria-labelledby="update-tab">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update">
+                                <div class="mb-3">
+                                    <label for="webhookIdUpdate" class="form-label">ID Webhook</label>
+                                    <input type="number" class="form-control" id="webhookIdUpdate" name="webhook_id" required placeholder="ID del webhook da aggiornare">
+                                    <div class="form-text">ID numerico del webhook (visibile nell'elenco)</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="webhookUrlUpdate" class="form-label">Nuovo URL Webhook</label>
+                                    <input type="url" class="form-control" id="webhookUrlUpdate" name="webhook_url" 
+                                           value="{{ suggested_url }}" placeholder="https://example.com/webhook/">
+                                    <div class="form-text">Nuovo URL a cui Prep Business invierà le notifiche</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="merchantIdUpdate" class="form-label">ID Merchant (opzionale)</label>
+                                    <input type="number" class="form-control" id="merchantIdUpdate" name="merchant_id" placeholder="Solo per merchant specifico">
+                                    <div class="form-text">Necessario solo per webhook di merchant specifici</div>
+                                </div>
+                                <button type="submit" class="btn btn-warning">
+                                    <i class="fas fa-sync me-2"></i>Aggiorna Webhook
                                 </button>
                             </form>
                         </div>
@@ -214,7 +255,7 @@
             <ol>
                 <li>Verifica che il webhook sia configurato correttamente usando l'azione <strong>Elenco</strong>.</li>
                 <li>Se non vedi webhook configurati, creane uno nuovo con l'URL suggerito.</li>
-                <li>Se vedi webhook configurati ma con URL diversi o non corretti, eliminali e creane uno nuovo.</li>
+                <li>Se vedi webhook configurati ma con URL diversi o non corretti, aggiornali o eliminali e creane di nuovi.</li>
                 <li>Verifica che l'endpoint webhook sia raggiungibile visitando: <a href="{{ suggested_url }}" target="_blank">{{ suggested_url }}</a></li>
                 <li>Controlla i log dell'applicazione per eventuali errori durante la ricezione dei webhook.</li>
                 <li>Se tutto è configurato correttamente ma non ricevi eventi, prova a generare vari tipi di eventi in Prep Business.</li>

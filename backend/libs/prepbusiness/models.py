@@ -1008,4 +1008,97 @@ class WebhookResponse(BaseModel):
 
 class DeleteWebhookResponse(BaseModel):
     """Response model for deleting a webhook."""
-    message: str = Field(..., description="Response message") 
+    message: str = Field(..., description="Response message")
+
+class WebhookPayloadData(BaseModel):
+    """
+    Model representing the data part of a webhook payload.
+    Based on real webhook data received from Prep Business.
+    """
+    id: int = Field(..., description="ID of the entity (shipment, order, etc.)")
+    created_at: Optional[str] = Field(None, description="Creation timestamp")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    team_id: Optional[int] = Field(None, description="ID of the team")
+    name: Optional[str] = Field(None, description="Name of the entity")
+    notes: Optional[str] = Field(None, description="Notes")
+    warehouse_id: Optional[int] = Field(None, description="ID of the warehouse")
+    received_at: Optional[str] = Field(None, description="When the shipment was received")
+    internal_notes: Optional[str] = Field(None, description="Internal notes")
+    archived_at: Optional[str] = Field(None, description="When the entity was archived")
+    shipped_at: Optional[str] = Field(None, description="When the shipment was shipped")
+    checked_in_at: Optional[str] = Field(None, description="When the shipment was checked in")
+    deleted_at: Optional[str] = Field(None, description="When the entity was deleted")
+    currency: Optional[str] = Field(None, description="Currency code")
+    eta: Optional[str] = Field(None, description="Estimated time of arrival")
+    reference_id: Optional[str] = Field(None, description="Reference ID")
+    migrated: Optional[bool] = Field(None, description="Whether the entity was migrated")
+    status: Optional[str] = Field(None, description="Current status of the entity")
+    expected_items: Optional[List[dict]] = Field(default_factory=list, description="Expected items")
+    actual_items: Optional[List[dict]] = Field(default_factory=list, description="Actual items")
+    warehouse: Optional[dict] = Field(None, description="Warehouse details")
+    
+    # Allow additional fields not explicitly defined in the model
+    class Config:
+        extra = "allow"
+
+class WebhookPayload(BaseModel):
+    """
+    Model representing a webhook payload from Prep Business.
+    Based on real webhook data received.
+    """
+    type: str = Field(..., description="Type of webhook event")
+    data: WebhookPayloadData = Field(..., description="Data related to the event")
+    
+    # Method to convert webhook payload to the format expected by the application
+    def to_shipment_update(self) -> Dict[str, Any]:
+        """
+        Convert webhook payload to a format usable by ShipmentStatusUpdate model
+        
+        Returns:
+            Dict with properly mapped fields for ShipmentStatusUpdate
+        """
+        entity_id = str(self.data.id)
+        event_type = self.type
+        
+        # Extract entity type from event_type
+        entity_type = event_type.split('.')[0] if '.' in event_type else ''
+        
+        # Map status
+        status_map = {
+            'pending': 'pending',
+            'processing': 'processing',
+            'ready': 'ready',
+            'shipped': 'shipped',
+            'delivered': 'delivered',
+            'cancelled': 'cancelled',
+            'failed': 'failed',
+            'returned': 'returned',
+            'created': 'created',
+            'received': 'received',
+            'notes_updated': 'notes_updated',
+            'closed': 'closed',
+            'open': 'pending',  # Map 'open' to 'pending'
+            'draft': 'pending'  # Map 'draft' to 'pending'
+        }
+        
+        status = self.data.status or ''
+        mapped_status = status_map.get(status.lower(), 'other') if isinstance(status, str) else 'other'
+        
+        # Merchant information
+        merchant_id = self.data.team_id
+        merchant_name = None
+        if hasattr(self.data, 'warehouse') and self.data.warehouse:
+            merchant_name = self.data.warehouse.get('name')
+        
+        return {
+            'shipment_id': entity_id,
+            'event_type': event_type,
+            'entity_type': entity_type,
+            'new_status': mapped_status,
+            'merchant_id': merchant_id,
+            'merchant_name': merchant_name,
+            'payload': self.dict()
+        }
+    
+    class Config:
+        extra = "allow" 

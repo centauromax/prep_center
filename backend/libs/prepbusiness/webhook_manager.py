@@ -116,6 +116,98 @@ def create_webhook(url=None, merchant_id=None):
         return {'success': False, 'error': str(e)}
 
 @capture_output
+def update_webhook(webhook_id, url, merchant_id=None):
+    """
+    Aggiorna un webhook esistente.
+    
+    Args:
+        webhook_id: ID del webhook da aggiornare
+        url: Nuovo URL del webhook
+        merchant_id: ID del merchant (opzionale)
+        
+    Returns:
+        dict: Risultato dell'operazione con l'output del comando
+    """
+    try:
+        # Importa direttamente i componenti necessari per l'aggiornamento
+        setup_django_env()
+        from libs.prepbusiness.client import PrepBusinessClient
+        from libs.config import (
+            PREP_BUSINESS_API_URL,
+            PREP_BUSINESS_API_KEY,
+            PREP_BUSINESS_API_TIMEOUT,
+        )
+        
+        # Estrai dominio dall'URL API
+        api_url = PREP_BUSINESS_API_URL
+        if not api_url:
+            logger.error('PREP_BUSINESS_API_URL non configurato')
+            return {'success': False, 'error': 'API URL non configurato'}
+            
+        domain = api_url.replace('https://', '').replace('http://', '').split('/')[0]
+        
+        # Crea cliente Prep Business
+        client = PrepBusinessClient(
+            api_key=PREP_BUSINESS_API_KEY,
+            company_domain=domain,
+            timeout=PREP_BUSINESS_API_TIMEOUT,
+        )
+        
+        # Aggiorna il webhook attivando tutti gli eventi disponibili
+        if merchant_id:
+            response = client.update_merchant_webhook(
+                merchant_id=merchant_id,
+                webhook_id=webhook_id,
+                url=url,
+                invoice_created=True,
+                inbound_shipment_notes_updated=True,
+                inbound_shipment_created=True,
+                inbound_shipment_shipped=True,
+                inbound_shipment_received=True,
+                outbound_shipment_notes_updated=True,
+                outbound_shipment_created=True,
+                outbound_shipment_shipped=True,
+                outbound_shipment_closed=True,
+                order_shipped=True
+            )
+            print(f'Webhook aggiornato per il merchant {merchant_id}: {url}')
+        else:
+            response = client.update_webhook(
+                webhook_id=webhook_id,
+                url=url,
+                invoice_created=True,
+                inbound_shipment_notes_updated=True,
+                inbound_shipment_created=True,
+                inbound_shipment_shipped=True,
+                inbound_shipment_received=True,
+                outbound_shipment_notes_updated=True,
+                outbound_shipment_created=True,
+                outbound_shipment_shipped=True,
+                outbound_shipment_closed=True,
+                order_shipped=True
+            )
+            print(f'Webhook globale aggiornato: {url}')
+            
+        # Mostra dettagli webhook
+        webhook = response.webhook
+        print('-' * 50)
+        print('Dettagli webhook:')
+        print(f'ID: {webhook.id}')
+        print(f'URL: {webhook.url}')
+        print('Eventi configurati:')
+        
+        # Mostra gli eventi attivi
+        for field, value in webhook.__dict__.items():
+            if field.startswith('receives_') and value:
+                event_name = field.replace('receives_', '')
+                print(f'  - {event_name}')
+                
+        return {'success': True, 'webhook': webhook}
+    except Exception as e:
+        logger.error(f"Errore nell'aggiornamento del webhook: {str(e)}")
+        return {'success': False, 'error': str(e)}
+
+@capture_output
 def delete_webhook(webhook_id, merchant_id=None):
     """
     Elimina un webhook.

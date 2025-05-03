@@ -19,7 +19,8 @@ import hashlib
 import base64
 import time
 import socket
-from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook
+from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook, update_webhook
+from libs.prepbusiness.webhook_processor import WebhookProcessor
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -163,91 +164,47 @@ def shipment_status_webhook(request):
         # Verifica la firma del webhook se impostata una secret key
         webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
         if webhook_secret:
-            signature = request.headers.get('X-Webhook-Signature')
+            signature = request.headers.get('X-Webhook-Signature') or request.headers.get('Signature')
             if not verify_webhook_signature(request.body, signature, webhook_secret):
                 logger.warning(f"[DEBUG {debug_timestamp}] Firma webhook non valida")
                 return HttpResponse("Firma non valida", status=403)
         
-        # Leggi i dati JSON
         try:
-            data = json.loads(request.body)
-            logger.info(f"[DEBUG {debug_timestamp}] Webhook ricevuto: {data}")
+            # Utilizza il processore webhook per interpretare e normalizzare i dati
+            webhook_data = WebhookProcessor.parse_payload(request.body)
+            logger.info(f"[DEBUG {debug_timestamp}] Webhook elaborato: {webhook_data}")
+            
+            # Verifica che l'ID entità sia stato estratto
+            if not webhook_data.get('shipment_id'):
+                logger.error(f"[DEBUG {debug_timestamp}] Dati webhook incompleti - nessun ID entità trovato")
+                return HttpResponse("Dati incompleti - ID entità mancante", status=400)
+            
+            # Crea il record di aggiornamento
+            shipment_update = ShipmentStatusUpdate(
+                shipment_id=webhook_data.get('shipment_id'),
+                event_type=webhook_data.get('event_type', 'other'),
+                entity_type=webhook_data.get('entity_type', ''),
+                previous_status=webhook_data.get('previous_status'),
+                new_status=webhook_data.get('new_status', 'other'),
+                merchant_id=webhook_data.get('merchant_id'),
+                merchant_name=webhook_data.get('merchant_name'),
+                tracking_number=webhook_data.get('tracking_number'),
+                carrier=webhook_data.get('carrier'),
+                notes=webhook_data.get('notes'),
+                payload=webhook_data.get('payload', {})
+            )
+            shipment_update.save()
+            
+            logger.info(f"[DEBUG {debug_timestamp}] Aggiornamento entità {webhook_data.get('shipment_id')} salvato: {webhook_data.get('event_type')} - {webhook_data.get('previous_status')} → {webhook_data.get('new_status')}")
+            
+            return HttpResponse("OK", status=200)
+            
         except json.JSONDecodeError:
             logger.error(f"[DEBUG {debug_timestamp}] Payload webhook non è un JSON valido: {request.body}")
             return HttpResponse("Payload non valido", status=400)
-        
-        # Estrai le informazioni dal payload
-        event_type = data.get('event_type', 'other')
-        
-        # Se il tipo di evento non è specificato, proviamo a dedurlo
-        if event_type == 'other':
-            # Controlla se c'è un tipo di azione o stato che possiamo usare
-            action = data.get('action', '')
-            entity_type = data.get('entity_type', '')
-            
-            if entity_type and action:
-                event_type = f"{entity_type}.{action}"
-        
-        # Estrai l'ID della spedizione o dell'entità
-        entity_id = data.get('id') or data.get('shipment_id') or data.get('order_id') or data.get('invoice_id')
-        if not entity_id:
-            logger.error(f"[DEBUG {debug_timestamp}] Dati webhook incompleti - nessun ID entità trovato: {data}")
-            return HttpResponse("Dati incompleti - ID entità mancante", status=400)
-        
-        # Estrai gli stati
-        new_status = data.get('status') or data.get('new_status') or 'other'
-        previous_status = data.get('previous_status')
-        
-        # Determina il tipo di entità
-        entity_type = data.get('entity_type', '')
-        if not entity_type and '.' in event_type:
-            entity_type = event_type.split('.')[0]
-        
-        # Mappa lo stato in uno dei nostri stati definiti se necessario
-        status_map = {
-            'pending': 'pending',
-            'processing': 'processing',
-            'ready': 'ready',
-            'shipped': 'shipped',
-            'delivered': 'delivered',
-            'cancelled': 'cancelled',
-            'failed': 'failed',
-            'returned': 'returned',
-            'created': 'created',
-            'received': 'received',
-            'notes_updated': 'notes_updated',
-            'closed': 'closed'
-        }
-        
-        mapped_status = status_map.get(new_status.lower(), 'other') if isinstance(new_status, str) else 'other'
-        mapped_previous = status_map.get(previous_status.lower(), None) if isinstance(previous_status, str) else None
-        
-        # Estrai informazioni addizionali utili
-        merchant_id = data.get('merchant_id') or data.get('merchant', {}).get('id')
-        merchant_name = data.get('merchant_name') or data.get('merchant', {}).get('name')
-        tracking_number = data.get('tracking_number') or data.get('tracking', {}).get('number')
-        carrier = data.get('carrier') or data.get('tracking', {}).get('carrier')
-        notes = data.get('notes') or data.get('message')
-        
-        # Crea il record di aggiornamento
-        shipment_update = ShipmentStatusUpdate(
-            shipment_id=entity_id,
-            event_type=event_type,
-            entity_type=entity_type,
-            previous_status=mapped_previous,
-            new_status=mapped_status,
-            merchant_id=merchant_id,
-            merchant_name=merchant_name,
-            tracking_number=tracking_number,
-            carrier=carrier,
-            notes=notes,
-            payload=data  # Salva tutto il payload
-        )
-        shipment_update.save()
-        
-        logger.info(f"[DEBUG {debug_timestamp}] Aggiornamento entità {entity_id} salvato: {event_type} - {mapped_previous} → {mapped_status}")
-        
-        return HttpResponse("OK", status=200)
+        except ValueError as e:
+            logger.error(f"[DEBUG {debug_timestamp}] Errore durante l'elaborazione del payload: {str(e)}")
+            return HttpResponse(f"Errore di elaborazione: {str(e)}", status=400)
         
     except Exception as e:
         logger.error(f"[DEBUG {debug_timestamp}] Errore durante l'elaborazione del webhook: {str(e)}")
@@ -415,6 +372,22 @@ def manage_webhooks(request):
             result = create_webhook(url, merchant_id)
             output = result.get('output', '')
             message = "Webhook creato con successo" if result.get('success') else f"Errore: {result.get('error', 'Errore sconosciuto')}"
+        
+        elif action == 'update':
+            webhook_id = request.POST.get('webhook_id')
+            url = request.POST.get('webhook_url')
+            merchant_id = request.POST.get('merchant_id')
+            
+            try:
+                webhook_id = int(webhook_id)
+                if merchant_id:
+                    merchant_id = int(merchant_id)
+            except ValueError:
+                message = "ID webhook non valido"
+            else:
+                result = update_webhook(webhook_id, url, merchant_id)
+                output = result.get('output', '')
+                message = "Webhook aggiornato con successo" if result.get('success') else f"Errore: {result.get('error', 'Errore sconosciuto')}"
         
         elif action == 'delete':
             webhook_id = request.POST.get('webhook_id')
