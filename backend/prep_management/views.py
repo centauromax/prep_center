@@ -19,6 +19,7 @@ import hashlib
 import base64
 import time
 import socket
+from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -358,6 +359,14 @@ def shipment_status_updates(request):
         if domain:
             railway_url = f"https://{domain}" if not domain.startswith('http') else domain
     
+    # Ottieni lista dei webhook configurati
+    webhook_listing = None
+    try:
+        result = list_webhooks()
+        webhook_listing = result.get('output', 'Nessuna informazione disponibile sui webhook.')
+    except Exception as e:
+        webhook_listing = f"Errore nel recupero dei webhook: {str(e)}"
+    
     context = {
         'updates': updates,
         'status_choices': ShipmentStatusUpdate.STATUS_CHOICES,
@@ -371,7 +380,100 @@ def shipment_status_updates(request):
         'unprocessed_count': ShipmentStatusUpdate.objects.filter(processed=False).count(),
         'is_railway': is_railway,
         'railway_url': railway_url,
+        'webhook_listing': webhook_listing,
         'title': 'Aggiornamenti stato spedizioni'
     }
     
     return render(request, 'prep_management/shipment_updates.html', context)
+
+def manage_webhooks(request):
+    """
+    View per gestire i webhook di Prep Business.
+    Permette di elencare, creare, eliminare e testare i webhook.
+    """
+    message = None
+    output = None
+    webhook_listing = None
+    
+    # Azioni sui webhook
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'list':
+            result = list_webhooks()
+            output = result.get('output', '')
+        
+        elif action == 'create':
+            url = request.POST.get('webhook_url')
+            merchant_id = request.POST.get('merchant_id')
+            if merchant_id:
+                try:
+                    merchant_id = int(merchant_id)
+                except ValueError:
+                    merchant_id = None
+            
+            result = create_webhook(url, merchant_id)
+            output = result.get('output', '')
+            message = "Webhook creato con successo" if result.get('success') else f"Errore: {result.get('error', 'Errore sconosciuto')}"
+        
+        elif action == 'delete':
+            webhook_id = request.POST.get('webhook_id')
+            merchant_id = request.POST.get('merchant_id')
+            
+            try:
+                webhook_id = int(webhook_id)
+                if merchant_id:
+                    merchant_id = int(merchant_id)
+            except ValueError:
+                message = "ID webhook non valido"
+            else:
+                result = delete_webhook(webhook_id, merchant_id)
+                output = result.get('output', '')
+                message = "Webhook eliminato con successo" if result.get('success') else f"Errore: {result.get('error', 'Errore sconosciuto')}"
+        
+        elif action == 'test':
+            webhook_id = request.POST.get('webhook_id')
+            merchant_id = request.POST.get('merchant_id')
+            
+            try:
+                if webhook_id:
+                    webhook_id = int(webhook_id)
+                if merchant_id:
+                    merchant_id = int(merchant_id)
+            except ValueError:
+                message = "ID webhook non valido"
+            else:
+                result = test_webhook(webhook_id, merchant_id)
+                output = result.get('output', '')
+                message = "Test webhook completato" if result.get('success') else f"Errore: {result.get('error', 'Errore sconosciuto')}"
+    
+    # Recupera la lista dei webhook per visualizzarla
+    try:
+        result = list_webhooks()
+        webhook_listing = result.get('output', '')
+    except Exception as e:
+        webhook_listing = f"Errore nell'elenco dei webhook: {str(e)}"
+    
+    # Determina l'URL corrente dell'applicazione
+    import os
+    is_railway = bool(os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN'))
+    webhook_url = None
+    
+    if is_railway:
+        domain = os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+        if domain:
+            webhook_url = f"https://{domain}" if not domain.startswith('http') else domain
+            webhook_url = f"{webhook_url.rstrip('/')}/prep_management/webhook/"
+    else:
+        webhook_url = f"{request.scheme}://{request.get_host()}/prep_management/webhook/"
+    
+    context = {
+        'title': 'Gestione Webhook Prep Business',
+        'message': message,
+        'output': output,
+        'webhook_listing': webhook_listing,
+        'suggested_url': webhook_url,
+        'is_railway': is_railway
+    }
+    
+    return render(request, 'prep_management/manage_webhooks.html', context)

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>Gestione Webhook Prep Business</h1>
+            <p class="lead">Configura e gestisci i webhook per ricevere notifiche di stato spedizioni</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{% url 'shipment_status_updates' %}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Torna agli aggiornamenti
+            </a>
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="alert {% if 'Errore' in message %}alert-danger{% else %}alert-success{% endif %} mb-4">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    <!-- Info ambiente -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>Informazioni ambiente</h5>
+        </div>
+        <div class="card-body">
+            {% if is_railway %}
+            <div class="alert alert-primary">
+                <strong><i class="fas fa-cloud me-2"></i>Applicazione in esecuzione su Railway</strong>
+            </div>
+            {% endif %}
+            
+            <p><strong>URL webhook suggerito:</strong></p>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" value="{{ suggested_url }}" id="webhookUrl" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('webhookUrl')">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gestione webhook -->
+    <div class="row">
+        <!-- Azioni webhook -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-cogs me-2"></i>Azioni Webhook</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="nav nav-tabs" id="webhookTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list" type="button" role="tab" aria-controls="list" aria-selected="true">Elenco</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="false">Crea</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">Elimina</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="test-tab" data-bs-toggle="tab" data-bs-target="#test" type="button" role="tab" aria-controls="test" aria-selected="false">Test</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content p-3" id="webhookTabsContent">
+                        <!-- Elenco webhook -->
+                        <div class="tab-pane fade show active" id="list" role="tabpanel" aria-labelledby="list-tab">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="list">
+                                <p>Visualizza l'elenco dei webhook configurati in Prep Business.</p>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-list me-2"></i>Elenca Webhook
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Crea webhook -->
+                        <div class="tab-pane fade" id="create" role="tabpanel" aria-labelledby="create-tab">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="create">
+                                <div class="mb-3">
+                                    <label for="webhookUrlInput" class="form-label">URL Webhook</label>
+                                    <input type="url" class="form-control" id="webhookUrlInput" name="webhook_url" 
+                                           value="{{ suggested_url }}" placeholder="https://example.com/webhook/">
+                                    <div class="form-text">URL a cui Prep Business invierà le notifiche</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="merchantIdCreate" class="form-label">ID Merchant (opzionale)</label>
+                                    <input type="number" class="form-control" id="merchantIdCreate" name="merchant_id" placeholder="Solo per merchant specifico">
+                                    <div class="form-text">Lascia vuoto per un webhook globale</div>
+                                </div>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus-circle me-2"></i>Crea Webhook
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Elimina webhook -->
+                        <div class="tab-pane fade" id="delete" role="tabpanel" aria-labelledby="delete-tab">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <div class="mb-3">
+                                    <label for="webhookIdDelete" class="form-label">ID Webhook</label>
+                                    <input type="number" class="form-control" id="webhookIdDelete" name="webhook_id" required placeholder="ID del webhook da eliminare">
+                                    <div class="form-text">ID numerico del webhook (visibile nell'elenco)</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="merchantIdDelete" class="form-label">ID Merchant (opzionale)</label>
+                                    <input type="number" class="form-control" id="merchantIdDelete" name="merchant_id" placeholder="Solo per merchant specifico">
+                                    <div class="form-text">Necessario solo per webhook di merchant specifici</div>
+                                </div>
+                                <button type="submit" class="btn btn-danger" onclick="return confirm('Sei sicuro di voler eliminare questo webhook?')">
+                                    <i class="fas fa-trash me-2"></i>Elimina Webhook
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Test webhook -->
+                        <div class="tab-pane fade" id="test" role="tabpanel" aria-labelledby="test-tab">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="test">
+                                <div class="mb-3">
+                                    <label for="webhookIdTest" class="form-label">ID Webhook (opzionale)</label>
+                                    <input type="number" class="form-control" id="webhookIdTest" name="webhook_id" placeholder="Lascia vuoto per usare il primo webhook disponibile">
+                                    <div class="form-text">ID numerico del webhook da testare</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="merchantIdTest" class="form-label">ID Merchant (opzionale)</label>
+                                    <input type="number" class="form-control" id="merchantIdTest" name="merchant_id" placeholder="Solo per merchant specifico">
+                                </div>
+                                <button type="submit" class="btn btn-info">
+                                    <i class="fas fa-vial me-2"></i>Testa Webhook
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Output -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-terminal me-2"></i>Output</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="outputArea" class="form-label">Risultato operazione</label>
+                        <textarea class="form-control font-monospace" id="outputArea" rows="10" readonly>{{ output }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="webhookListingArea" class="form-label">Webhook configurati</label>
+                        <textarea class="form-control font-monospace" id="webhookListingArea" rows="10" readonly>{{ webhook_listing }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Istruzioni -->
+    <div class="card mt-2">
+        <div class="card-header bg-warning">
+            <h5 class="card-title mb-0"><i class="fas fa-lightbulb me-2"></i>Istruzioni</h5>
+        </div>
+        <div class="card-body">
+            <h6>Come risolvere problemi con i webhook</h6>
+            <ol>
+                <li>Verifica che il webhook sia configurato correttamente usando l'azione <strong>Elenco</strong>.</li>
+                <li>Se non vedi webhook configurati, creane uno nuovo con l'URL suggerito.</li>
+                <li>Se vedi webhook configurati ma con URL diversi o non corretti, eliminali e creane uno nuovo.</li>
+                <li>Verifica che l'endpoint webhook sia raggiungibile visitando: <a href="{{ suggested_url }}" target="_blank">{{ suggested_url }}</a></li>
+                <li>Controlla i log dell'applicazione per eventuali errori durante la ricezione dei webhook.</li>
+                <li>Se tutto è configurato correttamente ma non ricevi eventi, prova a generare vari tipi di eventi in Prep Business.</li>
+            </ol>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    element.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(element.value);
+    
+    // Feedback visivo
+    const button = element.nextElementSibling;
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check"></i>';
+    button.classList.remove('btn-outline-secondary');
+    button.classList.add('btn-success');
+    
+    setTimeout(() => {
+        button.innerHTML = originalHTML;
+        button.classList.remove('btn-success');
+        button.classList.add('btn-outline-secondary');
+    }, 2000);
+}
+</script>
+{% endblock %} 

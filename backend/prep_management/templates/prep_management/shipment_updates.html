@@ -238,26 +238,30 @@
     <!-- Informazioni sul webhook -->
     <div class="card mt-4">
         <div class="card-header bg-info text-white">
-            <h5 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>Informazioni sul webhook</h5>
+            <h5 class="card-title mb-0">
+                <i class="fas fa-info-circle me-2"></i>Informazioni sul webhook
+                <a href="{% url 'manage_webhooks' %}" class="btn btn-sm btn-light float-end">
+                    <i class="fas fa-cogs me-1"></i>Gestisci Webhook
+                </a>
+            </h5>
         </div>
         <div class="card-body">
             <p>Il webhook riceve notifiche di cambio stato delle spedizioni all'URL:</p>
             <code class="d-block p-2 bg-light">{{ request.scheme }}://{{ request.get_host }}{% url 'shipment_status_webhook' %}</code>
             
+            {% if is_railway %}
+            <div class="alert alert-primary mt-3">
+                <strong><i class="fas fa-cloud me-2"></i>Applicazione in esecuzione su Railway</strong>
+                <p class="mb-0 mt-2">URL pubblico: <code>{{ railway_url }}</code></p>
+                <p class="mb-0">URL webhook: <code>{{ railway_url }}/prep_management/webhook/</code></p>
+            </div>
+            
+            <p>Per configurare il webhook in questo ambiente Railway:</p>
+            <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook</code></pre>
+            <p class="small text-muted">Il comando rileverà automaticamente l'URL pubblico di Railway.</p>
+            {% else %}
             <div class="alert alert-warning mt-3">
                 <h6><i class="fas fa-exclamation-triangle me-2"></i>Configurazione del webhook su Prep Business</h6>
-                
-                {% if is_railway %}
-                <div class="alert alert-info">
-                    <strong><i class="fas fa-cloud me-2"></i>Applicazione in esecuzione su Railway</strong>
-                    <p class="mb-0 mt-2">URL pubblico: <code>{{ railway_url }}</code></p>
-                    <p class="mb-0">URL webhook: <code>{{ railway_url }}/prep_management/webhook/</code></p>
-                </div>
-                
-                <p>Per configurare il webhook in questo ambiente Railway:</p>
-                <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook</code></pre>
-                <p class="small text-muted">Il comando rileverà automaticamente l'URL pubblico di Railway.</p>
-                {% else %}
                 <p>Per configurare il webhook su Prep Business, utilizza il comando:</p>
                 <pre class="bg-light p-2 mt-2"><code>python manage.py setup_webhook --url="{{ request.scheme }}://{{ request.get_host }}{% url 'shipment_status_webhook' %}"</code></pre>
                 <p class="mt-2">Questo utilizzerà la libreria PrepBusiness per registrare il webhook nel sistema Prep Business.</p>
@@ -272,8 +276,8 @@
                         Il comando rileverà automaticamente l'URL pubblico di Railway.
                     </li>
                 </ol>
-                {% endif %}
             </div>
+            {% endif %}
             
             <div class="mt-3">
                 <p>Altre opzioni del comando <code>setup_webhook</code>:</p>
@@ -295,6 +299,35 @@
   "carrier": "UPS",
   "updated_at": "2023-05-03T12:34:56Z"
 }</code></pre>
+        </div>
+    </div>
+    
+    <!-- Webhook configurati -->
+    <div class="card mt-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-link me-2"></i>Webhook configurati
+                <button class="btn btn-sm btn-light float-end" type="button" data-bs-toggle="collapse" data-bs-target="#collapseWebhooks" aria-expanded="true">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </h5>
+        </div>
+        <div class="collapse show" id="collapseWebhooks">
+            <div class="card-body">
+                {% if webhook_listing %}
+                <pre class="bg-light p-3 font-monospace" style="max-height: 400px; overflow-y: auto;">{{ webhook_listing }}</pre>
+                {% else %}
+                <div class="alert alert-warning">
+                    <p class="mb-0">Non è stato possibile recuperare l'elenco dei webhook.</p>
+                </div>
+                {% endif %}
+                
+                <div class="mt-3 text-end">
+                    <a href="{% url 'manage_webhooks' %}" class="btn btn-primary">
+                        <i class="fas fa-cogs me-2"></i>Gestisci Webhook
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 </div>
