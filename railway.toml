@@ -1,2 +1,2 @@
 [deploy]
-postDeployCommand = "cd backend && python manage.py migrate" 
+postDeployCommand = "cd backend && echo 'Running migrations...' && python manage.py migrate && echo 'Migrations completed'" 
