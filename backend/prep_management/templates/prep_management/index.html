@@ -1,14 +1,27 @@
+{% extends "base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prep Management</title>
-    <link rel="stylesheet" href="{% static 'prep_management/css/style.css' %}">
-</head>
-<body>
+
+{% block title %}Prep Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
     <h1>Prep Management</h1>
-</body>
-</html>
+    
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="list-group">
+                <a href="{% url 'merchants_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1"><i class="fas fa-store me-2"></i> Merchants</h5>
+                        <p class="mb-1">Visualizza i merchants configurati in Prep Business</p>
+                    </div>
+                    <span class="badge bg-primary rounded-pill"><i class="fas fa-arrow-right"></i></span>
+                </a>
+                
+                <!-- Aggiungi altri link a funzionalità dell'app qui -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
 

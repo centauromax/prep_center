@@ -14,12 +14,16 @@ import os
 from pathlib import Path
 import dj_database_url
 from django.utils.translation import gettext_lazy as _
+import sys
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_ROOT = BASE_DIR / 'media'
 MEDIA_URL = '/media/'
+
+# Aggiungi la directory libs al percorso Python
+sys.path.insert(0, str(BASE_DIR))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -218,6 +222,18 @@ LOGGING = {
             'filename': os.path.join(LOG_DIR, 'picture_check.log'),
             'formatter': 'verbose',
             'mode': 'a',
+        },
+        'prep_business_file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'prep_business.log'),
+            'formatter': 'verbose',
+            'mode': 'a',
+        },
+        'prep_management_file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOG_DIR, 'prep_management.log'),
+            'formatter': 'verbose',
+            'mode': 'a',
         }
     },
     'root': {
@@ -237,6 +253,16 @@ LOGGING = {
         },
         'picture_check': {
             'handlers': ['console', 'picture_check_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'prep_business': {
+            'handlers': ['console', 'prep_business_file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'prep_management': {
+            'handlers': ['console', 'prep_management_file'],
             'level': 'DEBUG',
             'propagate': False,
         },

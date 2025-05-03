@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>Merchants configurati in Prep Business</h1>
+            <p class="lead">Totale: {{ total_merchants }} merchants</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <form method="GET" class="form-inline">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="showInactive" name="show_inactive" value="true" {% if show_inactive %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="form-check-label" for="showInactive">Mostra anche inattivi</label>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if merchants %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Telefono</th>
+                    <th>Paese</th>
+                    <th>Status</th>
+                    <th>Data Creazione</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for merchant in merchants %}
+                <tr class="{% if not merchant.active %}table-secondary{% endif %}">
+                    <td>{{ merchant.id }}</td>
+                    <td>{{ merchant.name }}</td>
+                    <td>{{ merchant.email }}</td>
+                    <td>{{ merchant.phone|default:"-" }}</td>
+                    <td>{{ merchant.country|default:"-" }}</td>
+                    <td>
+                        {% if merchant.active %}
+                        <span class="badge bg-success">Attivo</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inattivo</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ merchant.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <p>Nessun merchant trovato.</p>
+        <p>Possibili cause:</p>
+        <ul>
+            <li>Non ci sono merchants configurati in Prep Business</li>
+            <li>Problemi di connessione all'API di Prep Business</li>
+            <li>API key di Prep Business non configurata correttamente</li>
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Se necessario, aggiungere JavaScript personalizzato qui
+</script>
+{% endblock %} 
