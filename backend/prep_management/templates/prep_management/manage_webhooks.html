@@ -23,6 +23,41 @@
     </div>
     {% endif %}
 
+    <!-- Azioni rapide -->
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="card-title mb-0"><i class="fas fa-bolt me-2"></i>Azioni Rapide (Fix Webhook Railway)</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <p><strong><i class="fas fa-exclamation-triangle me-2"></i>Attenzione:</strong> Queste azioni rapide servono per correggere un webhook configurato con URL errato (example.com).</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="webhook_id" value="1025">
+                        <button type="submit" class="btn btn-danger btn-lg w-100 mb-3" onclick="return confirm('Sicuro di voler eliminare il webhook ID 1025 (example.com)?')">
+                            <i class="fas fa-trash me-2"></i>1. Elimina Webhook Errato (ID: 1025)
+                        </button>
+                    </form>
+                </div>
+                <div class="col-md-6">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="create">
+                        <input type="hidden" name="webhook_url" value="{{ suggested_url }}">
+                        <button type="submit" class="btn btn-success btn-lg w-100 mb-3">
+                            <i class="fas fa-plus-circle me-2"></i>2. Crea Nuovo Webhook (URL Railway)
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Info ambiente -->
     <div class="card mb-4">
         <div class="card-header bg-info text-white">
