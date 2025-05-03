@@ -21,6 +21,7 @@ import time
 import socket
 from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook, update_webhook
 from libs.prepbusiness.webhook_processor import WebhookProcessor
+from libs.prepbusiness.webhook_receiver import WebhookReceiver
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -143,99 +144,34 @@ def shipment_status_webhook(request):
     Questo endpoint riceve notifiche POST quando lo stato di una spedizione cambia.
     Salva i dati ricevuti nel database per essere visualizzati e processati.
     """
-    # Log di debug per ogni richiesta ricevuta
-    debug_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[DEBUG {debug_timestamp}] Richiesta webhook ricevuta via {request.method}")
-    logger.info(f"[DEBUG {debug_timestamp}] Headers: {dict(request.headers)}")
+    # Ottieni la chiave segreta per verificare i webhook
+    webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
     
-    # Per richieste GET, restituisci una risposta di test
-    if request.method == 'GET':
-        return JsonResponse({
-            'status': 'ok',
-            'message': 'Webhook endpoint is accessible, but only POST requests are processed',
-            'timestamp': debug_timestamp,
-            'method': request.method,
-        })
+    # Crea il gestore webhook
+    receiver = WebhookReceiver(webhook_secret=webhook_secret)
     
-    # Per richieste POST, continua con la logica normale
-    logger.info(f"[DEBUG {debug_timestamp}] Body: {request.body.decode('utf-8', errors='replace')}")
-
-    try:
-        # Verifica la firma del webhook se impostata una secret key
-        webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
-        if webhook_secret:
-            signature = request.headers.get('X-Webhook-Signature') or request.headers.get('Signature')
-            if not verify_webhook_signature(request.body, signature, webhook_secret):
-                logger.warning(f"[DEBUG {debug_timestamp}] Firma webhook non valida")
-                return HttpResponse("Firma non valida", status=403)
-        
-        try:
-            # Utilizza il processore webhook per interpretare e normalizzare i dati
-            webhook_data = WebhookProcessor.parse_payload(request.body)
-            logger.info(f"[DEBUG {debug_timestamp}] Webhook elaborato: {webhook_data}")
-            
-            # Verifica che l'ID entità sia stato estratto
-            if not webhook_data.get('shipment_id'):
-                logger.error(f"[DEBUG {debug_timestamp}] Dati webhook incompleti - nessun ID entità trovato")
-                return HttpResponse("Dati incompleti - ID entità mancante", status=400)
-            
-            # Crea il record di aggiornamento
-            shipment_update = ShipmentStatusUpdate(
-                shipment_id=webhook_data.get('shipment_id'),
-                event_type=webhook_data.get('event_type', 'other'),
-                entity_type=webhook_data.get('entity_type', ''),
-                previous_status=webhook_data.get('previous_status'),
-                new_status=webhook_data.get('new_status', 'other'),
-                merchant_id=webhook_data.get('merchant_id'),
-                merchant_name=webhook_data.get('merchant_name'),
-                tracking_number=webhook_data.get('tracking_number'),
-                carrier=webhook_data.get('carrier'),
-                notes=webhook_data.get('notes'),
-                payload=webhook_data.get('payload', {})
-            )
-            shipment_update.save()
-            
-            logger.info(f"[DEBUG {debug_timestamp}] Aggiornamento entità {webhook_data.get('shipment_id')} salvato: {webhook_data.get('event_type')} - {webhook_data.get('previous_status')} → {webhook_data.get('new_status')}")
-            
-            return HttpResponse("OK", status=200)
-            
-        except json.JSONDecodeError:
-            logger.error(f"[DEBUG {debug_timestamp}] Payload webhook non è un JSON valido: {request.body}")
-            return HttpResponse("Payload non valido", status=400)
-        except ValueError as e:
-            logger.error(f"[DEBUG {debug_timestamp}] Errore durante l'elaborazione del payload: {str(e)}")
-            return HttpResponse(f"Errore di elaborazione: {str(e)}", status=400)
-        
-    except Exception as e:
-        logger.error(f"[DEBUG {debug_timestamp}] Errore durante l'elaborazione del webhook: {str(e)}")
-        logger.error(traceback.format_exc())
-        return HttpResponse("Errore interno", status=500)
-
-
-def verify_webhook_signature(payload, signature, secret):
-    """
-    Verifica la firma HMAC-SHA256 del payload del webhook.
+    # Definisci la funzione di callback per salvare i dati
+    def save_webhook_data(webhook_data):
+        # Crea il record di aggiornamento
+        shipment_update = ShipmentStatusUpdate(
+            shipment_id=webhook_data.get('shipment_id'),
+            event_type=webhook_data.get('event_type', 'other'),
+            entity_type=webhook_data.get('entity_type', ''),
+            previous_status=webhook_data.get('previous_status'),
+            new_status=webhook_data.get('new_status', 'other'),
+            merchant_id=webhook_data.get('merchant_id'),
+            merchant_name=webhook_data.get('merchant_name'),
+            tracking_number=webhook_data.get('tracking_number'),
+            carrier=webhook_data.get('carrier'),
+            notes=webhook_data.get('notes'),
+            payload=webhook_data.get('payload', {})
+        )
+        shipment_update.save()
+        return shipment_update
     
-    Args:
-        payload: Il payload raw della richiesta
-        signature: La firma fornita nell'header
-        secret: La chiave segreta condivisa
-        
-    Returns:
-        bool: True se la firma è valida, False altrimenti
-    """
-    if not signature or not secret:
-        return False
-    
-    # Calcola l'HMAC del payload
-    computed_signature = hmac.new(
-        secret.encode(),
-        payload,
-        hashlib.sha256
-    ).hexdigest()
-    
-    # Confronta la firma calcolata con quella fornita
-    return hmac.compare_digest(computed_signature, signature)
+    # Processa il webhook
+    response, webhook_data = receiver.process_webhook(request, save_callback=save_webhook_data)
+    return response
 
 
 def test_webhook(request):
