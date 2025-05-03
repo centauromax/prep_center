@@ -7,6 +7,7 @@ import json
 import time
 import traceback
 from typing import Dict, Any, Optional, Union, List
+import os
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -31,11 +32,15 @@ class PrepBusinessClient:
             api_url: URL base dell'API (opzionale, default da config)
             api_key: Chiave API (opzionale, default da config)
         """
-        self.api_url = api_url or PREP_BUSINESS_API_URL
-        self.api_key = api_key or PREP_BUSINESS_API_KEY
-        self.timeout = PREP_BUSINESS_API_TIMEOUT
-        self.max_retries = PREP_BUSINESS_MAX_RETRIES
-        self.retry_backoff = PREP_BUSINESS_RETRY_BACKOFF
+        # Prima tenta di caricare le configurazioni dal DB, se possibile
+        db_config = self._get_config_from_db()
+        
+        # Imposta le configurazioni con priorità: parametri > db > variabili ambiente > default
+        self.api_url = api_url or (db_config.get('api_url') if db_config else PREP_BUSINESS_API_URL)
+        self.api_key = api_key or (db_config.get('api_key') if db_config else PREP_BUSINESS_API_KEY)
+        self.timeout = int(db_config.get('api_timeout', PREP_BUSINESS_API_TIMEOUT) if db_config else PREP_BUSINESS_API_TIMEOUT)
+        self.max_retries = int(db_config.get('max_retries', PREP_BUSINESS_MAX_RETRIES) if db_config else PREP_BUSINESS_MAX_RETRIES)
+        self.retry_backoff = float(db_config.get('retry_backoff', PREP_BUSINESS_RETRY_BACKOFF) if db_config else PREP_BUSINESS_RETRY_BACKOFF)
         
         # Verifica che l'API key sia impostata
         if not self.api_key:
@@ -44,6 +49,40 @@ class PrepBusinessClient:
         # Logga le configurazioni (oscurando parte della API key per sicurezza)
         api_key_safe = self.api_key[:4] + "..." if self.api_key and len(self.api_key) > 4 else "non impostata"
         logger.info(f"Client API inizializzato: URL={self.api_url}, API Key={api_key_safe}, Timeout={self.timeout}s, Retry={self.max_retries}")
+    
+    def _get_config_from_db(self):
+        """
+        Tenta di recuperare la configurazione dal database.
+        
+        Returns:
+            dict: Configurazione recuperata o None in caso di errore
+        """
+        try:
+            # Import dinamico per evitare dipendenze circolari
+            from django.apps import apps
+            if not apps.ready:
+                logger.debug("Django apps non ancora inizializzate, caricamento configurazione dal DB saltato")
+                return None
+
+            PrepBusinessConfig = apps.get_model('prep_management', 'PrepBusinessConfig')
+            
+            config = PrepBusinessConfig.objects.filter(is_active=True).first()
+            if config:
+                return {
+                    'api_url': config.api_url,
+                    'api_key': config.api_key,
+                    'api_timeout': config.api_timeout,
+                    'max_retries': config.max_retries,
+                    'retry_backoff': config.retry_backoff
+                }
+        except (ImportError, Exception) as e:
+            # Gestisce i casi in cui:
+            # - Il modello non esiste
+            # - Il database non è configurato
+            # - La tabella non esiste ancora (migrazioni non applicate)
+            logger.debug(f"Impossibile recuperare la configurazione dal database: {e}")
+        
+        return None
     
     def _get_headers(self, additional_headers: Dict[str, str] = None) -> Dict[str, str]:
         """
@@ -55,8 +94,11 @@ class PrepBusinessClient:
         Returns:
             Dict con gli header completi
         """
-        headers = DEFAULT_HEADERS.copy()
-        headers['Authorization'] = f'Bearer {self.api_key}'
+        headers = {
+            'Authorization': f'Bearer {self.api_key}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }
         
         if additional_headers:
             headers.update(additional_headers)
