@@ -144,6 +144,8 @@ class WebhookEventProcessor:
             # Ottieni tutte le spedizioni in entrata per questo merchant
             inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
             inbound_shipments = inbound_shipments_response.data
+            # Filtra solo le spedizioni in entrata non archiviate
+            inbound_shipments = [s for s in inbound_shipments if s.archived_at is None]
             
             # Cerca una spedizione con lo stesso nome
             matching_shipment = next(
