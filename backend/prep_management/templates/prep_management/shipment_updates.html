@@ -175,6 +175,50 @@
             </tbody>
         </table>
     </div>
+    
+    <!-- Raw Webhook Payloads -->
+    <div class="card mt-4">
+        <div class="card-header bg-dark text-white">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-code me-2"></i>Raw Webhook Payloads
+                <button class="btn btn-sm btn-outline-light float-end" type="button" data-bs-toggle="collapse" data-bs-target="#collapsePayloads" aria-expanded="false">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </h5>
+        </div>
+        <div class="collapse" id="collapsePayloads">
+            <div class="card-body p-0">
+                <div class="accordion" id="accordionPayloads">
+                    {% for update in updates %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ update.id }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ update.id }}" aria-expanded="false" aria-controls="collapse{{ update.id }}">
+                                <strong>{{ update.shipment_id }}</strong> -
+                                <span class="badge 
+                                    {% if 'created' in update.event_type %}bg-success
+                                    {% elif 'shipped' in update.event_type %}bg-info
+                                    {% elif 'received' in update.event_type %}bg-primary 
+                                    {% elif 'notes' in update.event_type %}bg-warning text-dark
+                                    {% else %}bg-secondary{% endif %} ms-2">
+                                    {{ update.get_event_name }}
+                                </span>
+                                <small class="text-muted ms-3">{{ update.created_at|date:"d/m/Y H:i:s" }}</small>
+                            </button>
+                        </h2>
+                        <div id="collapse{{ update.id }}" class="accordion-collapse collapse" aria-labelledby="heading{{ update.id }}" data-bs-parent="#accordionPayloads">
+                            <div class="accordion-body">
+                                <pre class="bg-light p-3 rounded"><code>{{ update.payload|pprint }}</code></pre>
+                                <button class="btn btn-sm btn-outline-secondary copy-btn" data-payload="{{ update.id }}">
+                                    <i class="fas fa-copy me-1"></i>Copia
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
     {% else %}
     <div class="alert alert-info">
         <h4 class="alert-heading">Nessun aggiornamento trovato!</h4>
@@ -217,5 +261,32 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Non è più necessario lo script JavaScript per get_item -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Funzione per copiare il payload negli appunti
+    document.querySelectorAll('.copy-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const payloadId = this.getAttribute('data-payload');
+            const payloadText = document.querySelector(`#collapse${payloadId} pre code`).textContent;
+            
+            navigator.clipboard.writeText(payloadText).then(() => {
+                // Feedback visivo
+                const originalText = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-check me-1"></i>Copiato!';
+                this.classList.remove('btn-outline-secondary');
+                this.classList.add('btn-success');
+                
+                // Ripristina dopo 2 secondi
+                setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.classList.remove('btn-success');
+                    this.classList.add('btn-outline-secondary');
+                }, 2000);
+            }).catch(err => {
+                console.error('Errore durante la copia: ', err);
+            });
+        });
+    });
+});
+</script>
 {% endblock %} 

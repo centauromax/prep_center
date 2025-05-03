@@ -269,6 +269,7 @@ def shipment_status_updates(request):
     # Filtri
     status_filter = request.GET.get('status')
     processed_filter = request.GET.get('processed')
+    event_type_filter = request.GET.get('event_type')
     
     # Query base
     updates = ShipmentStatusUpdate.objects.all()
@@ -280,6 +281,9 @@ def shipment_status_updates(request):
     if processed_filter:
         processed = processed_filter.lower() == 'true'
         updates = updates.filter(processed=processed)
+        
+    if event_type_filter:
+        updates = updates.filter(event_type=event_type_filter)
     
     # Limita a 100 record per default
     limit = int(request.GET.get('limit', 100))
@@ -290,12 +294,20 @@ def shipment_status_updates(request):
     for status, _ in ShipmentStatusUpdate.STATUS_CHOICES:
         status_counts[status] = ShipmentStatusUpdate.objects.filter(new_status=status).count()
     
+    # Conteggio per tipo evento
+    event_counts = {}
+    for event_type, _ in ShipmentStatusUpdate.EVENT_TYPES:
+        event_counts[event_type] = ShipmentStatusUpdate.objects.filter(event_type=event_type).count()
+    
     context = {
         'updates': updates,
         'status_choices': ShipmentStatusUpdate.STATUS_CHOICES,
+        'event_choices': ShipmentStatusUpdate.EVENT_TYPES,
         'status_counts': status_counts,
+        'event_counts': event_counts,
         'current_status': status_filter,
         'current_processed': processed_filter,
+        'current_event_type': event_type_filter,
         'total_updates': ShipmentStatusUpdate.objects.count(),
         'unprocessed_count': ShipmentStatusUpdate.objects.filter(processed=False).count(),
         'title': 'Aggiornamenti stato spedizioni'
