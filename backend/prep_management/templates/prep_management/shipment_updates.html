@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
+{% load prep_management_extras %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -198,13 +199,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-// Aggiungiamo un filtro per accedere agli elementi di un dizionario con una chiave
-// Questo non è nativo in Django, quindi lo aggiungiamo tramite JavaScript
-Object.defineProperty(Object.prototype, "get_item", {
-    value: function(key) {
-        return this[key];
-    }
-});
-</script>
+<!-- Non è più necessario lo script JavaScript per get_item -->
 {% endblock %} 
