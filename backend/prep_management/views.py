@@ -17,6 +17,8 @@ import os
 import hmac
 import hashlib
 import base64
+import time
+import socket
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -140,21 +142,27 @@ def shipment_status_webhook(request):
     Questo endpoint riceve notifiche POST quando lo stato di una spedizione cambia.
     Salva i dati ricevuti nel database per essere visualizzati e processati.
     """
+    # Log di debug per ogni richiesta ricevuta
+    debug_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"[DEBUG {debug_timestamp}] Richiesta webhook ricevuta")
+    logger.info(f"[DEBUG {debug_timestamp}] Headers: {dict(request.headers)}")
+    logger.info(f"[DEBUG {debug_timestamp}] Body: {request.body.decode('utf-8', errors='replace')}")
+
     try:
         # Verifica la firma del webhook se impostata una secret key
         webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
         if webhook_secret:
             signature = request.headers.get('X-Webhook-Signature')
             if not verify_webhook_signature(request.body, signature, webhook_secret):
-                logger.warning("Firma webhook non valida")
+                logger.warning(f"[DEBUG {debug_timestamp}] Firma webhook non valida")
                 return HttpResponse("Firma non valida", status=403)
         
         # Leggi i dati JSON
         try:
             data = json.loads(request.body)
-            logger.info(f"Webhook ricevuto: {data}")
+            logger.info(f"[DEBUG {debug_timestamp}] Webhook ricevuto: {data}")
         except json.JSONDecodeError:
-            logger.error(f"Payload webhook non è un JSON valido: {request.body}")
+            logger.error(f"[DEBUG {debug_timestamp}] Payload webhook non è un JSON valido: {request.body}")
             return HttpResponse("Payload non valido", status=400)
         
         # Estrai le informazioni dal payload
@@ -172,7 +180,7 @@ def shipment_status_webhook(request):
         # Estrai l'ID della spedizione o dell'entità
         entity_id = data.get('id') or data.get('shipment_id') or data.get('order_id') or data.get('invoice_id')
         if not entity_id:
-            logger.error(f"Dati webhook incompleti - nessun ID entità trovato: {data}")
+            logger.error(f"[DEBUG {debug_timestamp}] Dati webhook incompleti - nessun ID entità trovato: {data}")
             return HttpResponse("Dati incompleti - ID entità mancante", status=400)
         
         # Estrai gli stati
@@ -226,12 +234,12 @@ def shipment_status_webhook(request):
         )
         shipment_update.save()
         
-        logger.info(f"Aggiornamento entità {entity_id} salvato: {event_type} - {mapped_previous} → {mapped_status}")
+        logger.info(f"[DEBUG {debug_timestamp}] Aggiornamento entità {entity_id} salvato: {event_type} - {mapped_previous} → {mapped_status}")
         
         return HttpResponse("OK", status=200)
         
     except Exception as e:
-        logger.error(f"Errore durante l'elaborazione del webhook: {str(e)}")
+        logger.error(f"[DEBUG {debug_timestamp}] Errore durante l'elaborazione del webhook: {str(e)}")
         logger.error(traceback.format_exc())
         return HttpResponse("Errore interno", status=500)
 
@@ -260,6 +268,39 @@ def verify_webhook_signature(payload, signature, secret):
     
     # Confronta la firma calcolata con quella fornita
     return hmac.compare_digest(computed_signature, signature)
+
+
+def test_webhook(request):
+    """
+    Endpoint per verificare che il webhook sia raggiungibile.
+    Utile per debug e verifica della connettività.
+    """
+    # Info di base
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    
+    # Info su Railway
+    is_railway = bool(os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN'))
+    railway_url = None
+    if is_railway:
+        domain = os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN')
+        if domain:
+            railway_url = f"https://{domain}" if not domain.startswith('http') else domain
+    
+    # URL completo del webhook
+    webhook_url = f"{request.scheme}://{request.get_host()}/prep_management/webhook/"
+    
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Webhook endpoint is reachable',
+        'timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+        'hostname': hostname,
+        'local_ip': local_ip,
+        'is_railway': is_railway,
+        'railway_url': railway_url,
+        'webhook_url': webhook_url,
+        'headers': dict(request.headers),
+    })
 
 
 def shipment_status_updates(request):
