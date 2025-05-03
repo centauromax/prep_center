@@ -134,7 +134,6 @@ def api_config_debug(request):
 
 
 @csrf_exempt
-@require_POST
 def shipment_status_webhook(request):
     """
     Webhook per ricevere notifiche di cambio stato delle spedizioni.
@@ -144,8 +143,19 @@ def shipment_status_webhook(request):
     """
     # Log di debug per ogni richiesta ricevuta
     debug_timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[DEBUG {debug_timestamp}] Richiesta webhook ricevuta")
+    logger.info(f"[DEBUG {debug_timestamp}] Richiesta webhook ricevuta via {request.method}")
     logger.info(f"[DEBUG {debug_timestamp}] Headers: {dict(request.headers)}")
+    
+    # Per richieste GET, restituisci una risposta di test
+    if request.method == 'GET':
+        return JsonResponse({
+            'status': 'ok',
+            'message': 'Webhook endpoint is accessible, but only POST requests are processed',
+            'timestamp': debug_timestamp,
+            'method': request.method,
+        })
+    
+    # Per richieste POST, continua con la logica normale
     logger.info(f"[DEBUG {debug_timestamp}] Body: {request.body.decode('utf-8', errors='replace')}")
 
     try:
