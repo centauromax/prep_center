@@ -74,7 +74,17 @@ class ShipmentStatusUpdate(models.Model):
     notes = models.TextField(verbose_name="Note", null=True, blank=True)
     payload = models.JSONField(verbose_name="Payload completo", null=True, blank=True)
     created_at = models.DateTimeField(verbose_name="Data ricezione", auto_now_add=True)
+    
+    # Campi per l'elaborazione
     processed = models.BooleanField(verbose_name="Elaborato", default=False)
+    processed_at = models.DateTimeField(verbose_name="Data elaborazione", null=True, blank=True)
+    process_success = models.BooleanField(verbose_name="Elaborazione riuscita", null=True, blank=True)
+    process_message = models.TextField(verbose_name="Messaggio elaborazione", null=True, blank=True)
+    process_result = models.JSONField(verbose_name="Risultato elaborazione", null=True, blank=True)
+    
+    # Campi per relazioni
+    related_shipment_id = models.CharField(verbose_name="ID Spedizione correlata", max_length=100, null=True, blank=True,
+                                         help_text="ID di una spedizione correlata a questa (es. spedizione in entrata correlata a una in uscita)")
     
     class Meta:
         verbose_name = "Aggiornamento stato spedizione"
@@ -87,3 +97,7 @@ class ShipmentStatusUpdate(models.Model):
     def get_event_name(self):
         """Restituisce il nome leggibile dell'evento."""
         return dict(self.EVENT_TYPES).get(self.event_type, self.event_type)
+    
+    def get_status_label(self):
+        """Restituisce l'etichetta del nuovo stato."""
+        return dict(self.STATUS_CHOICES).get(self.new_status, self.new_status)
