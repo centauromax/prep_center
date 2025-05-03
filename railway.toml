@@ -1,0 +1,2 @@
+[deploy]
+postDeployCommand = "cd backend && python manage.py migrate" 
