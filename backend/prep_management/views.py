@@ -157,15 +157,34 @@ def shipment_status_webhook(request):
             logger.error(f"Payload webhook non è un JSON valido: {request.body}")
             return HttpResponse("Payload non valido", status=400)
         
-        # Verifica che i dati contengano le informazioni necessarie
-        shipment_id = data.get('shipment_id')
-        new_status = data.get('new_status')
+        # Estrai le informazioni dal payload
+        event_type = data.get('event_type', 'other')
         
-        if not shipment_id or not new_status:
-            logger.error(f"Dati webhook incompleti: {data}")
-            return HttpResponse("Dati incompleti", status=400)
+        # Se il tipo di evento non è specificato, proviamo a dedurlo
+        if event_type == 'other':
+            # Controlla se c'è un tipo di azione o stato che possiamo usare
+            action = data.get('action', '')
+            entity_type = data.get('entity_type', '')
+            
+            if entity_type and action:
+                event_type = f"{entity_type}.{action}"
         
-        # Mappa lo stato in uno dei nostri stati definiti
+        # Estrai l'ID della spedizione o dell'entità
+        entity_id = data.get('id') or data.get('shipment_id') or data.get('order_id') or data.get('invoice_id')
+        if not entity_id:
+            logger.error(f"Dati webhook incompleti - nessun ID entità trovato: {data}")
+            return HttpResponse("Dati incompleti - ID entità mancante", status=400)
+        
+        # Estrai gli stati
+        new_status = data.get('status') or data.get('new_status') or 'other'
+        previous_status = data.get('previous_status')
+        
+        # Determina il tipo di entità
+        entity_type = data.get('entity_type', '')
+        if not entity_type and '.' in event_type:
+            entity_type = event_type.split('.')[0]
+        
+        # Mappa lo stato in uno dei nostri stati definiti se necessario
         status_map = {
             'pending': 'pending',
             'processing': 'processing',
@@ -174,26 +193,40 @@ def shipment_status_webhook(request):
             'delivered': 'delivered',
             'cancelled': 'cancelled',
             'failed': 'failed',
-            'returned': 'returned'
+            'returned': 'returned',
+            'created': 'created',
+            'received': 'received',
+            'notes_updated': 'notes_updated',
+            'closed': 'closed'
         }
         
-        mapped_status = status_map.get(new_status.lower(), 'other')
-        previous_status = status_map.get(data.get('previous_status', '').lower(), None)
+        mapped_status = status_map.get(new_status.lower(), 'other') if isinstance(new_status, str) else 'other'
+        mapped_previous = status_map.get(previous_status.lower(), None) if isinstance(previous_status, str) else None
+        
+        # Estrai informazioni addizionali utili
+        merchant_id = data.get('merchant_id') or data.get('merchant', {}).get('id')
+        merchant_name = data.get('merchant_name') or data.get('merchant', {}).get('name')
+        tracking_number = data.get('tracking_number') or data.get('tracking', {}).get('number')
+        carrier = data.get('carrier') or data.get('tracking', {}).get('carrier')
+        notes = data.get('notes') or data.get('message')
         
         # Crea il record di aggiornamento
         shipment_update = ShipmentStatusUpdate(
-            shipment_id=shipment_id,
-            previous_status=previous_status,
+            shipment_id=entity_id,
+            event_type=event_type,
+            entity_type=entity_type,
+            previous_status=mapped_previous,
             new_status=mapped_status,
-            merchant_id=data.get('merchant_id'),
-            merchant_name=data.get('merchant_name'),
-            tracking_number=data.get('tracking_number'),
-            carrier=data.get('carrier'),
+            merchant_id=merchant_id,
+            merchant_name=merchant_name,
+            tracking_number=tracking_number,
+            carrier=carrier,
+            notes=notes,
             payload=data  # Salva tutto il payload
         )
         shipment_update.save()
         
-        logger.info(f"Aggiornamento stato shipment {shipment_id} salvato: {previous_status} → {mapped_status}")
+        logger.info(f"Aggiornamento entità {entity_id} salvato: {event_type} - {mapped_previous} → {mapped_status}")
         
         return HttpResponse("OK", status=200)
         

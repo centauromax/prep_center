@@ -23,19 +23,25 @@
         <div class="col-12">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="card-title mb-0"><i class="fas fa-chart-pie me-2"></i>Conteggio per stato</h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-chart-pie me-2"></i>Conteggio per tipo di evento</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        {% for status, label in status_choices %}
-                        <div class="col-md-3 col-sm-6 mb-3">
-                            <div class="card h-100 {% if status == 'delivered' %}bg-success text-white{% elif status == 'cancelled' or status == 'failed' %}bg-danger text-white{% elif status == 'shipped' %}bg-info text-white{% elif status == 'processing' %}bg-warning{% elif status == 'pending' %}bg-light{% else %}bg-secondary text-white{% endif %}">
+                        {% for update in updates %}
+                            {% if update.event_type not in event_types %}
+                                {% with event_types=event_types|add_to_list:update.event_type %}{% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% for event_type, event_name in event_choices %}
+                        <div class="col-md-4 col-sm-6 mb-3">
+                            <div class="card h-100 {% if 'created' in event_type %}bg-success text-white{% elif 'shipped' in event_type %}bg-info text-white{% elif 'received' in event_type %}bg-primary text-white{% elif 'notes' in event_type %}bg-warning{% else %}bg-light{% endif %}">
                                 <div class="card-body text-center">
-                                    <h3>{{ status_counts|get_item:status|default:"0" }}</h3>
-                                    <p class="mb-0">{{ label }}</p>
+                                    <h3>{{ event_counts|get_item:event_type|default:"0" }}</h3>
+                                    <p class="mb-0">{{ event_name }}</p>
                                 </div>
                                 <div class="card-footer text-center p-1">
-                                    <a href="?status={{ status }}" class="btn btn-sm {% if status == 'delivered' or status == 'cancelled' or status == 'failed' or status == 'shipped' or status == 'other' or status == 'returned' %}btn-light{% else %}btn-dark{% endif %}">
+                                    <a href="?event_type={{ event_type }}" class="btn btn-sm {% if 'created' in event_type or 'shipped' in event_type or 'received' in event_type %}btn-light{% else %}btn-dark{% endif %}">
                                         Filtra
                                     </a>
                                 </div>
@@ -56,6 +62,15 @@
         <div class="card-body">
             <form method="GET" class="row g-3">
                 <div class="col-md-4">
+                    <label for="eventTypeFilter" class="form-label">Tipo evento</label>
+                    <select id="eventTypeFilter" name="event_type" class="form-select">
+                        <option value="">Tutti i tipi di evento</option>
+                        {% for event_type, event_name in event_choices %}
+                        <option value="{{ event_type }}" {% if current_event_type == event_type %}selected{% endif %}>{{ event_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
                     <label for="statusFilter" class="form-label">Stato</label>
                     <select id="statusFilter" name="status" class="form-select">
                         <option value="">Tutti gli stati</option>
@@ -64,7 +79,7 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="processedFilter" class="form-label">Elaborato</label>
                     <select id="processedFilter" name="processed" class="form-select">
                         <option value="">Tutti</option>
@@ -72,16 +87,16 @@
                         <option value="false" {% if current_processed == 'false' %}selected{% endif %}>Non elaborati</option>
                     </select>
                 </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Filtra</button>
+                </div>
                 <div class="col-md-2">
                     <label for="limitFilter" class="form-label">Limite</label>
                     <input type="number" class="form-control" id="limitFilter" name="limit" value="{{ request.GET.limit|default:'100' }}">
                 </div>
-                <div class="col-md-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Filtra</button>
-                </div>
             </form>
         </div>
-        {% if current_status or current_processed %}
+        {% if current_event_type or current_status or current_processed %}
         <div class="card-footer">
             <a href="{% url 'shipment_status_updates' %}" class="btn btn-secondary">Rimuovi filtri</a>
         </div>
@@ -95,10 +110,10 @@
             <thead class="table-dark">
                 <tr>
                     <th>ID Spedizione</th>
+                    <th>Tipo</th>
+                    <th>Evento</th>
                     <th>Merchant</th>
-                    <th>Stato precedente</th>
-                    <th>Nuovo stato</th>
-                    <th>Tracking</th>
+                    <th>Dettagli</th>
                     <th>Data ricezione</th>
                     <th>Stato</th>
                 </tr>
@@ -107,39 +122,42 @@
                 {% for update in updates %}
                 <tr class="{% if not update.processed %}table-warning{% endif %}">
                     <td>{{ update.shipment_id }}</td>
-                    <td>{{ update.merchant_name|default:"-" }}</td>
+                    <td><span class="badge bg-secondary">{{ update.entity_type|default:"?" }}</span></td>
                     <td>
-                        {% if update.previous_status %}
                         <span class="badge 
-                            {% if update.previous_status == 'delivered' %}bg-success
-                            {% elif update.previous_status == 'cancelled' or update.previous_status == 'failed' %}bg-danger
-                            {% elif update.previous_status == 'shipped' %}bg-info
-                            {% elif update.previous_status == 'processing' %}bg-warning
-                            {% elif update.previous_status == 'pending' %}bg-light text-dark
+                            {% if 'created' in update.event_type %}bg-success
+                            {% elif 'shipped' in update.event_type %}bg-info
+                            {% elif 'received' in update.event_type %}bg-primary 
+                            {% elif 'notes' in update.event_type %}bg-warning text-dark
                             {% else %}bg-secondary{% endif %}">
-                            {{ update.get_previous_status_display }}
+                            {{ update.get_event_name }}
                         </span>
-                        {% else %}
-                        <span class="text-muted">-</span>
+                        {% if update.previous_status or update.new_status %}
+                        <small class="d-block mt-1">
+                            {% if update.previous_status %}
+                            <span class="badge bg-light text-dark">{{ update.get_previous_status_display }}</span>
+                            <i class="fas fa-arrow-right small"></i>
+                            {% endif %}
+                            <span class="badge 
+                                {% if update.new_status == 'delivered' %}bg-success
+                                {% elif update.new_status == 'cancelled' or update.new_status == 'failed' %}bg-danger
+                                {% elif update.new_status == 'shipped' %}bg-info
+                                {% elif update.new_status == 'processing' %}bg-warning text-dark
+                                {% else %}bg-secondary{% endif %}">
+                                {{ update.get_new_status_display }}
+                            </span>
+                        </small>
                         {% endif %}
                     </td>
-                    <td>
-                        <span class="badge 
-                            {% if update.new_status == 'delivered' %}bg-success
-                            {% elif update.new_status == 'cancelled' or update.new_status == 'failed' %}bg-danger
-                            {% elif update.new_status == 'shipped' %}bg-info
-                            {% elif update.new_status == 'processing' %}bg-warning
-                            {% elif update.new_status == 'pending' %}bg-light text-dark
-                            {% else %}bg-secondary{% endif %}">
-                            {{ update.get_new_status_display }}
-                        </span>
-                    </td>
+                    <td>{{ update.merchant_name|default:"-" }}</td>
                     <td>
                         {% if update.tracking_number %}
                         <small>{{ update.tracking_number }}</small>
                         {% if update.carrier %}
                         <br><span class="badge bg-secondary">{{ update.carrier }}</span>
                         {% endif %}
+                        {% elif update.notes %}
+                        <small class="text-muted">{{ update.notes|truncatechars:50 }}</small>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
@@ -162,7 +180,7 @@
         <h4 class="alert-heading">Nessun aggiornamento trovato!</h4>
         <p>Non ci sono aggiornamenti di stato che corrispondono ai filtri selezionati.</p>
         
-        {% if current_status or current_processed %}
+        {% if current_event_type or current_status or current_processed %}
         <hr>
         <p class="mb-0">Prova a modificare i filtri o <a href="{% url 'shipment_status_updates' %}" class="alert-link">visualizza tutti gli aggiornamenti</a>.</p>
         {% else %}

@@ -30,16 +30,19 @@ class PrepBusinessConfigAdmin(admin.ModelAdmin):
 
 @admin.register(ShipmentStatusUpdate)
 class ShipmentStatusUpdateAdmin(admin.ModelAdmin):
-    list_display = ('shipment_id', 'previous_status', 'new_status', 'merchant_name', 'created_at', 'processed')
-    list_filter = ('new_status', 'processed', 'created_at')
+    list_display = ('shipment_id', 'event_type', 'new_status', 'merchant_name', 'created_at', 'processed')
+    list_filter = ('event_type', 'new_status', 'processed', 'created_at', 'entity_type')
     search_fields = ('shipment_id', 'merchant_name', 'tracking_number')
     readonly_fields = ('created_at', 'payload')
     fieldsets = (
         (None, {
-            'fields': ('shipment_id', 'previous_status', 'new_status', 'processed')
+            'fields': ('shipment_id', 'event_type', 'entity_type', 'processed')
+        }),
+        ('Stati', {
+            'fields': ('previous_status', 'new_status')
         }),
         ('Dettagli', {
-            'fields': ('merchant_id', 'merchant_name', 'tracking_number', 'carrier')
+            'fields': ('merchant_id', 'merchant_name', 'tracking_number', 'carrier', 'notes')
         }),
         ('Dati tecnici', {
             'classes': ('collapse',),

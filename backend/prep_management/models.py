@@ -28,7 +28,23 @@ class PrepBusinessConfig(models.Model):
 class ShipmentStatusUpdate(models.Model):
     """Notifica di cambio stato di una spedizione."""
     
-    # Status possibili
+    # Tipi di evento
+    EVENT_TYPES = [
+        ('inbound_shipment.created', 'Spedizione in entrata creata'),
+        ('inbound_shipment.notes_updated', 'Note spedizione in entrata aggiornate'),
+        ('inbound_shipment.shipped', 'Spedizione in entrata spedita'),
+        ('inbound_shipment.received', 'Spedizione in entrata ricevuta'),
+        ('outbound_shipment.created', 'Spedizione in uscita creata'),
+        ('outbound_shipment.shipped', 'Spedizione in uscita spedita'),
+        ('outbound_shipment.notes_updated', 'Note spedizione in uscita aggiornate'),
+        ('outbound_shipment.closed', 'Spedizione in uscita chiusa'),
+        ('order.created', 'Ordine creato'),
+        ('order.shipped', 'Ordine spedito'),
+        ('invoice.created', 'Fattura creata'),
+        ('other', 'Altro'),
+    ]
+    
+    # Status possibili (manteniamo anche questi per retrocompatibilità)
     STATUS_CHOICES = [
         ('pending', 'In attesa'),
         ('processing', 'In elaborazione'),
@@ -38,16 +54,24 @@ class ShipmentStatusUpdate(models.Model):
         ('cancelled', 'Annullato'),
         ('failed', 'Fallito'),
         ('returned', 'Restituito'),
+        ('created', 'Creato'),
+        ('received', 'Ricevuto'),
+        ('notes_updated', 'Note aggiornate'),
+        ('closed', 'Chiuso'),
         ('other', 'Altro'),
     ]
     
     shipment_id = models.CharField(verbose_name="ID Spedizione", max_length=100)
+    event_type = models.CharField(verbose_name="Tipo evento", max_length=100, choices=EVENT_TYPES, default='other')
     previous_status = models.CharField(verbose_name="Stato precedente", max_length=50, choices=STATUS_CHOICES, null=True, blank=True)
     new_status = models.CharField(verbose_name="Nuovo stato", max_length=50, choices=STATUS_CHOICES)
     merchant_id = models.CharField(verbose_name="ID Merchant", max_length=100, null=True, blank=True)
     merchant_name = models.CharField(verbose_name="Nome Merchant", max_length=255, null=True, blank=True)
     tracking_number = models.CharField(verbose_name="Numero tracciamento", max_length=100, null=True, blank=True)
     carrier = models.CharField(verbose_name="Corriere", max_length=100, null=True, blank=True)
+    entity_type = models.CharField(verbose_name="Tipo entità", max_length=50, null=True, blank=True, 
+                                  help_text="Tipo di entità (inbound_shipment, outbound_shipment, order, invoice)")
+    notes = models.TextField(verbose_name="Note", null=True, blank=True)
     payload = models.JSONField(verbose_name="Payload completo", null=True, blank=True)
     created_at = models.DateTimeField(verbose_name="Data ricezione", auto_now_add=True)
     processed = models.BooleanField(verbose_name="Elaborato", default=False)
@@ -58,4 +82,8 @@ class ShipmentStatusUpdate(models.Model):
         ordering = ['-created_at']
     
     def __str__(self):
-        return f"Spedizione {self.shipment_id}: {self.previous_status} → {self.new_status}"
+        return f"#{self.shipment_id}: {self.event_type}"
+        
+    def get_event_name(self):
+        """Restituisce il nome leggibile dell'evento."""
+        return dict(self.EVENT_TYPES).get(self.event_type, self.event_type)
