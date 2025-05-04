@@ -8,4 +8,5 @@ urlpatterns = [
     path('api/check/<str:ean>/', views.check_ean, name='check_ean'),
     path('api/salva/', views.salva_ean, name='salva_ean'),
     path('api/lista/', views.lista_ean, name='lista_ean'),
+    path('api/monthly_counts/', views.monthly_counts, name='monthly_counts'),
 ] 

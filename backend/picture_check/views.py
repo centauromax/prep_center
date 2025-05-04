@@ -11,12 +11,16 @@ from django.utils import translation
 from .models import PictureCheck, Cliente
 from .serializers import PictureCheckSerializer, ClienteSerializer
 import re
+from datetime import date
 
 # Configura il logger
 logger = logging.getLogger('picture_check')
 
 # Costante per la chiave di sessione della lingua
 LANGUAGE_SESSION_KEY = 'django_language'
+
+# Aggiungo i nomi dei mesi in italiano per i conteggi mensili
+MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
 
 def home(request):
     """
@@ -143,8 +147,32 @@ def lista_ean(request):
         return Response(serializer.data)
     except Exception as e:
         logger.error(f"Errore nel recupero della lista degli EAN: {e}")
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
-    
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def monthly_counts(request):
+    """
+    Ottiene il numero di foto inviate per gli ultimi tre mesi
+    """
+    try:
+        translation.activate('it')
+        today = date.today()
+        year = today.year
+        month = today.month
+        counts = []
+        for i in range(3):
+            m = month - i
+            y = year
+            if m <= 0:
+                m += 12
+                y -= 1
+            cnt = PictureCheck.objects.filter(data__year=y, data__month=m).count()
+            month_name = MONTH_NAMES_IT[m - 1]
+            counts.append({'month': month_name, 'count': cnt})
+        return Response(counts)
+    except Exception as e:
+        logger.error(f"Errore nel calcolo dei conteggi mensili: {e}")
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #@@@
 #from django.core.management import call_command

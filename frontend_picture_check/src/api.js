@@ -46,4 +46,9 @@ export async function salvaEan(data) {
 // Ottiene la lista degli ultimi EAN verificati
 export async function getListaEan() {
   return await fetchAPI('/lista/');
+}
+
+// Aggiungo l'API per ottenere il numero di foto inviate per gli ultimi tre mesi
+export async function getMonthlyCounts() {
+  return await fetchAPI('/monthly_counts/');
 } 
