@@ -3,7 +3,7 @@ import ClienteSelect from './components/ClienteSelect';
 import EanInput from './components/EanInput';
 import EsitoMessage from './components/EsitoMessage';
 import EanHistory from './components/EanHistory';
-import { getClienti, checkEan, salvaEan, getListaEan } from './api';
+import { getClienti, checkEan, salvaEan, getListaEan, getMonthlyCounts } from './api';
 import { playAffermazione, playNegazione } from './utils/suoni';
 import settingsIcon from './assets/settings.svg';
 import logoImg from './assets/logo.jpg';
@@ -14,12 +14,14 @@ function App() {
   const [ean, setEan] = useState('');
   const [esitoMessage, setEsitoMessage] = useState({ ean: '', messaggio: '' });
   const [eanHistory, setEanHistory] = useState([]);
+  const [monthlyCounts, setMonthlyCounts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Carica i clienti all'avvio
   useEffect(() => {
     loadClienti();
     loadEanHistory();
+    loadMonthlyCounts();
   }, []);
 
   // Carica la lista dei clienti
@@ -46,6 +48,19 @@ function App() {
       setEanHistory(data);
     } catch (err) {
       console.error('Errore nel caricamento della cronologia EAN:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Carica il conteggio delle foto inviate per gli ultimi tre mesi
+  const loadMonthlyCounts = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getMonthlyCounts();
+      setMonthlyCounts(data);
+    } catch (err) {
+      console.error('Errore nel caricamento dei conteggi mensili:', err);
     } finally {
       setIsLoading(false);
     }
@@ -110,6 +125,9 @@ function App() {
         // Aggiorna la cronologia immediatamente
         const nuovaCronologia = await getListaEan();
         setEanHistory(nuovaCronologia);
+        // Aggiorna anche i conteggi mensili
+        const nuoviCounts = await getMonthlyCounts();
+        setMonthlyCounts(nuoviCounts);
       } else {
         playNegazione();
       }
@@ -177,6 +195,26 @@ function App() {
         <div className="card history-section">
           <h2>Cronologia EAN/FNSKU</h2>
           <EanHistory items={eanHistory} />
+        </div>
+        
+        <div className="card counts-section">
+          <h2>Numero foto inviate</h2>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>Mese</th>
+                <th>Foto inviate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyCounts.map((item) => (
+                <tr key={item.month}>
+                  <td>{item.month}</td>
+                  <td>{item.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </main>
       
