@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, Optional, List, Tuple
 from django.utils import timezone
 
-from .models import ShipmentStatusUpdate
+from .models import ShipmentStatusUpdate, OutgoingMessage
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -163,6 +163,14 @@ class WebhookEventProcessor:
                     'outbound_shipment_name': shipment_name
                 }
             else:
+                # Enqueue message for Chrome extension
+                OutgoingMessage.objects.create(
+                    message_id='OUTBOUND_WITHOUT_INBOUND',
+                    parameters={
+                        'merchant_id': merchant_id,
+                        'outbound_shipment_name': shipment_name
+                    }
+                )
                 return {
                     'success': False,
                     'message': f'Nessuna spedizione in entrata trovata con nome: {shipment_name}',

@@ -8,7 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import PrepBusinessAPI
 from .utils.merchants import get_merchants
-from .models import ShipmentStatusUpdate
+from .models import ShipmentStatusUpdate, OutgoingMessage
+from .serializers import OutgoingMessageSerializer
 import logging
 import requests
 import traceback
@@ -23,6 +24,7 @@ from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, del
 from libs.prepbusiness.webhook_processor import WebhookProcessor
 from libs.prepbusiness.webhook_receiver import WebhookReceiver
 from .event_handlers import WebhookEventProcessor
+from django.utils import timezone
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -390,3 +392,38 @@ def manage_webhooks(request):
     }
     
     return render(request, 'prep_management/manage_webhooks.html', context)
+
+def push_outgoing_message(request):
+    """
+    Endpoint interno per aggiungere un messaggio in coda.
+    """
+    # Body: { "message_id": str, "parameters": {...} }
+    data = json.loads(request.body)
+    msg = OutgoingMessage.objects.create(
+        message_id=data.get('message_id'),
+        parameters=data.get('parameters', {})
+    )
+    return JsonResponse({'success': True, 'message': 'Messaggio aggiunto', 'id': msg.id})
+
+@api_view(['GET'])
+def poll_outgoing_messages(request):
+    """
+    Endpoint per l'estensione Chrome per pollare i messaggi non consumati.
+    """
+    msgs = OutgoingMessage.objects.filter(consumed=False).order_by('created_at')
+    serializer = OutgoingMessageSerializer(msgs, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+def consume_outgoing_message(request, pk):
+    """
+    Endpoint per segnare un messaggio come consumato.
+    """
+    try:
+        msg = OutgoingMessage.objects.get(pk=pk)
+    except OutgoingMessage.DoesNotExist:
+        return Response({'error': 'Messaggio non trovato'}, status=status.HTTP_404_NOT_FOUND)
+    msg.consumed = True
+    msg.consumed_at = timezone.now()
+    msg.save()
+    return Response({'success': True})

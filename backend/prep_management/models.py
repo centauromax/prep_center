@@ -101,3 +101,21 @@ class ShipmentStatusUpdate(models.Model):
     def get_status_label(self):
         """Restituisce l'etichetta del nuovo stato."""
         return dict(self.STATUS_CHOICES).get(self.new_status, self.new_status)
+
+class OutgoingMessage(models.Model):
+    """Coda di messaggi per la comunicazione con l'estensione Chrome."""
+    MESSAGE_TYPES = [
+        ('OUTBOUND_WITHOUT_INBOUND', 'Outbound without inbound'),
+    ]
+    message_id = models.CharField(verbose_name="Tipo messaggio", max_length=100, choices=MESSAGE_TYPES)
+    parameters = models.JSONField(verbose_name="Parametri messaggio", null=True, blank=True)
+    created_at = models.DateTimeField(verbose_name="Data creazione", auto_now_add=True)
+    consumed = models.BooleanField(verbose_name="Consumto", default=False)
+    consumed_at = models.DateTimeField(verbose_name="Data consumo", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Messaggio in coda"
+        verbose_name_plural = "Messaggi in coda"
+
+    def __str__(self):
+        return f"{self.message_id} ({self.id})"
