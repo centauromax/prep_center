@@ -38,6 +38,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
+    "backend.fbaprepcenteritaly.com",
     "127.0.0.1",
     "localhost",
     "prepcenter-production.up.railway.app",  # aggiungo il dominio del backend

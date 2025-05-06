@@ -25,6 +25,7 @@ from libs.prepbusiness.webhook_processor import WebhookProcessor
 from libs.prepbusiness.webhook_receiver import WebhookReceiver
 from .event_handlers import WebhookEventProcessor
 from django.utils import timezone
+from datetime import timedelta
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -408,22 +409,18 @@ def push_outgoing_message(request):
 @api_view(['GET'])
 def poll_outgoing_messages(request):
     """
-    Endpoint per l'estensione Chrome per pollare i messaggi non consumati.
+    Poll API: restituisce i messaggi e li segna come consumati.
     """
-    msgs = OutgoingMessage.objects.filter(consumed=False).order_by('created_at')
-    serializer = OutgoingMessageSerializer(msgs, many=True)
+    now = timezone.now()
+    # Rimuovi messaggi non consumati più vecchi di 2 ore
+    OutgoingMessage.objects.filter(consumed=False, created_at__lt=now - timedelta(hours=2)).delete()
+    # Rimuovi messaggi consumati da più di 10 secondi
+    OutgoingMessage.objects.filter(consumed=True, consumed_at__lt=now - timedelta(seconds=10)).delete()
+    # Preleva i nuovi messaggi non ancora consumati
+    new_msgs = OutgoingMessage.objects.filter(consumed=False).order_by('created_at')
+    # Segna come consumati
+    new_msgs.update(consumed=True, consumed_at=now)
+    # Tutti i messaggi validi sono quelli consumati negli ultimi 10 secondi
+    valid_msgs = OutgoingMessage.objects.filter(consumed=True, consumed_at__gte=now - timedelta(seconds=10)).order_by('created_at')
+    serializer = OutgoingMessageSerializer(valid_msgs, many=True)
     return Response(serializer.data)
-
-@api_view(['POST'])
-def consume_outgoing_message(request, pk):
-    """
-    Endpoint per segnare un messaggio come consumato.
-    """
-    try:
-        msg = OutgoingMessage.objects.get(pk=pk)
-    except OutgoingMessage.DoesNotExist:
-        return Response({'error': 'Messaggio non trovato'}, status=status.HTTP_404_NOT_FOUND)
-    msg.consumed = True
-    msg.consumed_at = timezone.now()
-    msg.save()
-    return Response({'success': True})
