@@ -163,11 +163,20 @@ class WebhookEventProcessor:
                     'outbound_shipment_name': shipment_name
                 }
             else:
+                # Recupera il nome del merchant
+                merchant_name = update.merchant_name
+                if not merchant_name and merchant_id:
+                    try:
+                        merchants = self.client.get_merchants().data
+                        merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
+                        merchant_name = merchant.name if merchant else str(merchant_id)
+                    except Exception as e:
+                        merchant_name = str(merchant_id)
                 # Enqueue message for Chrome extension
                 OutgoingMessage.objects.create(
                     message_id='OUTBOUND_WITHOUT_INBOUND',
                     parameters={
-                        'merchant_id': merchant_id,
+                        'merchant_name': merchant_name,
                         'outbound_shipment_name': shipment_name
                     }
                 )
