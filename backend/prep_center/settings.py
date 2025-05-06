@@ -293,6 +293,9 @@ EMAIL_HOST_PASSWORD = 's9Y#&3In$o'
 DEFAULT_FROM_EMAIL = 'FbaPrepCenterItaly <info@fbaprepcenteritaly.com>'
 CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
 
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://prepcenterfe-production.up.railway.app",
     "https://apppc.fbaprepcenteritaly.com",
