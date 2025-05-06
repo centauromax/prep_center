@@ -406,11 +406,19 @@ def push_outgoing_message(request):
     )
     return JsonResponse({'success': True, 'message': 'Messaggio aggiunto', 'id': msg.id})
 
-@api_view(['GET'])
+@api_view(['GET', 'OPTIONS'])
 def poll_outgoing_messages(request):
     """
     Poll API: restituisce i messaggi e li segna come consumati.
+    Gestisce anche le richieste OPTIONS per CORS preflight.
     """
+    if request.method == 'OPTIONS':
+        response = Response()
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Headers"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        return response
     now = timezone.now()
     # Rimuovi messaggi non consumati più vecchi di 2 ore
     OutgoingMessage.objects.filter(consumed=False, created_at__lt=now - timedelta(hours=2)).delete()
