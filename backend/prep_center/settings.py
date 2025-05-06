@@ -295,6 +295,7 @@ CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
 
 CORS_ALLOWED_ORIGINS = [
     "https://prepcenterfe-production.up.railway.app",
+    "https://apppc.fbaprepcenteritaly.com",
     "https://backend.fbaprepcenteritaly.com",
     "http://localhost:3000",
 ]
