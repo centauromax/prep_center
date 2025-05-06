@@ -423,4 +423,9 @@ def poll_outgoing_messages(request):
     # Tutti i messaggi validi sono quelli consumati negli ultimi 10 secondi
     valid_msgs = OutgoingMessage.objects.filter(consumed=True, consumed_at__gte=now - timedelta(seconds=10)).order_by('created_at')
     serializer = OutgoingMessageSerializer(valid_msgs, many=True)
-    return Response(serializer.data)
+    response = Response(serializer.data)
+    response["Access-Control-Allow-Origin"] = "*"
+    response["Access-Control-Allow-Credentials"] = "true"
+    response["Access-Control-Allow-Headers"] = "*"
+    response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+    return response
