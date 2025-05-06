@@ -12,5 +12,5 @@ urlpatterns = [
     path('webhook/manage/', views.manage_webhooks, name='manage_webhooks'),
     path('queue/push/', views.push_outgoing_message, name='push_outgoing_message'),
     path('queue/poll/', views.poll_outgoing_messages, name='poll_outgoing_messages'),
-    path('queue/consume/<int:pk>/', views.consume_outgoing_message, name='consume_outgoing_message'),
+    path('queue/consume/<int:pk>/', views.push_outgoing_message, name='consume_outgoing_message'),
 ]
