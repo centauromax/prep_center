@@ -157,75 +157,35 @@ class Command(BaseCommand):
             if existing_webhook:
                 # Aggiorna il webhook esistente
                 if merchant_id:
+                    # Subscribe only to outbound_shipment_created
                     response = client.update_merchant_webhook(
                         merchant_id=merchant_id,
                         webhook_id=existing_webhook.id,
                         url=webhook_url,
-                        invoice_created=True,
-                        inbound_shipment_notes_updated=True,
-                        inbound_shipment_created=True,
-                        inbound_shipment_shipped=True,
-                        inbound_shipment_received=True,
-                        outbound_shipment_notes_updated=True,
-                        outbound_shipment_created=True,
-                        outbound_shipment_shipped=True,
-                        outbound_shipment_closed=True,
-                        order_shipped=True
+                        outbound_shipment_created=True
                     )
-                    self.stdout.write(self.style.SUCCESS(
-                        f'Webhook aggiornato per il merchant {merchant_id}: {webhook_url}'))
                 else:
+                    # Subscribe only to outbound_shipment_created
                     response = client.update_webhook(
                         webhook_id=existing_webhook.id,
                         url=webhook_url,
-                        invoice_created=True,
-                        inbound_shipment_notes_updated=True,
-                        inbound_shipment_created=True,
-                        inbound_shipment_shipped=True,
-                        inbound_shipment_received=True,
-                        outbound_shipment_notes_updated=True,
-                        outbound_shipment_created=True,
-                        outbound_shipment_shipped=True,
-                        outbound_shipment_closed=True,
-                        order_shipped=True
+                        outbound_shipment_created=True
                     )
-                    self.stdout.write(self.style.SUCCESS(
-                        f'Webhook globale aggiornato: {webhook_url}'))
             else:
                 # Crea un nuovo webhook
                 if merchant_id:
+                    # Subscribe only to outbound_shipment_created
                     response = client.create_merchant_webhook(
                         merchant_id=merchant_id,
                         url=webhook_url,
-                        invoice_created=True,
-                        inbound_shipment_notes_updated=True,
-                        inbound_shipment_created=True,
-                        inbound_shipment_shipped=True,
-                        inbound_shipment_received=True,
-                        outbound_shipment_notes_updated=True,
-                        outbound_shipment_created=True,
-                        outbound_shipment_shipped=True,
-                        outbound_shipment_closed=True,
-                        order_shipped=True
+                        outbound_shipment_created=True
                     )
-                    self.stdout.write(self.style.SUCCESS(
-                        f'Nuovo webhook creato per il merchant {merchant_id}: {webhook_url}'))
                 else:
+                    # Subscribe only to outbound_shipment_created
                     response = client.create_webhook(
                         url=webhook_url,
-                        invoice_created=True,
-                        inbound_shipment_notes_updated=True,
-                        inbound_shipment_created=True,
-                        inbound_shipment_shipped=True,
-                        inbound_shipment_received=True,
-                        outbound_shipment_notes_updated=True,
-                        outbound_shipment_created=True,
-                        outbound_shipment_shipped=True,
-                        outbound_shipment_closed=True,
-                        order_shipped=True
+                        outbound_shipment_created=True
                     )
-                    self.stdout.write(self.style.SUCCESS(
-                        f'Nuovo webhook globale creato: {webhook_url}'))
                 
             # Dettagli webhook
             webhook = response.webhook
