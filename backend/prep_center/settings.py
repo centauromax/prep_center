@@ -188,7 +188,8 @@ LOCALE_PATHS = [
 ]
 
 # Definisci il percorso per i log
-LOG_DIR = os.path.join('/var/www/html/', 'logs')
+import tempfile
+LOG_DIR = os.path.join(tempfile.gettempdir(), 'logs')
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR, exist_ok=True)
 
