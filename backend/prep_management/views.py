@@ -471,6 +471,8 @@ def search_shipments_by_products(request):
     merchant_name = request.GET.get('merchant_name', '').strip()
     shipment_type = request.GET.get('shipment_type', '').strip()
     
+    logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}")
+    
     # Recupera tutti i merchant per trovare l'ID del merchant specificato
     merchants = get_merchants()
     merchant_id = None
@@ -478,9 +480,11 @@ def search_shipments_by_products(request):
         merchant = next((m for m in merchants if m['name'].lower() == merchant_name.lower()), None)
         if merchant:
             merchant_id = merchant['id']
+            logger.info(f"Merchant trovato: {merchant_name} (ID: {merchant_id})")
     
     # Se non è stato trovato il merchant, mostra un errore
     if merchant_name and not merchant_id:
+        logger.warning(f"Merchant non trovato: {merchant_name}")
         context = {
             'error': f'Merchant "{merchant_name}" non trovato',
             'merchants': merchants,
@@ -494,19 +498,23 @@ def search_shipments_by_products(request):
         try:
             if not shipment_type or shipment_type == 'inbound':
                 # Recupera le spedizioni in entrata
+                logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
                 inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
                 if hasattr(inbound_response, 'data'):
                     shipments.extend(inbound_response.data)
+                    logger.info(f"Trovate {len(inbound_response.data)} spedizioni inbound")
                 else:
-                    logger.error("Risposta API inbound non valida: %s", inbound_response)
+                    logger.error(f"Risposta API inbound non valida: {inbound_response}")
             
             if not shipment_type or shipment_type == 'outbound':
                 # Recupera le spedizioni in uscita
+                logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
                 outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
                 if hasattr(outbound_response, 'data'):
                     shipments.extend(outbound_response.data)
+                    logger.info(f"Trovate {len(outbound_response.data)} spedizioni outbound")
                 else:
-                    logger.error("Risposta API outbound non valida: %s", outbound_response)
+                    logger.error(f"Risposta API outbound non valida: {outbound_response}")
         except Exception as e:
             logger.error(f"Errore nel recupero delle spedizioni: {str(e)}")
             context = {
@@ -516,17 +524,22 @@ def search_shipments_by_products(request):
             }
             return render(request, 'prep_management/search_shipments.html', context)
     
+    logger.info(f"Totale spedizioni trovate: {len(shipments)}")
+    
     # Filtra le spedizioni in base alle parole chiave
     matching_shipments = []
     for shipment in shipments:
         # Recupera i dettagli della spedizione
         try:
+            logger.info(f"Recupero dettagli per spedizione {shipment.id}")
             if shipment_type == 'inbound' or (not shipment_type and hasattr(shipment, 'type') and shipment.type == 'inbound'):
                 details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
                 items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
+                logger.info(f"Trovati {len(items.items)} items per spedizione inbound {shipment.id}")
             else:
                 details = client.get_outbound_shipment(shipment.id, merchant_id=merchant_id)
                 items = client.get_outbound_shipment_items(shipment.id, merchant_id=merchant_id)
+                logger.info(f"Trovati {len(items.items)} items per spedizione outbound {shipment.id}")
             
             # Controlla se almeno un prodotto contiene le parole chiave
             matching_items = []
@@ -535,9 +548,11 @@ def search_shipments_by_products(request):
                 if search_type == 'AND':
                     if all(keyword.lower() in item_name for keyword in keywords):
                         matching_items.append(item)
+                        logger.info(f"Item {item.name} corrisponde a tutti i criteri AND")
                 else:  # OR
                     if any(keyword.lower() in item_name for keyword in keywords):
                         matching_items.append(item)
+                        logger.info(f"Item {item.name} corrisponde ad almeno un criterio OR")
             
             # Se ci sono prodotti che corrispondono, aggiungi la spedizione ai risultati
             if matching_items:
@@ -545,10 +560,13 @@ def search_shipments_by_products(request):
                     'shipment': details.shipment,
                     'matching_items': matching_items
                 })
+                logger.info(f"Spedizione {shipment.id} aggiunta ai risultati con {len(matching_items)} items corrispondenti")
                 
         except Exception as e:
             logger.error(f"Errore nel recupero dei dettagli della spedizione {shipment.id}: {str(e)}")
             continue
+    
+    logger.info(f"Totale spedizioni corrispondenti: {len(matching_shipments)}")
     
     context = {
         'shipments': matching_shipments,
