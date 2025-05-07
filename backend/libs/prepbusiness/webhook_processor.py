@@ -98,10 +98,7 @@ class WebhookProcessor:
         
         # Extract merchant information
         merchant_id = payload_data.get('team_id')
-        merchant_name = None
-        warehouse = payload_data.get('warehouse', {})
-        if warehouse and isinstance(warehouse, dict):
-            merchant_name = warehouse.get('name')
+        merchant_name = None  # Don't set merchant_name here, it will be looked up later using merchant_id
             
         return {
             'shipment_id': entity_id,
