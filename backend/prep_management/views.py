@@ -502,7 +502,11 @@ def search_shipments_by_products(request):
                 inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
                 if hasattr(inbound_response, 'data'):
                     for shipment in inbound_response.data:
-                        shipment.type = 'inbound'  # Aggiungiamo il tipo alla spedizione
+                        # Aggiungiamo il tipo come attributo al dizionario
+                        if isinstance(shipment, dict):
+                            shipment['type'] = 'inbound'
+                        else:
+                            setattr(shipment, 'type', 'inbound')
                     shipments.extend(inbound_response.data)
                     logger.info(f"Trovate {len(inbound_response.data)} spedizioni inbound")
                 else:
@@ -514,7 +518,11 @@ def search_shipments_by_products(request):
                 outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
                 if hasattr(outbound_response, 'data'):
                     for shipment in outbound_response.data:
-                        shipment.type = 'outbound'  # Aggiungiamo il tipo alla spedizione
+                        # Aggiungiamo il tipo come attributo al dizionario
+                        if isinstance(shipment, dict):
+                            shipment['type'] = 'outbound'
+                        else:
+                            setattr(shipment, 'type', 'outbound')
                     shipments.extend(outbound_response.data)
                     logger.info(f"Trovate {len(outbound_response.data)} spedizioni outbound")
                 else:
@@ -535,7 +543,8 @@ def search_shipments_by_products(request):
     for shipment in shipments:
         # Recupera i dettagli della spedizione
         try:
-            logger.info(f"Recupero dettagli per spedizione {shipment.id} (tipo: {getattr(shipment, 'type', 'unknown')})")
+            shipment_type = getattr(shipment, 'type', None) or (shipment.get('type') if isinstance(shipment, dict) else None)
+            logger.info(f"Recupero dettagli per spedizione {shipment.id} (tipo: {shipment_type})")
             
             # Usiamo sempre l'endpoint inbound per i dettagli
             details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
@@ -559,7 +568,8 @@ def search_shipments_by_products(request):
             if matching_items:
                 matching_shipments.append({
                     'shipment': details.shipment,
-                    'matching_items': matching_items
+                    'matching_items': matching_items,
+                    'type': shipment_type  # Aggiungiamo il tipo alla spedizione nei risultati
                 })
                 logger.info(f"Spedizione {shipment.id} aggiunta ai risultati con {len(matching_items)} items corrispondenti")
                 

@@ -8,7 +8,7 @@
     <div class="card mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="merchant_name" class="form-label">Cliente</label>
                     <select class="form-select" id="merchant_name" name="merchant_name" required>
                         <option value="">Seleziona un cliente...</option>
@@ -20,13 +20,22 @@
                     </select>
                 </div>
                 
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label for="shipment_type" class="form-label">Tipo di spedizione</label>
+                    <select class="form-select" id="shipment_type" name="shipment_type">
+                        <option value="">Tutte le spedizioni</option>
+                        <option value="inbound" {% if shipment_type == 'inbound' %}selected{% endif %}>In entrata</option>
+                        <option value="outbound" {% if shipment_type == 'outbound' %}selected{% endif %}>In uscita</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-3">
                     <label for="keywords" class="form-label">Parole chiave (separate da virgola)</label>
                     <input type="text" class="form-control" id="keywords" name="keywords" 
                            value="{{ keywords }}" placeholder="es. maglia, rossa, cotone">
                 </div>
                 
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label for="search_type" class="form-label">Tipo di ricerca</label>
                     <select class="form-select" id="search_type" name="search_type">
                         <option value="OR" {% if search_type == 'OR' %}selected{% endif %}>OR (almeno una parola)</option>
@@ -71,7 +80,7 @@
                         <tr>
                             <td>{{ result.shipment.id }}</td>
                             <td>{{ result.shipment.name }}</td>
-                            <td>{{ result.shipment.type|title }}</td>
+                            <td>{{ result.type|title }}</td>
                             <td>{{ result.shipment.status|title }}</td>
                             <td>
                                 <ul class="list-unstyled mb-0">
