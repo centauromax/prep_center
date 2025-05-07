@@ -551,9 +551,14 @@ def search_shipments_by_products(request):
             shipment_type = shipment['type']
             logger.info(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
             
-            # Usiamo sempre l'endpoint inbound per i dettagli
-            details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
-            items = client.get_shipment_items(shipment_id, merchant_id=merchant_id)
+            # Usa l'endpoint corretto in base al tipo di spedizione
+            if shipment_type == 'inbound':
+                details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+                items = client.get_shipment_items(shipment_id, merchant_id=merchant_id)
+            else:  # outbound
+                details = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+                items = client.get_shipment_items(shipment_id, merchant_id=merchant_id)
+            
             logger.info(f"Trovati {len(items.items)} items per spedizione {shipment_id}")
             
             # Controlla se almeno un prodotto contiene le parole chiave
