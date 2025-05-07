@@ -502,12 +502,14 @@ def search_shipments_by_products(request):
                 inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
                 if hasattr(inbound_response, 'data'):
                     for shipment in inbound_response.data:
-                        # Aggiungiamo il tipo come attributo al dizionario
-                        if isinstance(shipment, dict):
-                            shipment['type'] = 'inbound'
-                        else:
-                            setattr(shipment, 'type', 'inbound')
-                    shipments.extend(inbound_response.data)
+                        # Creiamo un dizionario con i dati della spedizione
+                        shipment_dict = {
+                            'id': shipment.id,
+                            'name': shipment.name,
+                            'status': shipment.status,
+                            'type': 'inbound'
+                        }
+                        shipments.append(shipment_dict)
                     logger.info(f"Trovate {len(inbound_response.data)} spedizioni inbound")
                 else:
                     logger.error(f"Risposta API inbound non valida: {inbound_response}")
@@ -518,12 +520,14 @@ def search_shipments_by_products(request):
                 outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
                 if hasattr(outbound_response, 'data'):
                     for shipment in outbound_response.data:
-                        # Aggiungiamo il tipo come attributo al dizionario
-                        if isinstance(shipment, dict):
-                            shipment['type'] = 'outbound'
-                        else:
-                            setattr(shipment, 'type', 'outbound')
-                    shipments.extend(outbound_response.data)
+                        # Creiamo un dizionario con i dati della spedizione
+                        shipment_dict = {
+                            'id': shipment.id,
+                            'name': shipment.name,
+                            'status': shipment.status,
+                            'type': 'outbound'
+                        }
+                        shipments.append(shipment_dict)
                     logger.info(f"Trovate {len(outbound_response.data)} spedizioni outbound")
                 else:
                     logger.error(f"Risposta API outbound non valida: {outbound_response}")
@@ -543,13 +547,14 @@ def search_shipments_by_products(request):
     for shipment in shipments:
         # Recupera i dettagli della spedizione
         try:
-            shipment_type = getattr(shipment, 'type', None) or (shipment.get('type') if isinstance(shipment, dict) else None)
-            logger.info(f"Recupero dettagli per spedizione {shipment.id} (tipo: {shipment_type})")
+            shipment_id = shipment['id']
+            shipment_type = shipment['type']
+            logger.info(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
             
             # Usiamo sempre l'endpoint inbound per i dettagli
-            details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
-            items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
-            logger.info(f"Trovati {len(items.items)} items per spedizione {shipment.id}")
+            details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+            items = client.get_shipment_items(shipment_id, merchant_id=merchant_id)
+            logger.info(f"Trovati {len(items.items)} items per spedizione {shipment_id}")
             
             # Controlla se almeno un prodotto contiene le parole chiave
             matching_items = []
@@ -569,12 +574,12 @@ def search_shipments_by_products(request):
                 matching_shipments.append({
                     'shipment': details.shipment,
                     'matching_items': matching_items,
-                    'type': shipment_type  # Aggiungiamo il tipo alla spedizione nei risultati
+                    'type': shipment_type
                 })
-                logger.info(f"Spedizione {shipment.id} aggiunta ai risultati con {len(matching_items)} items corrispondenti")
+                logger.info(f"Spedizione {shipment_id} aggiunta ai risultati con {len(matching_items)} items corrispondenti")
                 
         except Exception as e:
-            logger.error(f"Errore nel recupero dei dettagli della spedizione {shipment.id}: {str(e)}")
+            logger.error(f"Errore nel recupero dei dettagli della spedizione {shipment['id']}: {str(e)}")
             continue
     
     logger.info(f"Totale spedizioni corrispondenti: {len(matching_shipments)}")
