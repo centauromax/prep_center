@@ -455,6 +455,9 @@ def search_shipments_by_products(request):
     """
     View per cercare spedizioni in base a parole chiave nei prodotti e al nome del cliente.
     """
+    from libs.prepbusiness.client import PrepBusinessClient
+    from django.conf import settings
+    
     # Inizializza il client PrepBusiness
     client = PrepBusinessClient(settings.PREP_BUSINESS_API_KEY)
     
@@ -463,6 +466,7 @@ def search_shipments_by_products(request):
     keywords = [k.strip() for k in keywords if k.strip()]
     search_type = request.GET.get('search_type', 'OR')  # 'AND' o 'OR'
     merchant_name = request.GET.get('merchant_name', '').strip()
+    shipment_type = request.GET.get('shipment_type', '').strip()
     
     # Recupera tutti i merchant per trovare l'ID del merchant specificato
     merchants = get_merchants()
@@ -481,16 +485,18 @@ def search_shipments_by_products(request):
         }
         return render(request, 'prep_management/search_shipments.html', context)
     
-    # Recupera tutte le spedizioni del merchant
+    # Recupera le spedizioni del merchant in base al tipo selezionato
     shipments = []
     if merchant_id:
-        # Recupera le spedizioni in entrata
-        inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
-        shipments.extend(inbound_response.shipments)
+        if not shipment_type or shipment_type == 'inbound':
+            # Recupera le spedizioni in entrata
+            inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
+            shipments.extend(inbound_response.shipments)
         
-        # Recupera le spedizioni in uscita
-        outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
-        shipments.extend(outbound_response.shipments)
+        if not shipment_type or shipment_type == 'outbound':
+            # Recupera le spedizioni in uscita
+            outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
+            shipments.extend(outbound_response.shipments)
     
     # Filtra le spedizioni in base alle parole chiave
     matching_shipments = []
@@ -531,6 +537,7 @@ def search_shipments_by_products(request):
         'keywords': ', '.join(keywords),
         'search_type': search_type,
         'merchant_name': merchant_name,
+        'shipment_type': shipment_type,
         'merchants': merchants,
         'title': 'Ricerca spedizioni per prodotti'
     }
