@@ -571,13 +571,10 @@ def search_shipments_by_products(request):
                 if shipment_type == 'inbound':
                     item_name = item.name.lower()
                 else:  # outbound
-                    item_name = getattr(item, 'product_name', None)
-                    if not item_name:
-                        # Prova altri possibili campi
-                        item_name = getattr(item, 'name', None)
-                    if not item_name:
-                        item_name = str(item)
-                    item_name = item_name.lower() if item_name else ''
+                    # Prendi il titolo dall'oggetto InventoryItem
+                    item_name = ''
+                    if hasattr(item, 'item') and hasattr(item.item, 'title'):
+                        item_name = item.item.title.lower()
                 
                 if not item_name:  # Salta se non c'è un nome
                     continue
