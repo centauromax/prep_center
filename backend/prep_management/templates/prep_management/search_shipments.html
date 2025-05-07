@@ -52,6 +52,11 @@
                     </select>
                 </div>
                 
+                <div class="col-md-2">
+                    <label for="max_results" class="form-label">Numero massimo spedizioni</label>
+                    <input type="number" class="form-control" id="max_results" name="max_results" min="1" max="500" value="{{ max_results|default:100 }}">
+                </div>
+                
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Cerca</button>
                 </div>

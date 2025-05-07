@@ -497,6 +497,7 @@ def search_shipments_by_products(request):
     shipments = []
     if merchant_id:
         try:
+            max_results = int(request.GET.get('max_results', 100))
             # INBOUND
             if not shipment_type or shipment_type == 'inbound':
                 inbound_shipments = []
@@ -504,15 +505,15 @@ def search_shipments_by_products(request):
                     # Se esiste il metodo per inbound archiviate, usalo
                     if hasattr(client, 'get_archived_inbound_shipments'):
                         logger.info(f"Recupero spedizioni inbound archiviate per merchant {merchant_id}")
-                        inbound_response = client.get_archived_inbound_shipments(merchant_id=merchant_id)
+                        inbound_response = client.get_archived_inbound_shipments(merchant_id=merchant_id, per_page=max_results)
                         if hasattr(inbound_response, 'data'):
-                            inbound_shipments = inbound_response.data
+                            inbound_shipments = inbound_response.data[:max_results]
                     # Altrimenti, non aggiungere nulla
                 else:
                     logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
-                    inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
+                    inbound_response = client.get_inbound_shipments(merchant_id=merchant_id, per_page=max_results)
                     if hasattr(inbound_response, 'data'):
-                        inbound_shipments = inbound_response.data
+                        inbound_shipments = inbound_response.data[:max_results]
                 for shipment in inbound_shipments:
                     status = shipment.status
                     if status == 'closed':
@@ -536,14 +537,16 @@ def search_shipments_by_products(request):
                 outbound_shipments = []
                 if shipment_status == 'archived':
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id}")
-                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id)
+                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=max_results)
+                    outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data
+                        outbound_shipments = outbound_response.data[:max_results]
                 else:
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
-                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
+                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id, per_page=max_results)
+                    outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data
+                        outbound_shipments = outbound_response.data[:max_results]
                 for shipment in outbound_shipments:
                     status = shipment.status
                     if status == 'closed':
@@ -642,7 +645,8 @@ def search_shipments_by_products(request):
         'shipment_type': shipment_type,
         'shipment_status': shipment_status,
         'merchants': merchants,
-        'title': 'Ricerca spedizioni per prodotti'
+        'title': 'Ricerca spedizioni per prodotti',
+        'max_results': max_results
     }
     
     return render(request, 'prep_management/search_shipments.html', context)
