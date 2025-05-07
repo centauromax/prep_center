@@ -555,7 +555,7 @@ def search_shipments_by_products(request):
                 outbound_shipments = []
                 if shipment_status == 'archived':
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id} con filtro q: {q}")
-                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=max_results, q=q)
+                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=max_results, search_query=q)
                     outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
                         outbound_shipments = outbound_response.data[:max_results]
