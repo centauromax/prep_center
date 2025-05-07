@@ -564,15 +564,23 @@ def search_shipments_by_products(request):
             # Controlla se almeno un prodotto contiene le parole chiave
             matching_items = []
             for item in items.items:
-                item_name = item.name.lower()
+                # Gestisci il nome del prodotto in base al tipo di spedizione
+                if shipment_type == 'inbound':
+                    item_name = item.name.lower()
+                else:  # outbound
+                    item_name = item.product_name.lower() if hasattr(item, 'product_name') else ''
+                
+                if not item_name:  # Salta se non c'è un nome
+                    continue
+                
                 if search_type == 'AND':
                     if all(keyword.lower() in item_name for keyword in keywords):
                         matching_items.append(item)
-                        logger.info(f"Item {item.name} corrisponde a tutti i criteri AND")
+                        logger.info(f"Item {item_name} corrisponde a tutti i criteri AND")
                 else:  # OR
                     if any(keyword.lower() in item_name for keyword in keywords):
                         matching_items.append(item)
-                        logger.info(f"Item {item.name} corrisponde ad almeno un criterio OR")
+                        logger.info(f"Item {item_name} corrisponde ad almeno un criterio OR")
             
             # Se ci sono prodotti che corrispondono, aggiungi la spedizione ai risultati
             if matching_items:
