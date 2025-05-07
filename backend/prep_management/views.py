@@ -564,11 +564,20 @@ def search_shipments_by_products(request):
             # Controlla se almeno un prodotto contiene le parole chiave
             matching_items = []
             for item in items.items:
+                # DEBUG: logga tutti i campi dell'item per capire la struttura
+                if shipment_type == 'outbound':
+                    logger.info(f"Item outbound: {vars(item)}")
                 # Gestisci il nome del prodotto in base al tipo di spedizione
                 if shipment_type == 'inbound':
                     item_name = item.name.lower()
                 else:  # outbound
-                    item_name = item.product_name.lower() if hasattr(item, 'product_name') else ''
+                    item_name = getattr(item, 'product_name', None)
+                    if not item_name:
+                        # Prova altri possibili campi
+                        item_name = getattr(item, 'name', None)
+                    if not item_name:
+                        item_name = str(item)
+                    item_name = item_name.lower() if item_name else ''
                 
                 if not item_name:  # Salta se non c'è un nome
                     continue
