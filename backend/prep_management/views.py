@@ -456,10 +456,10 @@ def search_shipments_by_products(request):
     View per cercare spedizioni in base a parole chiave nei prodotti e al nome del cliente.
     """
     from libs.prepbusiness.client import PrepBusinessClient
-    from django.conf import settings
+    from libs.config import PREP_BUSINESS_API_KEY
     
     # Inizializza il client PrepBusiness
-    client = PrepBusinessClient(settings.PREP_BUSINESS_API_KEY)
+    client = PrepBusinessClient(PREP_BUSINESS_API_KEY)
     
     # Recupera i parametri dalla richiesta
     keywords = request.GET.get('keywords', '').split(',')
