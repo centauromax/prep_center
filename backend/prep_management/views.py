@@ -497,59 +497,71 @@ def search_shipments_by_products(request):
     shipments = []
     if merchant_id:
         try:
+            # INBOUND
             if not shipment_type or shipment_type == 'inbound':
-                logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
-                inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
-                if hasattr(inbound_response, 'data'):
-                    for shipment in inbound_response.data:
-                        # Mappa lo stato closed -> archived
-                        status = shipment.status
-                        if status == 'closed':
-                            status = 'archived'
-                        # Applica il filtro stato
-                        if shipment_status:
-                            if shipment_status == 'archived':
-                                if status not in ['archived', 'closed']:
-                                    continue
-                            elif status != shipment_status:
-                                continue
-                        shipment_dict = {
-                            'id': shipment.id,
-                            'name': shipment.name,
-                            'status': status,
-                            'type': 'inbound'
-                        }
-                        shipments.append(shipment_dict)
-                    logger.info(f"Trovate {len(shipments)} spedizioni inbound filtrate")
+                inbound_shipments = []
+                if shipment_status == 'archived':
+                    # Se esiste il metodo per inbound archiviate, usalo
+                    if hasattr(client, 'get_archived_inbound_shipments'):
+                        logger.info(f"Recupero spedizioni inbound archiviate per merchant {merchant_id}")
+                        inbound_response = client.get_archived_inbound_shipments(merchant_id=merchant_id)
+                        if hasattr(inbound_response, 'data'):
+                            inbound_shipments = inbound_response.data
+                    # Altrimenti, non aggiungere nulla
                 else:
-                    logger.error(f"Risposta API inbound non valida: {inbound_response}")
-            
+                    logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
+                    inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
+                    if hasattr(inbound_response, 'data'):
+                        inbound_shipments = inbound_response.data
+                for shipment in inbound_shipments:
+                    status = shipment.status
+                    if status == 'closed':
+                        status = 'archived'
+                    if shipment_status:
+                        if shipment_status == 'archived':
+                            if status not in ['archived', 'closed']:
+                                continue
+                        elif status != shipment_status:
+                            continue
+                    shipment_dict = {
+                        'id': shipment.id,
+                        'name': shipment.name,
+                        'status': status,
+                        'type': 'inbound'
+                    }
+                    shipments.append(shipment_dict)
+                logger.info(f"Trovate {len(shipments)} spedizioni inbound filtrate")
+            # OUTBOUND
             if not shipment_type or shipment_type == 'outbound':
-                logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
-                outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
-                if hasattr(outbound_response, 'data'):
-                    for shipment in outbound_response.data:
-                        # Mappa lo stato closed -> archived
-                        status = shipment.status
-                        if status == 'closed':
-                            status = 'archived'
-                        # Applica il filtro stato
-                        if shipment_status:
-                            if shipment_status == 'archived':
-                                if status not in ['archived', 'closed']:
-                                    continue
-                            elif status != shipment_status:
-                                continue
-                        shipment_dict = {
-                            'id': shipment.id,
-                            'name': shipment.name,
-                            'status': status,
-                            'type': 'outbound'
-                        }
-                        shipments.append(shipment_dict)
-                    logger.info(f"Trovate {len(shipments)} spedizioni outbound filtrate")
+                outbound_shipments = []
+                if shipment_status == 'archived':
+                    logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id}")
+                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id)
+                    if hasattr(outbound_response, 'data'):
+                        outbound_shipments = outbound_response.data
                 else:
-                    logger.error(f"Risposta API outbound non valida: {outbound_response}")
+                    logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
+                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
+                    if hasattr(outbound_response, 'data'):
+                        outbound_shipments = outbound_response.data
+                for shipment in outbound_shipments:
+                    status = shipment.status
+                    if status == 'closed':
+                        status = 'archived'
+                    if shipment_status:
+                        if shipment_status == 'archived':
+                            if status not in ['archived', 'closed']:
+                                continue
+                        elif status != shipment_status:
+                            continue
+                    shipment_dict = {
+                        'id': shipment.id,
+                        'name': shipment.name,
+                        'status': status,
+                        'type': 'outbound'
+                    }
+                    shipments.append(shipment_dict)
+                logger.info(f"Trovate {len(shipments)} spedizioni outbound filtrate")
         except Exception as e:
             logger.error(f"Errore nel recupero delle spedizioni: {str(e)}")
             context = {
