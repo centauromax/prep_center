@@ -501,6 +501,8 @@ def search_shipments_by_products(request):
                 logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
                 inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
                 if hasattr(inbound_response, 'data'):
+                    for shipment in inbound_response.data:
+                        shipment.type = 'inbound'  # Aggiungiamo il tipo alla spedizione
                     shipments.extend(inbound_response.data)
                     logger.info(f"Trovate {len(inbound_response.data)} spedizioni inbound")
                 else:
@@ -511,6 +513,8 @@ def search_shipments_by_products(request):
                 logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
                 outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
                 if hasattr(outbound_response, 'data'):
+                    for shipment in outbound_response.data:
+                        shipment.type = 'outbound'  # Aggiungiamo il tipo alla spedizione
                     shipments.extend(outbound_response.data)
                     logger.info(f"Trovate {len(outbound_response.data)} spedizioni outbound")
                 else:
@@ -531,15 +535,12 @@ def search_shipments_by_products(request):
     for shipment in shipments:
         # Recupera i dettagli della spedizione
         try:
-            logger.info(f"Recupero dettagli per spedizione {shipment.id}")
-            if shipment_type == 'inbound' or (not shipment_type and hasattr(shipment, 'type') and shipment.type == 'inbound'):
-                details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
-                items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
-                logger.info(f"Trovati {len(items.items)} items per spedizione inbound {shipment.id}")
-            else:
-                details = client.get_outbound_shipment(shipment.id, merchant_id=merchant_id)
-                items = client.get_outbound_shipment_items(shipment.id, merchant_id=merchant_id)
-                logger.info(f"Trovati {len(items.items)} items per spedizione outbound {shipment.id}")
+            logger.info(f"Recupero dettagli per spedizione {shipment.id} (tipo: {getattr(shipment, 'type', 'unknown')})")
+            
+            # Usiamo sempre l'endpoint inbound per i dettagli
+            details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
+            items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
+            logger.info(f"Trovati {len(items.items)} items per spedizione {shipment.id}")
             
             # Controlla se almeno un prodotto contiene le parole chiave
             matching_items = []
