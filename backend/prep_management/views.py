@@ -470,8 +470,9 @@ def search_shipments_by_products(request):
     search_type = request.GET.get('search_type', 'OR')  # 'AND' o 'OR'
     merchant_name = request.GET.get('merchant_name', '').strip()
     shipment_type = request.GET.get('shipment_type', '').strip()
+    shipment_status = request.GET.get('shipment_status', '').strip()
     
-    logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}")
+    logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}, shipment_status={shipment_status}")
     
     # Recupera tutti i merchant per trovare l'ID del merchant specificato
     merchants = get_merchants()
@@ -497,38 +498,56 @@ def search_shipments_by_products(request):
     if merchant_id:
         try:
             if not shipment_type or shipment_type == 'inbound':
-                # Recupera le spedizioni in entrata
                 logger.info(f"Recupero spedizioni inbound per merchant {merchant_id}")
                 inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
                 if hasattr(inbound_response, 'data'):
                     for shipment in inbound_response.data:
-                        # Creiamo un dizionario con i dati della spedizione
+                        # Mappa lo stato closed -> archived
+                        status = shipment.status
+                        if status == 'closed':
+                            status = 'archived'
+                        # Applica il filtro stato
+                        if shipment_status:
+                            if shipment_status == 'archived':
+                                if status not in ['archived', 'closed']:
+                                    continue
+                            elif status != shipment_status:
+                                continue
                         shipment_dict = {
                             'id': shipment.id,
                             'name': shipment.name,
-                            'status': shipment.status,
+                            'status': status,
                             'type': 'inbound'
                         }
                         shipments.append(shipment_dict)
-                    logger.info(f"Trovate {len(inbound_response.data)} spedizioni inbound")
+                    logger.info(f"Trovate {len(shipments)} spedizioni inbound filtrate")
                 else:
                     logger.error(f"Risposta API inbound non valida: {inbound_response}")
             
             if not shipment_type or shipment_type == 'outbound':
-                # Recupera le spedizioni in uscita
                 logger.info(f"Recupero spedizioni outbound per merchant {merchant_id}")
                 outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
                 if hasattr(outbound_response, 'data'):
                     for shipment in outbound_response.data:
-                        # Creiamo un dizionario con i dati della spedizione
+                        # Mappa lo stato closed -> archived
+                        status = shipment.status
+                        if status == 'closed':
+                            status = 'archived'
+                        # Applica il filtro stato
+                        if shipment_status:
+                            if shipment_status == 'archived':
+                                if status not in ['archived', 'closed']:
+                                    continue
+                            elif status != shipment_status:
+                                continue
                         shipment_dict = {
                             'id': shipment.id,
                             'name': shipment.name,
-                            'status': shipment.status,
+                            'status': status,
                             'type': 'outbound'
                         }
                         shipments.append(shipment_dict)
-                    logger.info(f"Trovate {len(outbound_response.data)} spedizioni outbound")
+                    logger.info(f"Trovate {len(shipments)} spedizioni outbound filtrate")
                 else:
                     logger.error(f"Risposta API outbound non valida: {outbound_response}")
         except Exception as e:
@@ -609,6 +628,7 @@ def search_shipments_by_products(request):
         'search_type': search_type,
         'merchant_name': merchant_name,
         'shipment_type': shipment_type,
+        'shipment_status': shipment_status,
         'merchants': merchants,
         'title': 'Ricerca spedizioni per prodotti'
     }
