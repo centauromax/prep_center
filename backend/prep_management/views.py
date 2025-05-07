@@ -157,6 +157,18 @@ def shipment_status_webhook(request):
     
     # Definisci la funzione di callback per salvare e processare subito i dati
     def save_webhook_data(webhook_data):
+        # Recupera il nome del merchant usando il team_id
+        merchant_id = webhook_data.get('merchant_id')
+        merchant_name = None
+        if merchant_id:
+            try:
+                merchants = get_merchants()
+                merchant = next((m for m in merchants if str(m['id']) == str(merchant_id)), None)
+                if merchant:
+                    merchant_name = merchant['name']
+            except Exception as e:
+                logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
+
         # Crea il record di aggiornamento
         shipment_update = ShipmentStatusUpdate(
             shipment_id=webhook_data.get('shipment_id'),
@@ -164,8 +176,8 @@ def shipment_status_webhook(request):
             entity_type=webhook_data.get('entity_type', ''),
             previous_status=webhook_data.get('previous_status'),
             new_status=webhook_data.get('new_status', 'other'),
-            merchant_id=webhook_data.get('merchant_id'),
-            merchant_name=webhook_data.get('merchant_name'),
+            merchant_id=merchant_id,
+            merchant_name=merchant_name,
             tracking_number=webhook_data.get('tracking_number'),
             carrier=webhook_data.get('carrier'),
             notes=webhook_data.get('notes'),

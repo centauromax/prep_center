@@ -166,7 +166,7 @@ class WebhookProcessor:
         
         # Extract additional information
         merchant_id = data.get('merchant_id') or data.get('merchant', {}).get('id')
-        merchant_name = data.get('merchant_name') or data.get('merchant', {}).get('name')
+        merchant_name = None  # Non impostiamo il merchant_name qui, verrà recuperato successivamente usando il merchant_id
         tracking_number = data.get('tracking_number') or data.get('tracking', {}).get('number')
         carrier = data.get('carrier') or data.get('tracking', {}).get('carrier')
         notes = data.get('notes') or data.get('message')
