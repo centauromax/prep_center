@@ -1192,14 +1192,16 @@ class PrepBusinessClient:
         self,
         page: int = 1,
         per_page: int = 20,
-        merchant_id: Optional[int] = None
+        merchant_id: Optional[int] = None,
+        search_query: Optional[str] = None
     ) -> OutboundShipmentsResponse:
-        """Get a list of all archived outbound shipments with pagination.
+        """Get a list of all archived outbound shipments with pagination and search query support.
 
         Args:
             page: Page number to retrieve (default: 1)
             per_page: Number of items per page (default: 20)
             merchant_id: Optional merchant ID to use for this request
+            search_query: Optional search query string (q=...)
 
         Returns:
             OutboundShipmentsResponse containing the list of archived shipments and pagination info
@@ -1211,14 +1213,14 @@ class PrepBusinessClient:
             "page": page,
             "per_page": per_page
         }
-        
+        if search_query:
+            params["q"] = search_query
         response = self._request(
             "GET",
             "/shipments/outbound/archived",
             params=params,
             merchant_id=merchant_id
         )
-        
         return OutboundShipmentsResponse.model_validate(response)
 
     def get_outbound_shipment(
