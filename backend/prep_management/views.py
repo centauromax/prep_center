@@ -491,22 +491,37 @@ def search_shipments_by_products(request):
     # Recupera le spedizioni del merchant in base al tipo selezionato
     shipments = []
     if merchant_id:
-        if not shipment_type or shipment_type == 'inbound':
-            # Recupera le spedizioni in entrata
-            inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
-            shipments.extend(inbound_response.shipments)
-        
-        if not shipment_type or shipment_type == 'outbound':
-            # Recupera le spedizioni in uscita
-            outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
-            shipments.extend(outbound_response.shipments)
+        try:
+            if not shipment_type or shipment_type == 'inbound':
+                # Recupera le spedizioni in entrata
+                inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
+                if hasattr(inbound_response, 'data'):
+                    shipments.extend(inbound_response.data)
+                else:
+                    logger.error("Risposta API inbound non valida: %s", inbound_response)
+            
+            if not shipment_type or shipment_type == 'outbound':
+                # Recupera le spedizioni in uscita
+                outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
+                if hasattr(outbound_response, 'data'):
+                    shipments.extend(outbound_response.data)
+                else:
+                    logger.error("Risposta API outbound non valida: %s", outbound_response)
+        except Exception as e:
+            logger.error(f"Errore nel recupero delle spedizioni: {str(e)}")
+            context = {
+                'error': f'Errore nel recupero delle spedizioni: {str(e)}',
+                'merchants': merchants,
+                'title': 'Ricerca spedizioni per prodotti'
+            }
+            return render(request, 'prep_management/search_shipments.html', context)
     
     # Filtra le spedizioni in base alle parole chiave
     matching_shipments = []
     for shipment in shipments:
         # Recupera i dettagli della spedizione
         try:
-            if hasattr(shipment, 'type') and shipment.type == 'inbound':
+            if shipment_type == 'inbound' or (not shipment_type and hasattr(shipment, 'type') and shipment.type == 'inbound'):
                 details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
                 items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
             else:
