@@ -626,6 +626,7 @@ class OutboundShipmentStatus(str, Enum):
     OPEN = "open"
     SHIPPED = "shipped"
     ARCHIVED = "archived"
+    CLOSED = "closed"  # Accetta anche spedizioni archiviate con status 'closed'
 
 class FBATransportPlan(BaseModel):
     """Model representing an FBA transport plan."""
