@@ -43,6 +43,15 @@
                     </select>
                 </div>
                 
+                <div class="col-md-3">
+                    <label for="shipment_status" class="form-label">Stato spedizione</label>
+                    <select class="form-select" id="shipment_status" name="shipment_status">
+                        <option value="">Tutte</option>
+                        <option value="open" {% if shipment_status == 'open' %}selected{% endif %}>Aperte</option>
+                        <option value="archived" {% if shipment_status == 'archived' %}selected{% endif %}>Archiviate</option>
+                    </select>
+                </div>
+                
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Cerca</button>
                 </div>
