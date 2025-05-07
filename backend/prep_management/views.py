@@ -26,6 +26,7 @@ from libs.prepbusiness.webhook_receiver import WebhookReceiver
 from .event_handlers import WebhookEventProcessor
 from django.utils import timezone
 from datetime import timedelta
+from libs.prepbusiness.client import PrepBusinessClient
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -449,3 +450,89 @@ def poll_outgoing_messages(request):
     response["Access-Control-Allow-Headers"] = "*"
     response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     return response
+
+def search_shipments_by_products(request):
+    """
+    View per cercare spedizioni in base a parole chiave nei prodotti e al nome del cliente.
+    """
+    # Inizializza il client PrepBusiness
+    client = PrepBusinessClient(settings.PREP_BUSINESS_API_KEY)
+    
+    # Recupera i parametri dalla richiesta
+    keywords = request.GET.get('keywords', '').split(',')
+    keywords = [k.strip() for k in keywords if k.strip()]
+    search_type = request.GET.get('search_type', 'OR')  # 'AND' o 'OR'
+    merchant_name = request.GET.get('merchant_name', '').strip()
+    
+    # Recupera tutti i merchant per trovare l'ID del merchant specificato
+    merchants = get_merchants()
+    merchant_id = None
+    if merchant_name:
+        merchant = next((m for m in merchants if m['name'].lower() == merchant_name.lower()), None)
+        if merchant:
+            merchant_id = merchant['id']
+    
+    # Se non è stato trovato il merchant, mostra un errore
+    if merchant_name and not merchant_id:
+        context = {
+            'error': f'Merchant "{merchant_name}" non trovato',
+            'merchants': merchants,
+            'title': 'Ricerca spedizioni per prodotti'
+        }
+        return render(request, 'prep_management/search_shipments.html', context)
+    
+    # Recupera tutte le spedizioni del merchant
+    shipments = []
+    if merchant_id:
+        # Recupera le spedizioni in entrata
+        inbound_response = client.get_inbound_shipments(merchant_id=merchant_id)
+        shipments.extend(inbound_response.shipments)
+        
+        # Recupera le spedizioni in uscita
+        outbound_response = client.get_outbound_shipments(merchant_id=merchant_id)
+        shipments.extend(outbound_response.shipments)
+    
+    # Filtra le spedizioni in base alle parole chiave
+    matching_shipments = []
+    for shipment in shipments:
+        # Recupera i dettagli della spedizione
+        try:
+            if hasattr(shipment, 'type') and shipment.type == 'inbound':
+                details = client.get_inbound_shipment(shipment.id, merchant_id=merchant_id)
+                items = client.get_shipment_items(shipment.id, merchant_id=merchant_id)
+            else:
+                details = client.get_outbound_shipment(shipment.id, merchant_id=merchant_id)
+                items = client.get_outbound_shipment_items(shipment.id, merchant_id=merchant_id)
+            
+            # Controlla se almeno un prodotto contiene le parole chiave
+            matching_items = []
+            for item in items.items:
+                item_name = item.name.lower()
+                if search_type == 'AND':
+                    if all(keyword.lower() in item_name for keyword in keywords):
+                        matching_items.append(item)
+                else:  # OR
+                    if any(keyword.lower() in item_name for keyword in keywords):
+                        matching_items.append(item)
+            
+            # Se ci sono prodotti che corrispondono, aggiungi la spedizione ai risultati
+            if matching_items:
+                matching_shipments.append({
+                    'shipment': details.shipment,
+                    'matching_items': matching_items
+                })
+                
+        except Exception as e:
+            logger.error(f"Errore nel recupero dei dettagli della spedizione {shipment.id}: {str(e)}")
+            continue
+    
+    context = {
+        'shipments': matching_shipments,
+        'keywords': ', '.join(keywords),
+        'search_type': search_type,
+        'merchant_name': merchant_name,
+        'merchants': merchants,
+        'title': 'Ricerca spedizioni per prodotti'
+    }
+    
+    return render(request, 'prep_management/search_shipments.html', context)

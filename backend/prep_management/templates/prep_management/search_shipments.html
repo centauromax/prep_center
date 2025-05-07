@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Ricerca spedizioni per prodotti</h1>
+
+    <!-- Form di ricerca -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="merchant_name" class="form-label">Cliente</label>
+                    <select class="form-select" id="merchant_name" name="merchant_name" required>
+                        <option value="">Seleziona un cliente...</option>
+                        {% for merchant in merchants %}
+                        <option value="{{ merchant.name }}" {% if merchant.name == merchant_name %}selected{% endif %}>
+                            {{ merchant.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-md-4">
+                    <label for="keywords" class="form-label">Parole chiave (separate da virgola)</label>
+                    <input type="text" class="form-control" id="keywords" name="keywords" 
+                           value="{{ keywords }}" placeholder="es. maglia, rossa, cotone">
+                </div>
+                
+                <div class="col-md-4">
+                    <label for="search_type" class="form-label">Tipo di ricerca</label>
+                    <select class="form-select" id="search_type" name="search_type">
+                        <option value="OR" {% if search_type == 'OR' %}selected{% endif %}>OR (almeno una parola)</option>
+                        <option value="AND" {% if search_type == 'AND' %}selected{% endif %}>AND (tutte le parole)</option>
+                    </select>
+                </div>
+                
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Cerca</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Messaggi di errore -->
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Risultati della ricerca -->
+    {% if shipments %}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Risultati della ricerca</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID Spedizione</th>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Stato</th>
+                            <th>Prodotti corrispondenti</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in shipments %}
+                        <tr>
+                            <td>{{ result.shipment.id }}</td>
+                            <td>{{ result.shipment.name }}</td>
+                            <td>{{ result.shipment.type|title }}</td>
+                            <td>{{ result.shipment.status|title }}</td>
+                            <td>
+                                <ul class="list-unstyled mb-0">
+                                    {% for item in result.matching_items %}
+                                    <li>
+                                        {{ item.name }} (Qty: {{ item.quantity }})
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% elif request.GET %}
+    <div class="alert alert-info" role="alert">
+        Nessuna spedizione trovata con i criteri specificati.
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 
