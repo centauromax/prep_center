@@ -574,12 +574,30 @@ def search_shipments_by_products(request):
                     outbound_shipments = []
                     while True:
                         per_page = min(500, max_results - len(outbound_shipments))
-                        outbound_response = client.get_archived_outbound_shipments(
-                            merchant_id=merchant_id,
-                            per_page=per_page,
-                            page=page,
-                            search_query=q
-                        )
+                        retry_count = 0
+                        max_retries = 5
+                        while True:
+                            try:
+                                outbound_response = client.get_archived_outbound_shipments(
+                                    merchant_id=merchant_id,
+                                    per_page=per_page,
+                                    page=page,
+                                    search_query=q
+                                )
+                                break
+                            except Exception as e:
+                                # Se è un errore 502 o 429, fai retry con backoff
+                                error_str = str(e)
+                                if '502' in error_str or '429' in error_str:
+                                    wait_time = 5 * (2 ** retry_count)
+                                    logger.warning(f"Errore {error_str} su pagina {page}, retry tra {wait_time} secondi (tentativo {retry_count+1}/{max_retries})")
+                                    time.sleep(wait_time)
+                                    retry_count += 1
+                                    if retry_count >= max_retries:
+                                        logger.error(f"Superato il numero massimo di retry per pagina {page}")
+                                        raise
+                                else:
+                                    raise
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
@@ -594,7 +612,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(2)
+                        time.sleep(5)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound archiviate recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
@@ -608,12 +626,29 @@ def search_shipments_by_products(request):
                     outbound_shipments = []
                     while True:
                         per_page = min(500, max_results - len(outbound_shipments))
-                        outbound_response = client.get_outbound_shipments(
-                            merchant_id=merchant_id,
-                            per_page=per_page,
-                            page=page,
-                            search_query=q
-                        )
+                        retry_count = 0
+                        max_retries = 5
+                        while True:
+                            try:
+                                outbound_response = client.get_outbound_shipments(
+                                    merchant_id=merchant_id,
+                                    per_page=per_page,
+                                    page=page,
+                                    search_query=q
+                                )
+                                break
+                            except Exception as e:
+                                error_str = str(e)
+                                if '502' in error_str or '429' in error_str:
+                                    wait_time = 5 * (2 ** retry_count)
+                                    logger.warning(f"Errore {error_str} su pagina {page}, retry tra {wait_time} secondi (tentativo {retry_count+1}/{max_retries})")
+                                    time.sleep(wait_time)
+                                    retry_count += 1
+                                    if retry_count >= max_retries:
+                                        logger.error(f"Superato il numero massimo di retry per pagina {page}")
+                                        raise
+                                else:
+                                    raise
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
@@ -628,7 +663,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(2)
+                        time.sleep(5)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
