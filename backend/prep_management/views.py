@@ -508,6 +508,7 @@ def search_shipments_by_products(request):
     shipments = []
     if merchant_id:
         try:
+            is_waiting = True
             # Costruzione della query avanzata q
             q_parts = []
             # Solo se NON sto usando l'endpoint archiviate, aggiungo il filtro status
@@ -586,7 +587,6 @@ def search_shipments_by_products(request):
                                 )
                                 break
                             except Exception as e:
-                                # Se è un errore 502 o 429, fai retry con backoff
                                 error_str = str(e)
                                 if '502' in error_str or '429' in error_str:
                                     wait_time = 5 * (2 ** retry_count)
@@ -595,9 +595,12 @@ def search_shipments_by_products(request):
                                     retry_count += 1
                                     if retry_count >= max_retries:
                                         logger.error(f"Superato il numero massimo di retry per pagina {page}")
-                                        raise
+                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})"
+                                        break
                                 else:
                                     raise
+                        if error_message:
+                            break
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
@@ -646,9 +649,12 @@ def search_shipments_by_products(request):
                                     retry_count += 1
                                     if retry_count >= max_retries:
                                         logger.error(f"Superato il numero massimo di retry per pagina {page}")
-                                        raise
+                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})"
+                                        break
                                 else:
                                     raise
+                        if error_message:
+                            break
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
@@ -690,8 +696,11 @@ def search_shipments_by_products(request):
                 logger.info(f"Trovate {len(shipments)} spedizioni outbound filtrate")
         except Exception as e:
             logger.error(f"Errore nel recupero delle spedizioni: {str(e)}")
+            error_message = str(e)
+            is_waiting = False
             context = {
-                'error': f'Errore nel recupero delle spedizioni: {str(e)}',
+                'error': error_message,
+                'is_waiting': is_waiting,
                 'merchants': merchants,
                 'title': 'Ricerca spedizioni per prodotti'
             }
@@ -771,7 +780,9 @@ def search_shipments_by_products(request):
         'title': 'Ricerca spedizioni per prodotti',
         'max_results': max_results,
         'date_from': date_from,
-        'date_to': date_to
+        'date_to': date_to,
+        'is_waiting': is_waiting,
+        'error': error_message
     }
     
     return render(request, 'prep_management/search_shipments.html', context)

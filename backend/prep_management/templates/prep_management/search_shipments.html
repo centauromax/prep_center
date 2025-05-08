@@ -78,6 +78,13 @@
         </div>
     </div>
 
+    <!-- Messaggi di attesa -->
+    {% if is_waiting %}
+    <div class="alert alert-warning" role="alert">
+        <strong>Attendere...</strong> La ricerca è in corso e potrebbe richiedere diversi minuti. Non chiudere la pagina!
+    </div>
+    {% endif %}
+
     <!-- Messaggi di errore -->
     {% if error %}
     <div class="alert alert-danger" role="alert">
