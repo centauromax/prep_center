@@ -458,6 +458,9 @@ def search_shipments_by_products(request):
     from libs.prepbusiness.client import PrepBusinessClient
     from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
     
+    error_message = None
+    is_waiting = False
+    
     logger.info(f"TUTTI I PARAMETRI GET: {dict(request.GET)}")
     
     # Estrai il dominio dall'URL dell'API
@@ -498,7 +501,8 @@ def search_shipments_by_products(request):
     if merchant_name and not merchant_id:
         logger.warning(f"Merchant non trovato: {merchant_name}")
         context = {
-            'error': f'Merchant "{merchant_name}" non trovato',
+            'error': error_message,
+            'is_waiting': is_waiting,
             'merchants': merchants,
             'title': 'Ricerca spedizioni per prodotti'
         }
