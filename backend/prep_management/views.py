@@ -460,6 +460,7 @@ def search_shipments_by_products(request):
     
     error_message = None
     is_waiting = False
+    partial_count = 0
     
     logger.info(f"TUTTI I PARAMETRI GET: {dict(request.GET)}")
     
@@ -571,12 +572,10 @@ def search_shipments_by_products(request):
             # OUTBOUND
             if not shipment_type or shipment_type == 'outbound':
                 outbound_shipments = []
-                total_retrieved = 0
                 if shipment_status == 'archived':
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id} con filtro q: {q}")
                     page = int(request.GET.get('debug_page', 1))
                     first_page_logged = False
-                    outbound_shipments = []
                     while True:
                         per_page = min(500, max_results - len(outbound_shipments))
                         retry_count = 0
@@ -599,7 +598,7 @@ def search_shipments_by_products(request):
                                     retry_count += 1
                                     if retry_count >= max_retries:
                                         logger.error(f"Superato il numero massimo di retry per pagina {page}")
-                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})"
+                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})\nRecord letti: {len(outbound_shipments)}"
                                         break
                                 else:
                                     raise
@@ -609,6 +608,7 @@ def search_shipments_by_products(request):
                             break
                         current_shipments = outbound_response.data
                         outbound_shipments.extend(current_shipments)
+                        partial_count = len(outbound_shipments)
                         if not first_page_logged:
                             logger.info(f"DEBUG URL chiamata: /api/shipments/outbound/archived?merchant_id={merchant_id}&per_page={per_page}&page={page}&search_query={q}")
                             logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
@@ -619,7 +619,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(20)
+                        time.sleep(30)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound archiviate recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
@@ -630,7 +630,6 @@ def search_shipments_by_products(request):
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id} con filtro q: {q}")
                     page = int(request.GET.get('debug_page', 1))
                     first_page_logged = False
-                    outbound_shipments = []
                     while True:
                         per_page = min(500, max_results - len(outbound_shipments))
                         retry_count = 0
@@ -653,7 +652,7 @@ def search_shipments_by_products(request):
                                     retry_count += 1
                                     if retry_count >= max_retries:
                                         logger.error(f"Superato il numero massimo di retry per pagina {page}")
-                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})"
+                                        error_message = f"Errore 502/429 dal server dopo vari tentativi. Riprova più tardi. (pagina {page})\nRecord letti: {len(outbound_shipments)}"
                                         break
                                 else:
                                     raise
@@ -663,6 +662,7 @@ def search_shipments_by_products(request):
                             break
                         current_shipments = outbound_response.data
                         outbound_shipments.extend(current_shipments)
+                        partial_count = len(outbound_shipments)
                         if not first_page_logged:
                             logger.info(f"DEBUG URL chiamata: /api/shipments/outbound?merchant_id={merchant_id}&per_page={per_page}&page={page}&search_query={q}")
                             logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
@@ -673,7 +673,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(20)
+                        time.sleep(30)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
@@ -700,13 +700,14 @@ def search_shipments_by_products(request):
                 logger.info(f"Trovate {len(shipments)} spedizioni outbound filtrate")
         except Exception as e:
             logger.error(f"Errore nel recupero delle spedizioni: {str(e)}")
-            error_message = str(e)
+            error_message = str(e) + f"\nRecord letti: {partial_count}"
             is_waiting = False
             context = {
                 'error': error_message,
                 'is_waiting': is_waiting,
                 'merchants': merchants,
-                'title': 'Ricerca spedizioni per prodotti'
+                'title': 'Ricerca spedizioni per prodotti',
+                'partial_count': partial_count
             }
             return render(request, 'prep_management/search_shipments.html', context)
     
@@ -786,7 +787,8 @@ def search_shipments_by_products(request):
         'date_from': date_from,
         'date_to': date_to,
         'is_waiting': is_waiting,
-        'error': error_message
+        'error': error_message,
+        'partial_count': partial_count
     }
     
     return render(request, 'prep_management/search_shipments.html', context)
