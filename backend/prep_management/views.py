@@ -612,7 +612,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(5)
+                        time.sleep(20)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound archiviate recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
@@ -663,7 +663,7 @@ def search_shipments_by_products(request):
                         if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
-                        time.sleep(5)
+                        time.sleep(20)
                     outbound_shipments = outbound_shipments[:max_results]
                     logger.info(f"Totale spedizioni outbound recuperate: {len(outbound_shipments)}")
                     if outbound_shipments:
