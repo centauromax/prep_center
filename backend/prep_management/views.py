@@ -458,24 +458,32 @@ def search_shipments_by_products(request):
     from libs.prepbusiness.client import PrepBusinessClient
     from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
     
+    logger.info(f"TUTTI I PARAMETRI GET: {dict(request.GET)}")
+    
     # Estrai il dominio dall'URL dell'API
     company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
     
     # Inizializza il client PrepBusiness
     client = PrepBusinessClient(PREP_BUSINESS_API_KEY, company_domain)
     
-    # Recupera i parametri dalla richiesta
-    keywords = request.GET.get('keywords', '').split(',')
+    # Recupera i parametri dalla richiesta in modo robusto
+    keywords = (request.GET.get('keywords') or '').split(',')
     keywords = [k.strip() for k in keywords if k.strip()]
-    search_type = request.GET.get('search_type', 'OR')  # 'AND' o 'OR'
-    merchant_name = request.GET.get('merchant_name', '').strip()
-    shipment_type = request.GET.get('shipment_type', '').strip()
-    shipment_status = request.GET.get('shipment_status', '').strip()
-    date_from = request.GET.get('date_from', '').strip()
-    date_to = request.GET.get('date_to', '').strip()
-    max_results = int(request.GET.get('max_results', 100))
+    search_type = request.GET.get('search_type') or 'OR'  # 'AND' o 'OR'
+    merchant_name = request.GET.get('merchant_name') or ''
+    merchant_name = merchant_name.strip()
+    shipment_type = request.GET.get('shipment_type') or ''
+    shipment_type = shipment_type.strip()
+    shipment_status = request.GET.get('shipment_status') or ''
+    shipment_status = shipment_status.strip()
+    date_from = request.GET.get('date_from') or ''
+    date_from = date_from.strip()
+    date_to = request.GET.get('date_to') or ''
+    date_to = date_to.strip()
+    max_results = int(request.GET.get('max_results') or 100)
+    debug_page = int(request.GET.get('debug_page') or 1)
     
-    logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}, shipment_status={shipment_status}")
+    logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}, shipment_status={shipment_status}, max_results={max_results}, date_from={date_from}, date_to={date_to}, debug_page={debug_page}")
     
     # Recupera tutti i merchant per trovare l'ID del merchant specificato
     merchants = get_merchants()
@@ -517,6 +525,7 @@ def search_shipments_by_products(request):
             # Aggiungi ordinamento per data decrescente
             q_parts.append('sort:created_at:desc')
             q = ' AND '.join(q_parts) if q_parts else None
+            logger.info(f"QUERY AVANZATA Q: {q}")
             
             # INBOUND
             if not shipment_type or shipment_type == 'inbound':
