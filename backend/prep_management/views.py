@@ -499,7 +499,6 @@ def search_shipments_by_products(request):
     shipments = []
     if merchant_id:
         try:
-            max_results = int(request.GET.get('max_results', 100))
             # Costruzione della query avanzata q
             q_parts = []
             if shipment_status:
@@ -514,6 +513,8 @@ def search_shipments_by_products(request):
             if keywords:
                 for keyword in keywords:
                     q_parts.append(f'name~"{keyword}"')
+            # Aggiungi ordinamento per data decrescente
+            q_parts.append('sort:created_at:desc')
             q = ' AND '.join(q_parts) if q_parts else None
             
             # INBOUND
@@ -523,15 +524,15 @@ def search_shipments_by_products(request):
                     # Se esiste il metodo per inbound archiviate, usalo
                     if hasattr(client, 'get_archived_inbound_shipments'):
                         logger.info(f"Recupero spedizioni inbound archiviate per merchant {merchant_id} con filtro q: {q}")
-                        inbound_response = client.get_archived_inbound_shipments(merchant_id=merchant_id, per_page=max_results, q=q)
+                        inbound_response = client.get_archived_inbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
                         if hasattr(inbound_response, 'data'):
-                            inbound_shipments = inbound_response.data[:max_results]
+                            inbound_shipments = inbound_response.data
                     # Altrimenti, non aggiungere nulla
                 else:
                     logger.info(f"Recupero spedizioni inbound per merchant {merchant_id} con filtro q: {q}")
-                    inbound_response = client.get_inbound_shipments(merchant_id=merchant_id, per_page=max_results, q=q)
+                    inbound_response = client.get_inbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
                     if hasattr(inbound_response, 'data'):
-                        inbound_shipments = inbound_response.data[:max_results]
+                        inbound_shipments = inbound_response.data
                 for shipment in inbound_shipments:
                     status = shipment.status
                     if status == 'closed':
@@ -555,16 +556,16 @@ def search_shipments_by_products(request):
                 outbound_shipments = []
                 if shipment_status == 'archived':
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id} con filtro q: {q}")
-                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=max_results, search_query=q)
+                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
                     outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data[:max_results]
+                        outbound_shipments = outbound_response.data
                 else:
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id} con filtro q: {q}")
-                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id, per_page=max_results, q=q)
+                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
                     outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data[:max_results]
+                        outbound_shipments = outbound_response.data
                 for shipment in outbound_shipments:
                     status = shipment.status
                     if status == 'closed':
@@ -664,7 +665,7 @@ def search_shipments_by_products(request):
         'shipment_status': shipment_status,
         'merchants': merchants,
         'title': 'Ricerca spedizioni per prodotti',
-        'max_results': max_results,
+        'max_results': 500,
         'date_from': date_from,
         'date_to': date_to
     }
