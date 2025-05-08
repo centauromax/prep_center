@@ -560,12 +560,32 @@ def search_shipments_by_products(request):
                     outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
                         outbound_shipments = outbound_response.data
+                        # Log dettagliato delle date delle spedizioni
+                        logger.info(f"Numero totale di spedizioni trovate: {len(outbound_shipments)}")
+                        if outbound_shipments:
+                            oldest_date = min(s.created_at for s in outbound_shipments)
+                            newest_date = max(s.created_at for s in outbound_shipments)
+                            logger.info(f"Range date spedizioni: da {oldest_date} a {newest_date}")
+                            # Log delle prime 5 spedizioni
+                            logger.info("Prime 5 spedizioni:")
+                            for s in outbound_shipments[:5]:
+                                logger.info(f"ID: {s.id}, Nome: {s.name}, Data: {s.created_at}, Status: {s.status}")
                 else:
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id} con filtro q: {q}")
                     outbound_response = client.get_outbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
                     outbound_shipments = []
                     if hasattr(outbound_response, 'data'):
                         outbound_shipments = outbound_response.data
+                        # Log dettagliato delle date delle spedizioni
+                        logger.info(f"Numero totale di spedizioni trovate: {len(outbound_shipments)}")
+                        if outbound_shipments:
+                            oldest_date = min(s.created_at for s in outbound_shipments)
+                            newest_date = max(s.created_at for s in outbound_shipments)
+                            logger.info(f"Range date spedizioni: da {oldest_date} a {newest_date}")
+                            # Log delle prime 5 spedizioni
+                            logger.info("Prime 5 spedizioni:")
+                            for s in outbound_shipments[:5]:
+                                logger.info(f"ID: {s.id}, Nome: {s.name}, Data: {s.created_at}, Status: {s.status}")
                 for shipment in outbound_shipments:
                     status = shipment.status
                     if status == 'closed':
