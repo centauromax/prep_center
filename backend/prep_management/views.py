@@ -510,7 +510,9 @@ def search_shipments_by_products(request):
         try:
             # Costruzione della query avanzata q
             q_parts = []
-            if shipment_status:
+            # Solo se NON sto usando l'endpoint archiviate, aggiungo il filtro status
+            use_archived_endpoint = shipment_status == 'archived' and (not shipment_type or shipment_type == 'outbound')
+            if shipment_status and not use_archived_endpoint:
                 if shipment_status == 'archived':
                     q_parts.append('status:"archived" OR status:"closed"')
                 else:
