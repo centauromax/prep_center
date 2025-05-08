@@ -473,6 +473,7 @@ def search_shipments_by_products(request):
     shipment_status = request.GET.get('shipment_status', '').strip()
     date_from = request.GET.get('date_from', '').strip()
     date_to = request.GET.get('date_to', '').strip()
+    max_results = int(request.GET.get('max_results', 100))
     
     logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type}, shipment_status={shipment_status}")
     
@@ -554,38 +555,58 @@ def search_shipments_by_products(request):
             # OUTBOUND
             if not shipment_type or shipment_type == 'outbound':
                 outbound_shipments = []
+                total_retrieved = 0
                 if shipment_status == 'archived':
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id} con filtro q: {q}")
-                    outbound_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
-                    outbound_shipments = []
-                    if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data
-                        # Log dettagliato delle date delle spedizioni
-                        logger.info(f"Numero totale di spedizioni trovate: {len(outbound_shipments)}")
-                        if outbound_shipments:
-                            oldest_date = min(s.created_at for s in outbound_shipments)
-                            newest_date = max(s.created_at for s in outbound_shipments)
-                            logger.info(f"Range date spedizioni: da {oldest_date} a {newest_date}")
-                            # Log delle prime 5 spedizioni
-                            logger.info("Prime 5 spedizioni:")
-                            for s in outbound_shipments[:5]:
-                                logger.info(f"ID: {s.id}, Nome: {s.name}, Data: {s.created_at}, Status: {s.status}")
+                    page = 1
+                    while total_retrieved < max_results:
+                        logger.info(f"Recupero pagina {page} delle spedizioni outbound archiviate")
+                        outbound_response = client.get_archived_outbound_shipments(
+                            merchant_id=merchant_id, 
+                            per_page=min(500, max_results - total_retrieved),
+                            page=page,
+                            search_query=q
+                        )
+                        if not hasattr(outbound_response, 'data') or not outbound_response.data:
+                            break
+                        current_shipments = outbound_response.data
+                        outbound_shipments.extend(current_shipments)
+                        total_retrieved += len(current_shipments)
+                        if len(current_shipments) < min(500, max_results - total_retrieved + len(current_shipments)):
+                            break
+                        page += 1
+                    outbound_shipments = outbound_shipments[:max_results]
+                    logger.info(f"Totale spedizioni outbound archiviate recuperate: {len(outbound_shipments)}")
+                    if outbound_shipments:
+                        oldest_date = min(s.created_at for s in outbound_shipments)
+                        newest_date = max(s.created_at for s in outbound_shipments)
+                        logger.info(f"Range date totale: da {oldest_date} a {newest_date}")
                 else:
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id} con filtro q: {q}")
-                    outbound_response = client.get_outbound_shipments(merchant_id=merchant_id, per_page=500, search_query=q)
-                    outbound_shipments = []
-                    if hasattr(outbound_response, 'data'):
-                        outbound_shipments = outbound_response.data
-                        # Log dettagliato delle date delle spedizioni
-                        logger.info(f"Numero totale di spedizioni trovate: {len(outbound_shipments)}")
-                        if outbound_shipments:
-                            oldest_date = min(s.created_at for s in outbound_shipments)
-                            newest_date = max(s.created_at for s in outbound_shipments)
-                            logger.info(f"Range date spedizioni: da {oldest_date} a {newest_date}")
-                            # Log delle prime 5 spedizioni
-                            logger.info("Prime 5 spedizioni:")
-                            for s in outbound_shipments[:5]:
-                                logger.info(f"ID: {s.id}, Nome: {s.name}, Data: {s.created_at}, Status: {s.status}")
+                    page = 1
+                    total_retrieved = 0
+                    while total_retrieved < max_results:
+                        logger.info(f"Recupero pagina {page} delle spedizioni outbound")
+                        outbound_response = client.get_outbound_shipments(
+                            merchant_id=merchant_id, 
+                            per_page=min(500, max_results - total_retrieved),
+                            page=page,
+                            search_query=q
+                        )
+                        if not hasattr(outbound_response, 'data') or not outbound_response.data:
+                            break
+                        current_shipments = outbound_response.data
+                        outbound_shipments.extend(current_shipments)
+                        total_retrieved += len(current_shipments)
+                        if len(current_shipments) < min(500, max_results - total_retrieved + len(current_shipments)):
+                            break
+                        page += 1
+                    outbound_shipments = outbound_shipments[:max_results]
+                    logger.info(f"Totale spedizioni outbound recuperate: {len(outbound_shipments)}")
+                    if outbound_shipments:
+                        oldest_date = min(s.created_at for s in outbound_shipments)
+                        newest_date = max(s.created_at for s in outbound_shipments)
+                        logger.info(f"Range date totale: da {oldest_date} a {newest_date}")
                 for shipment in outbound_shipments:
                     status = shipment.status
                     if status == 'closed':
@@ -685,7 +706,7 @@ def search_shipments_by_products(request):
         'shipment_status': shipment_status,
         'merchants': merchants,
         'title': 'Ricerca spedizioni per prodotti',
-        'max_results': 500,
+        'max_results': max_results,
         'date_from': date_from,
         'date_to': date_to
     }
