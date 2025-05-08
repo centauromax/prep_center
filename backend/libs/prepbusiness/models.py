@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any, Union, TypeVar, Generic
 from datetime import datetime, date
 from dataclasses import dataclass
+from pydantic import validator
 
 class PrepBusinessError(Exception):
     """Base exception for PrepBusiness API errors."""
@@ -656,8 +657,20 @@ class OutboundShipment(BaseModel):
     shipped_items_count: Optional[int] = Field(None, description="Number of items shipped")
     searchable_identifiers: str = Field(..., description="Comma-separated list of searchable identifiers")
     searchable_tags: List[str] = Field(default_factory=list, description="List of searchable tags")
-    tags: List[str] = Field(default_factory=list, description="List of tags")
+    tags: List[Union[str, dict]] = Field(default_factory=list, description="List of tags (string or dict)")
     fba_transport_plans: List[FBATransportPlan] = Field(default_factory=list, description="List of FBA transport plans")
+
+    @validator('tags', pre=True, each_item=True)
+    def tag_to_str(cls, v):
+        if isinstance(v, str):
+            return v
+        if isinstance(v, dict):
+            if 'name' in v:
+                return v['name']
+            if 'id' in v:
+                return str(v['id'])
+            return str(v)
+        return str(v)
 
 class OutboundShipmentsResponse(BaseModel):
     """Response model for outbound shipments with pagination."""
