@@ -578,8 +578,10 @@ def search_shipments_by_products(request):
 
             while True:
                 if len(outbound_api_shipments) >= max_results: break
-                current_per_page = min(500, max_results - len(outbound_api_shipments))
-                if current_per_page <= 0: break
+                # Always request 20 per page, as API seems limited anyway
+                current_per_page = 20 
+                # Stop requesting if asking for 0 or less (should not happen with fixed 20)
+                # if current_per_page <= 0: break
 
                 retry_count = 0
                 max_retries = 5
@@ -639,9 +641,9 @@ def search_shipments_by_products(request):
                     break
                 
                 page += 1
-                logger.info(f"Attesa di 30 secondi prima della prossima pagina...")
+                logger.info(f"Attesa di 3 secondi prima della prossima pagina...")
                 context_vars['error'] = None # Clear temporary error message before sleep
-                time.sleep(30)
+                time.sleep(3)
 
             logger.info(f"Totale spedizioni {log_message_prefix} recuperate prima del filtraggio per item: {len(outbound_api_shipments)}")
             for ship_data in outbound_api_shipments:
