@@ -10,7 +10,7 @@
             <form method="get" class="row g-3">
                 <div class="col-md-3">
                     <label for="merchant_name" class="form-label">Cliente</label>
-                    <select class="form-select" id="merchant_name" name="merchant_name" required>
+                    <select class="form-select" id="merchant_name" name="merchant_name">
                         <option value="">Seleziona un cliente...</option>
                         {% for merchant in merchants %}
                         <option value="{{ merchant.name }}" {% if merchant.name == merchant_name %}selected{% endif %}>
@@ -30,13 +30,13 @@
                 </div>
                 
                 <div class="col-md-3">
-                    <label for="keywords" class="form-label">Parole chiave (separate da virgola)</label>
+                    <label for="keywords" class="form-label">Parole chiave prodotti (separate da virgola)</label>
                     <input type="text" class="form-control" id="keywords" name="keywords" 
                            value="{{ keywords }}" placeholder="es. maglia, rossa, cotone">
                 </div>
                 
                 <div class="col-md-3">
-                    <label for="search_type" class="form-label">Tipo di ricerca</label>
+                    <label for="search_type" class="form-label">Tipo di ricerca keywords</label>
                     <select class="form-select" id="search_type" name="search_type">
                         <option value="OR" {% if search_type == 'OR' %}selected{% endif %}>OR (almeno una parola)</option>
                         <option value="AND" {% if search_type == 'AND' %}selected{% endif %}>AND (tutte le parole)</option>
@@ -54,21 +54,21 @@
                 
                 <div class="col-md-2">
                     <label for="max_results" class="form-label">Numero massimo spedizioni</label>
-                    <input type="number" class="form-control" id="max_results" name="max_results" min="1" max="500" value="{{ max_results|default_if_none:request.GET.max_results|default_if_none:'' }}">
+                    <input type="number" class="form-control" id="max_results" name="max_results" min="1" value="{{ max_results }}">
                 </div>
                 
                 <div class="col-md-2">
                     <label for="date_from" class="form-label">Data da</label>
-                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from|default_if_none:request.GET.date_from|default_if_none:'' }}">
+                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
                 </div>
                 <div class="col-md-2">
                     <label for="date_to" class="form-label">Data a</label>
-                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to|default_if_none:request.GET.date_to|default_if_none:'' }}">
+                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
                 </div>
                 
                 <div class="col-md-2">
-                    <label for="debug_page" class="form-label">Pagina (debug)</label>
-                    <input type="number" class="form-control" id="debug_page" name="debug_page" min="1" value="{{ request.GET.debug_page|default:1 }}">
+                    <label for="debug_page" class="form-label">Pagina iniziale (debug)</label>
+                    <input type="number" class="form-control" id="debug_page" name="debug_page" min="1" value="{{ debug_page }}">
                 </div>
                 
                 <div class="col-12">
@@ -82,7 +82,7 @@
     {% if is_waiting %}
     <div class="alert alert-warning" role="alert">
         <strong>Attendere...</strong> La ricerca è in corso e potrebbe richiedere diversi minuti. Non chiudere la pagina!<br>
-        {% if partial_count %}
+        {% if partial_count > 0 %}
         <span>Record letti finora: {{ partial_count }}</span>
         {% endif %}
     </div>
@@ -91,7 +91,7 @@
     <!-- Messaggi di errore -->
     {% if error %}
     <div class="alert alert-danger" role="alert">
-        {{ error }}
+        <pre style="white-space: pre-wrap;">{{ error }}</pre>
     </div>
     {% endif %}
 
@@ -99,7 +99,7 @@
     {% if shipments %}
     <div class="card">
         <div class="card-header">
-            <h5 class="mb-0">Risultati della ricerca</h5>
+            <h5 class="mb-0">Risultati della ricerca ({{ shipments|length }} spedizioni trovate)</h5>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -110,7 +110,7 @@
                             <th>Nome</th>
                             <th>Tipo</th>
                             <th>Stato</th>
-                            <th>Prodotti corrispondenti</th>
+                            <th>Prodotti corrispondenti ({{ keywords }})</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -121,13 +121,23 @@
                             <td>{{ result.type|title }}</td>
                             <td>{{ result.shipment.status|title }}</td>
                             <td>
+                                {% if result.matching_items %}
                                 <ul class="list-unstyled mb-0">
                                     {% for item in result.matching_items %}
                                     <li>
-                                        {{ item.name }} (Qty: {{ item.quantity }})
+                                        {% if item.item %}
+                                            {{ item.item.title }} (Qty: {{ item.quantity }})
+                                        {% elif item.name %}
+                                            {{ item.name }} (Qty: {{ item.quantity }})
+                                        {% else %}
+                                            Item ID {{ item.id }} (Qty: {{ item.quantity }})
+                                        {% endif %}
                                     </li>
                                     {% endfor %}
                                 </ul>
+                                {% else %}
+                                    N/A (Shipment included without matching items due to no keywords)
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -136,7 +146,7 @@
             </div>
         </div>
     </div>
-    {% elif request.GET %}
+    {% elif request.GET and not error and not is_waiting %}
     <div class="alert alert-info" role="alert">
         Nessuna spedizione trovata con i criteri specificati.
     </div>
