@@ -571,26 +571,29 @@ def search_shipments_by_products(request):
                     logger.info(f"Recupero spedizioni outbound archiviate per merchant {merchant_id} con filtro q: {q}")
                     page = int(request.GET.get('debug_page', 1))
                     first_page_logged = False
-                    total_retrieved = 0
-                    while total_retrieved < max_results:
-                        logger.info(f"Recupero pagina {page} delle spedizioni outbound archiviate")
+                    outbound_shipments = []
+                    while True:
+                        per_page = min(500, max_results - len(outbound_shipments))
                         outbound_response = client.get_archived_outbound_shipments(
-                            merchant_id=merchant_id, 
-                            per_page=min(500, max_results - total_retrieved),
+                            merchant_id=merchant_id,
+                            per_page=per_page,
                             page=page,
                             search_query=q
                         )
-                        # Logga la risposta grezza e l'URL solo per la prima pagina richiesta
-                        if not first_page_logged:
-                            logger.info(f"DEBUG URL chiamata: /api/shipments/outbound/archived?merchant_id={merchant_id}&per_page={min(500, max_results - total_retrieved)}&page={page}&search_query={q}")
-                            logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
-                            first_page_logged = True
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
                         outbound_shipments.extend(current_shipments)
-                        total_retrieved += len(current_shipments)
-                        if len(current_shipments) < min(500, max_results - total_retrieved + len(current_shipments)):
+                        # Logga la risposta grezza e l'URL solo per la prima pagina richiesta
+                        if not first_page_logged:
+                            logger.info(f"DEBUG URL chiamata: /api/shipments/outbound/archived?merchant_id={merchant_id}&per_page={per_page}&page={page}&search_query={q}")
+                            logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
+                            first_page_logged = True
+                        # Leggi i metadati di paginazione
+                        current_page = getattr(outbound_response, 'current_page', page)
+                        last_page = getattr(outbound_response, 'last_page', page)
+                        logger.info(f"Pagina {current_page} di {last_page}, spedizioni accumulate: {len(outbound_shipments)}")
+                        if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
                     outbound_shipments = outbound_shipments[:max_results]
@@ -603,25 +606,27 @@ def search_shipments_by_products(request):
                     logger.info(f"Recupero spedizioni outbound per merchant {merchant_id} con filtro q: {q}")
                     page = int(request.GET.get('debug_page', 1))
                     first_page_logged = False
-                    total_retrieved = 0
-                    while total_retrieved < max_results:
-                        logger.info(f"Recupero pagina {page} delle spedizioni outbound")
+                    outbound_shipments = []
+                    while True:
+                        per_page = min(500, max_results - len(outbound_shipments))
                         outbound_response = client.get_outbound_shipments(
-                            merchant_id=merchant_id, 
-                            per_page=min(500, max_results - total_retrieved),
+                            merchant_id=merchant_id,
+                            per_page=per_page,
                             page=page,
                             search_query=q
                         )
-                        if not first_page_logged:
-                            logger.info(f"DEBUG URL chiamata: /api/shipments/outbound?merchant_id={merchant_id}&per_page={min(500, max_results - total_retrieved)}&page={page}&search_query={q}")
-                            logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
-                            first_page_logged = True
                         if not hasattr(outbound_response, 'data') or not outbound_response.data:
                             break
                         current_shipments = outbound_response.data
                         outbound_shipments.extend(current_shipments)
-                        total_retrieved += len(current_shipments)
-                        if len(current_shipments) < min(500, max_results - total_retrieved + len(current_shipments)):
+                        if not first_page_logged:
+                            logger.info(f"DEBUG URL chiamata: /api/shipments/outbound?merchant_id={merchant_id}&per_page={per_page}&page={page}&search_query={q}")
+                            logger.info(f"DEBUG Risposta grezza: {getattr(outbound_response, 'raw_response', str(outbound_response))[:2000]}")
+                            first_page_logged = True
+                        current_page = getattr(outbound_response, 'current_page', page)
+                        last_page = getattr(outbound_response, 'last_page', page)
+                        logger.info(f"Pagina {current_page} di {last_page}, spedizioni accumulate: {len(outbound_shipments)}")
+                        if current_page >= last_page or len(outbound_shipments) >= max_results:
                             break
                         page += 1
                     outbound_shipments = outbound_shipments[:max_results]
