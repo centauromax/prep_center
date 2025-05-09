@@ -760,16 +760,24 @@ def search_shipments_by_products(request):
                 ship_name = shipment_summary['name']
                 
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
-                logger.info(f"[DEBUG] Prima di get_shipment_details per shipment_id={ship_id}, tipo={current_ship_type}")
-                details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
-                logger.info(f"[DEBUG] Dopo get_shipment_details per shipment_id={ship_id}, tipo={current_ship_type}")
-                time.sleep(0.5)
-                logger.info(f"[DEBUG] Prima di get_shipment_items per shipment_id={ship_id}, tipo={current_ship_type}")
-                items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id)
-                logger.info(f"[DEBUG] Dopo get_shipment_items per shipment_id={ship_id}, tipo={current_ship_type}")
-                time.sleep(0.5)
+                try:
+                    # RIMOSSA CHIAMATA A get_shipment_details
+                    # details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                    # time.sleep(1) # Rimuovo anche lo sleep associato
+                    
+                    logger.info(f"[process_batch] Prima di get_shipment_items (mock) per shipment_id={ship_id}")
+                    items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id) # Questa è ancora mockata
+                    logger.info(f"[process_batch] Dopo get_shipment_items (mock) per shipment_id={ship_id}")
+                    time.sleep(0.5) # Manteniamo un piccolo delay per simulare lavoro/rate limit items
+                
+                except Exception as e_detail_item:
+                    logger.error(f"Errore recupero items per spedizione {ship_id}: {e_detail_item}. Salto.")
+                    if final_error_message is None: final_error_message = ""
+                    final_error_message += f"\nErrore recupero items sped. {ship_id}: {e_detail_item}. "
+                    continue 
 
-                shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
+                # Usiamo direttamente ship_name (dal sommario) per il titolo della spedizione
+                shipment_title_lower = (ship_name or '').lower()
                 actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
 
                 match_in_shipment_title = False
