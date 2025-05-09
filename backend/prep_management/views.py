@@ -117,33 +117,40 @@ def api_config_debug(request):
     if request.GET.get('test_api') == 'true':
         try:
             logger.info(f"Test connessione API a {PREP_BUSINESS_API_URL}")
-            headers = {
-                'Authorization': f'Bearer {PREP_BUSINESS_API_KEY}',
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-            }
             
-            # Test di connessione all'endpoint merchants
-            response = requests.get(
-                f"{PREP_BUSINESS_API_URL}/merchants",
-                headers=headers,
+            # Utilizziamo PrepBusinessClient invece di chiamate dirette con requests
+            company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
+            client = PrepBusinessClient(
+                api_key=PREP_BUSINESS_API_KEY,
+                company_domain=company_domain,
                 timeout=PREP_BUSINESS_API_TIMEOUT
             )
             
-            test_result = {
-                'success': response.status_code < 400,
-                'status_code': response.status_code,
-                'status_text': response.reason,
-                'headers': dict(response.headers),
-                'content': response.text[:500] + ('...' if len(response.text) > 500 else ''),
-            }
+            # Test di connessione all'endpoint merchants
+            logger.info("Test connessione all'endpoint merchants usando PrepBusinessClient")
+            merchants_response = client.get_merchants()
             
-            try:
-                test_result['json'] = response.json()
-            except:
-                test_result['json'] = None
+            # Converti la risposta nel formato atteso per la visualizzazione
+            test_result = {
+                'success': True,
+                'status_code': 200,  # Assumiamo 200 se la chiamata non ha sollevato eccezioni
+                'status_text': "OK",
+                'headers': {"Content-Type": "application/json"},  # Minimale per UI
+                'content': str(merchants_response)[:500] + ('...' if len(str(merchants_response)) > 500 else ''),
+                'json': {
+                    'data': [
+                        {
+                            'id': merchant.id,
+                            'name': merchant.name,
+                            'email': getattr(merchant, 'primaryEmail', 'N/A')
+                        } 
+                        for merchant in getattr(merchants_response, 'data', [])[:5]  # Mostra solo i primi 5
+                    ],
+                    'count': len(getattr(merchants_response, 'data', []))
+                }
+            }
                 
-            logger.info(f"Test API completato: status={response.status_code}")
+            logger.info(f"Test API completato con successo: {test_result['json']['count']} merchants trovati")
             
         except Exception as e:
             logger.error(f"Errore nel test API: {str(e)}")

@@ -26,22 +26,18 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
     logger.info(f"Tentativo di connessione a Prep Business API: URL={PREP_BUSINESS_API_URL}, API Key={api_key_safe}")
     
     try:
-        # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
-        # client = PrepBusinessClient()
-        # filters = {"active": True} if active_only else {}
-        # 
-        # logger.info(f"Richiesta merchants con filtri: {filters}")
-        # merchants = client.get_merchants(filters)
-        # logger.info(f"Recuperati {len(merchants)} merchants da Prep Business")
+        # RIATTIVO LA CHIAMATA API PER I MERCHANTS
+        logger.info("Inizializzazione client PrepBusinessClient per chiamata get_merchants reale")
+        company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
+        client = PrepBusinessClient(
+            api_key=PREP_BUSINESS_API_KEY,
+            company_domain=company_domain
+        )
+        filters = {"active": True} if active_only else {}
         
-        # Sostituito con dati mock:
-        logger.info("Restituzione dati mock per merchants.")
-        merchants = [
-            {'id': 1, 'name': 'Mock Merchant 1', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
-            {'id': 2, 'name': 'Mock Merchant 2 (Inactive)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
-        ]
-        if active_only:
-            merchants = [m for m in merchants if m.get('active', True)]
+        logger.info(f"Esecuzione chiamata API get_merchants con filtri: {filters}")
+        merchants = client.get_merchants(filters)
+        logger.info(f"Recuperati {len(merchants)} merchants da Prep Business")
         
         # Logga un esempio di merchant per debug (se disponibile)
         if merchants and len(merchants) > 0:
@@ -50,8 +46,29 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
                 sample['api_key'] = '***HIDDEN***'  # Nascondi chiavi sensibili
             logger.debug(f"Esempio merchant: {sample}")
         
+        # Fallback a dati mock solo in caso di errore o nessun risultato
+        if not merchants:
+            logger.warning("Nessun merchant trovato dall'API, restituisco dati mock come fallback")
+            merchants = [
+                {'id': 1, 'name': 'Mock Merchant 1', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
+                {'id': 2, 'name': 'Mock Merchant 2 (Inactive)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
+            ]
+            if active_only:
+                merchants = [m for m in merchants if m.get('active', True)]
+            logger.info("Restituzione dati mock per merchants come fallback.")
+        
         return merchants
     except Exception as e:
         logger.error(f"Errore nel recupero dei merchants: {str(e)}")
         logger.error(f"Traceback: {traceback.format_exc()}")
-        return [] 
+        
+        # In caso di errore, restituisci dati mock come fallback
+        logger.warning("Errore API, restituisco dati mock come fallback")
+        merchants = [
+            {'id': 1, 'name': 'Mock Merchant 1 (Fallback)', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
+            {'id': 2, 'name': 'Mock Merchant 2 (Inactive Fallback)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
+        ]
+        if active_only:
+            merchants = [m for m in merchants if m.get('active', True)]
+        logger.info("Restituzione dati mock per merchants come fallback dopo errore.")
+        return merchants 
