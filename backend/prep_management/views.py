@@ -49,6 +49,19 @@ from libs.config import (
 
 logger = logging.getLogger('prep_management')
 
+def truncate_log_message(message_obj: Any, max_len: int = 1200, placeholder: str = "....[PORZIONE CANCELLATA]....") -> str:
+    """Tronca la rappresentazione stringa di un oggetto per il logging."""
+    try:
+        s = str(message_obj)
+        if len(s) > max_len:
+            half_len = (max_len - len(placeholder)) // 2
+            if half_len < 10: # Ensure we have some context even if placeholder is long
+                return s[:max_len] + "..."
+            return f"{s[:half_len]}{placeholder}{s[-half_len:]}"
+        return s
+    except Exception:
+        return "[Impossibile convertire oggetto in stringa per il log]"
+
 def index(request):
     return render(request, 'prep_management/index.html')
 
@@ -684,7 +697,7 @@ def search_shipments_by_products(request):
                             merchant_id=merchant_id, per_page=current_per_page,
                             page=page, search_query=q_query
                         )
-                        logger.info(f"Risposta API ricevuta per pagina {page}: {api_response}")
+                        logger.info(f"Risposta API ricevuta per pagina {page}: {truncate_log_message(api_response)}")
                         break 
                     except Exception as e_api:
                         error_str = str(e_api)
@@ -718,8 +731,8 @@ def search_shipments_by_products(request):
                 if not first_page_logged:
                     logger.info(f"DEBUG URL chiamata: {api_method_name}?merchant_id={merchant_id}&per_page={current_per_page}&page={page}&search_query={q_query}")
                     try:
-                       raw_resp_str = str(api_response)[:2000]
-                       logger.info(f"DEBUG Risposta grezza (prime 2000 char): {raw_resp_str}")
+                       raw_resp_str = str(api_response) # Convert to string first
+                       logger.info(f"DEBUG Risposta grezza: {truncate_log_message(raw_resp_str)}")
                     except Exception as log_e:
                        logger.warning(f"Impossibile loggare risposta grezza: {log_e}")
                     first_page_logged = True
@@ -777,7 +790,7 @@ def search_shipments_by_products(request):
                             merchant_id=merchant_id, per_page=current_per_page,
                             page=page, search_query=q_query
                         )
-                        logger.info(f"Risposta API ricevuta per pagina {page}: {api_response}")
+                        logger.info(f"Risposta API ricevuta per pagina {page}: {truncate_log_message(api_response)}")
                         break 
                     except Exception as e_api:
                         error_str = str(e_api)
@@ -811,8 +824,8 @@ def search_shipments_by_products(request):
                 if not first_page_logged:
                     logger.info(f"DEBUG URL chiamata: {api_method_name}?merchant_id={merchant_id}&per_page={current_per_page}&page={page}&search_query={q_query}")
                     try:
-                       raw_resp_str = str(api_response)[:2000]
-                       logger.info(f"DEBUG Risposta grezza (prime 2000 char): {raw_resp_str}")
+                       raw_resp_str = str(api_response) # Convert to string first
+                       logger.info(f"DEBUG Risposta grezza: {truncate_log_message(raw_resp_str)}")
                     except Exception as log_e:
                        logger.warning(f"Impossibile loggare risposta grezza: {log_e}")
                     first_page_logged = True
@@ -862,7 +875,7 @@ def search_shipments_by_products(request):
                 else:
                     test_response = client.get_outbound_shipment_items(test_id, merchant_id=merchant_id)
                 
-                logger.info(f"Test completato con successo. Risposta: {test_response}")
+                logger.info(f"Test completato con successo. Risposta: {truncate_log_message(test_response)}")
                 logger.info("Attendo 5 secondi prima di procedere con le altre richieste...")
                 time.sleep(5)
             except Exception as e_test:
