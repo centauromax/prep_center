@@ -119,3 +119,27 @@ class OutgoingMessage(models.Model):
 
     def __str__(self):
         return f"{self.message_id} ({self.id})"
+
+class SearchResultItem(models.Model):
+    """
+    Modello per memorizzare un singolo item trovato durante la ricerca spedizioni.
+    """
+    shipment_id_api = models.CharField(max_length=50, help_text="ID API della spedizione")
+    shipment_name = models.CharField(max_length=255, help_text="Nome della spedizione")
+    shipment_type = models.CharField(max_length=20, help_text="Tipo di spedizione (inbound/outbound)")
+    
+    product_title = models.TextField(blank=True, null=True, help_text="Titolo/Nome del prodotto")
+    product_sku = models.CharField(max_length=255, blank=True, null=True, help_text="SKU del prodotto")
+    product_asin = models.CharField(max_length=50, blank=True, null=True, help_text="ASIN del prodotto")
+    product_fnsku = models.CharField(max_length=50, blank=True, null=True, help_text="FNSKU del prodotto")
+    product_quantity = models.IntegerField(blank=True, null=True, help_text="Quantità del prodotto nella spedizione")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.shipment_name} - {self.product_title or 'N/A'}"
+
+    class Meta:
+        ordering = ['shipment_name', 'product_title']
+        verbose_name = "Risultato Ricerca Item"
+        verbose_name_plural = "Risultati Ricerca Items"
