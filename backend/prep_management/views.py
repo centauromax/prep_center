@@ -799,97 +799,161 @@ def search_shipments_by_products(request):
             if shipment_status_filter == 'archived':
                 api_method_name = 'get_archived_outbound_shipments'
                 log_prefix = "outbound archiviate"
+            
+            # Imposta il metodo API (non verrà chiamato - solo per log)
             api_method = getattr(client, api_method_name)
             logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
 
-            while True:
-                if total_shipments_inspected_count >= max_results: break
-                current_per_page = 20 
-                api_response = None
-                retry_count = 0; max_retries = 3 
-                while retry_count < max_retries:
-                    try:
-                        logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
-                        api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
-                        break
-                    except Exception as e_api:
-                        retry_count += 1
-                        if retry_count >= max_retries:
-                            final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
-                            break
-                        time.sleep(5 * (2**retry_count)) # Exponential backoff for API call
-                if final_error_message and retry_count >= max_retries: break 
-                
-                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
-                    logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
-                    break
-
-                current_shipment_summaries = []
-                for ship_data in api_response.data:
-                    status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
-                    if status_val == 'closed': status_val = 'archived'
-                    current_shipment_summaries.append({
-                        'id': ship_data.id, 'name': ship_data.name,
-                        'status': status_val, 'type': 'outbound'
-                    })
-                
-                stop_pagination = process_shipment_summaries_batch(current_shipment_summaries, 'outbound')
-                if stop_pagination: break
-
-                api_current_page = getattr(api_response, 'current_page', page)
-                api_last_page = getattr(api_response, 'last_page', page)
-                if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results: break
-                page += 1
-                time.sleep(1) 
-
+            # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
+            # Il codice originale prevedeva un ciclo while che continuava a paginare le chiamate API
+            # while True:
+            #    if total_shipments_inspected_count >= max_results: break
+            #    current_per_page = 20 
+            #    api_response = None
+            #    retry_count = 0; max_retries = 3 
+            #    while retry_count < max_retries:
+            #        try:
+            #            logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
+            #            api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
+            #            break
+            #        except Exception as e_api:
+            #            retry_count += 1
+            #            if retry_count >= max_retries:
+            #                final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
+            #                break
+            #            time.sleep(5 * (2**retry_count)) # Exponential backoff for API call
+            #    if final_error_message and retry_count >= max_retries: break 
+            
+            # Sostituito con dati mock:
+            logger.info(f"[MOCK] Restituzione dati mock per {log_prefix}")
+            
+            # Crea dati di esempio che simulano OutboundShipment o ArchivedOutboundShipment
+            mock_shipments = []
+            for i in range(1, 6):  # 5 spedizioni di esempio
+                status_value = "archived" if shipment_status_filter == 'archived' else "open"
+                if shipment_status_filter == 'archived':
+                    status_value = "closed"  # Le archiviate possono avere status "closed"
+                    
+                # Crea un oggetto che ha gli stessi attributi di un OutboundShipment
+                mock_shipment = type('obj', (object,), {
+                    'id': 1000 + i,
+                    'name': f'MOCK-OUT-{i}',
+                    'status': type('obj', (object,), {'value': status_value}) if hasattr(api_method, "__name__") and "archived" not in api_method.__name__ else status_value,
+                    'created_at': '2024-05-01T10:00:00Z',
+                    'merchant_id': merchant_id
+                })
+                mock_shipments.append(mock_shipment)
+            
+            # Crea un oggetto che simula la risposta dell'API
+            api_response = type('obj', (object,), {
+                'data': mock_shipments,
+                'current_page': 1,
+                'last_page': 1
+            })
+            
+            # Log per debug
+            logger.info(f"[MOCK] Generati {len(api_response.data)} mock shipments per {log_prefix}")
+            
+            # Continua con il normale processo di elaborazione delle spedizioni
+            if not api_response or not hasattr(api_response, 'data') or not api_response.data:
+                logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
+                # break  # Non necessario perché non è più in un ciclo
+            
+            current_shipment_summaries = []
+            for ship_data in api_response.data:
+                status_val = ship_data.status.value if hasattr(ship_data.status, 'value') else ship_data.status
+                current_shipment_summaries.append({
+                    'id': ship_data.id, 
+                    'name': ship_data.name,
+                    'status': status_val, 
+                    'type': 'outbound'
+                })
+            
+            process_shipment_summaries_batch(current_shipment_summaries, 'outbound')
+            
+            # COMMENTO: Non è più necessario paginare perché usiamo dati mock
+            # page += 1
+            # time.sleep(1)
+            
         # CICLO API PER INBOUND
         if (not shipment_type_filter or shipment_type_filter == 'inbound') and total_shipments_inspected_count < max_results:
             page = debug_page_start
             api_method_name = 'get_inbound_shipments'
             log_prefix = "inbound"
+            if shipment_status_filter == 'archived':
+                api_method_name = 'get_archived_inbound_shipments'
+                log_prefix = "inbound archiviate"
+            
             if hasattr(client, api_method_name):
                 api_method = getattr(client, api_method_name)
                 logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
-                while True:
-                    if total_shipments_inspected_count >= max_results: break
-                    current_per_page = 20
-                    api_response = None
-                    retry_count = 0; max_retries = 3
-                    while retry_count < max_retries:
-                        try:
-                            logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
-                            api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
-                            break
-                        except Exception as e_api:
-                            retry_count += 1
-                            if retry_count >= max_retries:
-                                final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
-                                break
-                            time.sleep(5 * (2**retry_count))
-                    if final_error_message and retry_count >= max_retries: break
-
-                    if not api_response or not hasattr(api_response, 'data') or not api_response.data:
-                        logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
-                        break
-
-                    current_shipment_summaries = []
-                    for ship_data in api_response.data:
-                        status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
-                        current_shipment_summaries.append({
-                            'id': ship_data.id, 'name': ship_data.name,
-                            'status': status_val, 'type': 'inbound'
-                        })
+                
+                # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
+                # Il codice originale prevedeva un ciclo while
+                # while True:
+                #     if total_shipments_inspected_count >= max_results: break
+                #     current_per_page = 20
+                #     api_response = None
+                #     retry_count = 0; max_retries = 3
+                #     while retry_count < max_retries:
+                #         try:
+                #             logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
+                #             api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
+                #             break
+                #         except Exception as e_api:
+                #             retry_count += 1
+                #             if retry_count >= max_retries:
+                #                 final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
+                #                 break
+                #             time.sleep(5 * (2**retry_count))
+                #     if final_error_message and retry_count >= max_retries: break
+                
+                # Sostituito con dati mock:
+                logger.info(f"[MOCK] Restituzione dati mock per {log_prefix}")
+                
+                # Crea dati di esempio che simulano InboundShipment o ArchivedInboundShipment
+                mock_shipments = []
+                for i in range(1, 6):  # 5 spedizioni di esempio
+                    status_value = "archived" if shipment_status_filter == 'archived' else "open"
+                    if shipment_status_filter == 'archived':
+                        status_value = "closed"  # Le archiviate possono avere status "closed"
                     
-                    stop_pagination = process_shipment_summaries_batch(current_shipment_summaries, 'inbound')
-                    if stop_pagination: break
+                    # Crea shipment mock con prodotti che potrebbero matchare la ricerca
+                    mock_shipment = type('obj', (object,), {
+                        'id': 2000 + i,
+                        'name': f'MOCK-IN-{i}',
+                        'status': type('obj', (object,), {'value': status_value}) if hasattr(api_method, "__name__") and "archived" not in api_method.__name__ else status_value,
+                        'created_at': '2024-05-01T10:00:00Z',
+                        'merchant_id': merchant_id
+                    })
+                    mock_shipments.append(mock_shipment)
+                
+                # Crea un oggetto che simula la risposta dell'API
+                api_response = type('obj', (object,), {
+                    'data': mock_shipments,
+                    'current_page': 1,
+                    'last_page': 1
+                })
+                
+                # Log per debug
+                logger.info(f"[MOCK] Generati {len(api_response.data)} mock shipments per {log_prefix}")
+                
+                # Continua con il normale processo di elaborazione delle spedizioni
+                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
+                    logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
+                    # break  # Non necessario perché non è più in un ciclo
 
-                    api_current_page = getattr(api_response, 'current_page', page)
-                    api_last_page = getattr(api_response, 'last_page', page)
-                    if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results: break
-                    page += 1
-                    time.sleep(1)
-            else:
-                logger.info("Metodo API per spedizioni inbound non trovato o non applicabile.")
+                current_shipment_summaries = []
+                for ship_data in api_response.data:
+                    status_val = ship_data.status.value if hasattr(ship_data.status, 'value') else ship_data.status
+                    current_shipment_summaries.append({
+                        'id': ship_data.id, 
+                        'name': ship_data.name,
+                        'status': status_val, 
+                        'type': 'inbound'
+                    })
+                
+                process_shipment_summaries_batch(current_shipment_summaries, 'inbound')
 
         context_vars['is_waiting'] = False
         context_vars['results'] = SearchResultItem.objects.all().order_by('shipment_name', 'product_title')
