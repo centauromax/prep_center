@@ -29,6 +29,15 @@ from datetime import timedelta
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 from enum import Enum
+from functools import wraps
+from typing import Optional, Dict, Any, List
+from django.core.cache import cache
+from libs.prepbusiness.models import (
+    OutboundShipmentResponse,
+    OutboundShipmentItemsResponse,
+    InboundShipmentResponse,
+    ShipmentItemsResponse
+)
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -453,6 +462,93 @@ def poll_outgoing_messages(request):
     response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
     return response
 
+def retry_on_error(max_retries=3, delay=1, backoff=2):
+    """
+    Decorator per implementare retry logic con exponential backoff.
+    
+    Args:
+        max_retries: Numero massimo di tentativi
+        delay: Delay iniziale in secondi
+        backoff: Fattore di moltiplicazione per il delay
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            current_delay = delay
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Tentativo {attempt + 1}/{max_retries} fallito: {str(e)}")
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+                    else:
+                        logger.error(f"Tutti i tentativi falliti dopo {max_retries} tentativi")
+                        raise last_exception
+            
+            raise last_exception
+        return wrapper
+    return decorator
+
+@retry_on_error(max_retries=3, delay=2, backoff=2)
+def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Recupera i dettagli di una spedizione con retry logic.
+    
+    Args:
+        client: Istanza del client PrepBusiness
+        shipment_id: ID della spedizione
+        shipment_type: Tipo di spedizione ('inbound' o 'outbound')
+        merchant_id: ID opzionale del merchant
+        
+    Returns:
+        Dict con i dettagli della spedizione
+        
+    Raises:
+        Exception: Se tutti i tentativi falliscono
+    """
+    try:
+        if shipment_type == 'inbound':
+            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+            return response.model_dump()
+        else:
+            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+            return response.model_dump()
+    except Exception as e:
+        logger.error(f"Errore nel recupero dettagli spedizione {shipment_id}: {str(e)}")
+        raise
+
+@retry_on_error(max_retries=3, delay=2, backoff=2)
+def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+    """
+    Recupera gli items di una spedizione con retry logic.
+    
+    Args:
+        client: Istanza del client PrepBusiness
+        shipment_id: ID della spedizione
+        shipment_type: Tipo di spedizione ('inbound' o 'outbound')
+        merchant_id: ID opzionale del merchant
+        
+    Returns:
+        Dict con gli items della spedizione
+        
+    Raises:
+        Exception: Se tutti i tentativi falliscono
+    """
+    try:
+        if shipment_type == 'inbound':
+            response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
+        else:
+            response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
+        return response.model_dump()
+    except Exception as e:
+        logger.error(f"Errore nel recupero items spedizione {shipment_id}: {str(e)}")
+        raise
+
 def search_shipments_by_products(request):
     # Initialize context with safe defaults
     merchants = get_merchants() 
@@ -780,31 +876,17 @@ def search_shipments_by_products(request):
                     shipment_type = shipment_summary['type']
                     logger.info(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
 
-                    # Recupera dettagli spedizione (serve per il titolo)
-                    details = None
-                    items_response = None
+                    # Recupera dettagli spedizione con retry logic
                     try:
-                        if shipment_type == 'inbound':
-                            # details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id) # Se serve
-                            logger.info(f"Richiesta items inbound per spedizione {shipment_id}")
-                            items_response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
-                            logger.info(f"Risposta items inbound ricevuta per spedizione {shipment_id}")
-                        else:
-                            logger.info(f"Richiesta dettagli outbound per spedizione {shipment_id}")
-                            details = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
-                            logger.info(f"Risposta dettagli outbound ricevuta per spedizione {shipment_id}")
-                            logger.info(f"Richiesta items outbound per spedizione {shipment_id}")
-                            items_response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
-                            logger.info(f"Risposta items outbound ricevuta per spedizione {shipment_id}")
-                    except Exception as e_api:
-                        logger.error(f"Errore API durante il recupero dettagli spedizione {shipment_id}: {str(e_api)}", exc_info=True)
-                        if '502' in str(e_api):
-                            logger.warning(f"Errore 502 rilevato per spedizione {shipment_id}. Probabile rate limiting.")
-                            context_vars['error'] = f"Errore 502 durante il recupero dettagli spedizione {shipment_id}. Probabile rate limiting dell'API."
-                            # Continua con la prossima spedizione invece di interrompere
-                            continue
-                        else:
-                            raise
+                        details = get_shipment_details(client, shipment_id, shipment_type, merchant_id=merchant_id)
+                        items_response = get_shipment_items(client, shipment_id, shipment_type, merchant_id=merchant_id)
+                        
+                        # Aggiungi un delay tra le richieste per evitare sovraccarico
+                        time.sleep(1)
+                        
+                    except Exception as e:
+                        logger.error(f"Errore nel recupero dettagli/items per spedizione {shipment_id}: {str(e)}")
+                        continue  # Salta questa spedizione e procedi con la successiva
 
                     # Determina il titolo della spedizione
                     shipment_title = ''
@@ -853,9 +935,9 @@ def search_shipments_by_products(request):
                         })
 
                 except Exception as e_detail:
-                    logger.error(f"Errore nel recupero dettagli/item per spedizione {shipment_summary.get('id', 'N/A')}: {e_detail}")
+                    logger.error(f"Errore nell'elaborazione della spedizione {shipment_id}: {str(e_detail)}")
                     if not final_error_message:
-                        final_error_message = (final_error_message or "") + f"\nAttenzione: Errore recupero dettagli spedizione {shipment_summary.get('id', 'N/A')}. Risultati potrebbero essere incompleti."
+                        final_error_message = (final_error_message or "") + f"\nAttenzione: Errore elaborazione spedizione {shipment_id}. Risultati potrebbero essere incompleti."
                 
                 # Aggiungi un secondo di sleep tra le richieste dei dettagli
                 logger.info(f"Attendo 1 secondo prima della prossima richiesta...")
