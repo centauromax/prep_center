@@ -48,6 +48,7 @@ from libs.config import (
 )
 
 logger = logging.getLogger('prep_management')
+logging.getLogger("httpx").setLevel(logging.DEBUG)
 
 def truncate_log_message(message_obj: Any, max_len: int = 1200, placeholder: str = "....[PORZIONE CANCELLATA]....") -> str:
     """Tronca la rappresentazione stringa di un oggetto per il logging."""
@@ -521,23 +522,32 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
     """
     logger.info(f"[API get_shipment_details] INIZIO: shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
     try:
+        raw_response_content = None # Variabile per salvare il contenuto grezzo
         if shipment_type == 'inbound':
             logger.info(f"[API get_shipment_details] Chiamo client.get_inbound_shipment({shipment_id}, merchant_id={merchant_id})")
-            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+            # Per ottenere il contenuto grezzo, potremmo dover modificare il client o fare una chiamata separata
+            # Temporaneamente, ci affidiamo al log di httpx. Successivamente, potremmo voler esporre il contenuto grezzo dal client.
+            response_obj = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
         else:
             logger.info(f"[API get_shipment_details] Chiamo client.get_outbound_shipment({shipment_id}, merchant_id={merchant_id})")
-            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
-        # Log della risposta (tronca se lunga)
-        resp_str = str(response)
+            response_obj = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+        
+        # Log della risposta Pydantic (tronca se lunga)
+        resp_str = str(response_obj)
         if len(resp_str) > 500:
-            logger.info(f"[API get_shipment_details] Risposta (troncata): {resp_str[:250]} ... {resp_str[-250:]}")
+            logger.info(f"[API get_shipment_details] Risposta Pydantic (troncata): {resp_str[:250]} ... {resp_str[-250:]}")
         else:
-            logger.info(f"[API get_shipment_details] Risposta: {resp_str}")
+            logger.info(f"[API get_shipment_details] Risposta Pydantic: {resp_str}")
+            
         logger.info(f"[API get_shipment_details] FINE OK: shipment_id={shipment_id}, tipo={shipment_type}")
-        return response.model_dump()
+        return response_obj.model_dump()
+        
     except Exception as e:
         logger.error(f"[API get_shipment_details] ERRORE: {e}")
         logger.error(f"[API get_shipment_details] Traceback: {traceback.format_exc()}")
+        # Se abbiamo il contenuto grezzo e c'è un errore, logghiamolo
+        if raw_response_content:
+            logger.error(f"[API get_shipment_details] Contenuto grezzo della risposta al momento dell'errore: {truncate_log_message(raw_response_content)}")
         raise
 
 @retry_on_error(max_retries=3, delay=2, backoff=2)
