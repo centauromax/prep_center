@@ -95,6 +95,18 @@
     </div>
     {% endif %}
 
+    {% if is_waiting %}
+    <div class="alert alert-info" role="alert">
+        Ricerca in corso... Record letti finora: {{ partial_count }}
+    </div>
+    {% endif %}
+
+    <div class="alert alert-info" role="alert">
+        <strong>Statistiche ricerca:</strong><br>
+        Spedizioni lette: {{ total_shipments_read }}<br>
+        Spedizioni corrispondenti: {{ matching_shipments_count }}
+    </div>
+
     <!-- Risultati della ricerca -->
     {% if shipments %}
     <div class="card">

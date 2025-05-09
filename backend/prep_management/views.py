@@ -471,7 +471,9 @@ def search_shipments_by_products(request):
         'shipments': [],
         'error': None,
         'is_waiting': False,
-        'partial_count': 0
+        'partial_count': 0,
+        'total_shipments_read': 0,  # Nuovo contatore per spedizioni lette
+        'matching_shipments_count': 0  # Nuovo contatore per spedizioni corrispondenti
     }
     
     # Update context with actual GET parameters if present
@@ -550,9 +552,7 @@ def search_shipments_by_products(request):
         if date_to:
             q_parts.append(f'created_at<="{date_to}"')
         # IMPORTANT: Modify keyword search if needed. Searching `name` might refer to shipment name, not item name.
-        # If searching item names: This needs to happen AFTER retrieving shipments and their items.
-        # Current implementation adds `name~keyword` which searches SHIPMENT name.
-        # Let's comment this out for now as filtering happens later based on items.
+        # Se si cerca per keyword, NON va più aggiunta al filtro API (q_query), ma si filtra localmente DOPO.
         # if keywords:
         #     for keyword in keywords:
         #         q_parts.append(f'name~"{keyword}"') 
@@ -655,75 +655,89 @@ def search_shipments_by_products(request):
                      'status': status, 'type': 'outbound'
                  })
         
+        # Aggiorna il contatore delle spedizioni lette
+        context_vars['total_shipments_read'] = len(retrieved_shipments_for_filtering)
+        
         # --- Filter by item keywords ---
         logger.info(f"Totale spedizioni da filtrare per item (inbound+outbound): {len(retrieved_shipments_for_filtering)}")
         final_error_message = context_vars.get('error') # Preserve API error if any
 
         if retrieved_shipments_for_filtering and keywords: # Only filter if keywords provided
-            logger.info(f"Inizio filtraggio per prodotti ({keywords_str}) su {len(retrieved_shipments_for_filtering)} spedizioni.")
+            logger.info(f"Inizio filtraggio per prodotti/titolo spedizione ({keywords_str}) su {len(retrieved_shipments_for_filtering)} spedizioni.")
             for shipment_summary in retrieved_shipments_for_filtering:
                 try:
                     shipment_id = shipment_summary['id']
                     shipment_type = shipment_summary['type']
                     logger.debug(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
-                    
-                    items_response = None
+
+                    # Recupera dettagli spedizione (serve per il titolo)
                     details = None
+                    items_response = None
                     if shipment_type == 'inbound':
-                        # details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id) # Fetch if needed
+                        # details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id) # Se serve
                         items_response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
-                    else: 
+                    else:
                         details = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
                         items_response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
-                    
+
+                    # Determina il titolo della spedizione
+                    shipment_title = ''
+                    if details and hasattr(details, 'shipment') and hasattr(details.shipment, 'name'):
+                        shipment_title = getattr(details.shipment, 'name', '').lower()
+                    elif 'name' in shipment_summary:
+                        shipment_title = shipment_summary['name'].lower()
+
+                    # 1. Cerca la keyword nel titolo della spedizione
+                    match_in_title = False
+                    if search_type == 'AND':
+                        match_in_title = all(k.lower() in shipment_title for k in keywords)
+                    else:
+                        match_in_title = any(k.lower() in shipment_title for k in keywords)
+
+                    # 2. Se non trovata nel titolo, cerca nei prodotti
+                    match_in_items = False
                     actual_items = items_response.items if hasattr(items_response, 'items') else []
-                    if not actual_items: continue # Skip if no items
-
                     current_matching_items = []
-                    for item_detail in actual_items:
-                        item_name_to_search = ""
-                        if shipment_type == 'inbound':
-                             # Assuming item_detail for inbound has a 'name' attribute
-                             item_name_to_search = getattr(item_detail, 'name', '').lower()
-                        else: # outbound
-                            if hasattr(item_detail, 'item') and hasattr(item_detail.item, 'title'):
-                                item_name_to_search = getattr(item_detail.item, 'title', '').lower()
-                        
-                        if not item_name_to_search: continue
+                    if not match_in_title and actual_items:
+                        for item_detail in actual_items:
+                            item_name_to_search = ""
+                            if shipment_type == 'inbound':
+                                item_name_to_search = getattr(item_detail, 'name', '').lower()
+                            else:
+                                if hasattr(item_detail, 'item') and hasattr(item_detail.item, 'title'):
+                                    item_name_to_search = getattr(item_detail.item, 'title', '').lower()
+                            if not item_name_to_search:
+                                continue
+                            if search_type == 'AND':
+                                match = all(k.lower() in item_name_to_search for k in keywords)
+                            else:
+                                match = any(k.lower() in item_name_to_search for k in keywords)
+                            if match:
+                                current_matching_items.append(item_detail)
+                        if current_matching_items:
+                            match_in_items = True
 
-                        match = False
-                        if search_type == 'AND':
-                            match = all(k.lower() in item_name_to_search for k in keywords)
-                        else: # OR 
-                            match = any(k.lower() in item_name_to_search for k in keywords)
-                        
-                        if match:
-                            current_matching_items.append(item_detail)
-                    
-                    if current_matching_items:
-                        # Use detail object if fetched, otherwise use summary
+                    # Se trovata nel titolo O in almeno un prodotto, aggiungi la spedizione
+                    if match_in_title or match_in_items:
                         shipment_obj_to_display = details.shipment if details and hasattr(details, 'shipment') else shipment_summary
                         matching_shipments.append({
                             'shipment': shipment_obj_to_display,
-                            'matching_items': current_matching_items,
+                            'matching_items': current_matching_items if match_in_items else [],
                             'type': shipment_type
                         })
-                        # logger.debug(f"Spedizione {shipment_id} aggiunta ai risultati con {len(current_matching_items)} items.")
 
-                except Exception as e_detail: 
+                except Exception as e_detail:
                     logger.error(f"Errore nel recupero dettagli/item per spedizione {shipment_summary.get('id', 'N/A')}: {e_detail}")
-                    if not final_error_message: # Show warning only if no major API error occurred before
-                         final_error_message = (final_error_message or "") + f"\nAttenzione: Errore recupero dettagli spedizione {shipment_summary.get('id', 'N/A')}. Risultati potrebbero essere incompleti."
+                    if not final_error_message:
+                        final_error_message = (final_error_message or "") + f"\nAttenzione: Errore recupero dettagli spedizione {shipment_summary.get('id', 'N/A')}. Risultati potrebbero essere incompleti."
         elif retrieved_shipments_for_filtering and not keywords:
-             logger.info("Nessuna keyword specificata, mostro tutte le spedizioni recuperate.")
-             # If no keywords, add all retrieved shipments (need details if not fetched before)
-             for shipment_summary in retrieved_shipments_for_filtering:
-                 # Fetch details if necessary or decide how to display summary
-                 matching_shipments.append({
-                     'shipment': shipment_summary, # Or fetch details
-                     'matching_items': [], # No specific items matched keywords
-                     'type': shipment_summary['type']
-                 })
+            logger.info("Nessuna keyword specificata, mostro tutte le spedizioni recuperate.")
+            for shipment_summary in retrieved_shipments_for_filtering:
+                matching_shipments.append({
+                    'shipment': shipment_summary,
+                    'matching_items': [],
+                    'type': shipment_summary['type']
+                })
 
 
         # --- Final Rendering ---
@@ -731,6 +745,7 @@ def search_shipments_by_products(request):
         context_vars['shipments'] = matching_shipments
         context_vars['partial_count'] = partial_count 
         context_vars['error'] = final_error_message # Set final error message
+        context_vars['matching_shipments_count'] = len(matching_shipments)  # Aggiorna il contatore delle spedizioni corrispondenti
 
         logger.info(f"Rendering pagina con {len(matching_shipments)} spedizioni finali. Error: {context_vars.get('error')}")
         return render(request, 'prep_management/search_shipments.html', context_vars)
