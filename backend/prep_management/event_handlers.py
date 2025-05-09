@@ -6,6 +6,7 @@ Contiene la logica di business per reagire ai vari tipi di eventi.
 import logging
 from typing import Dict, Any, Optional, List, Tuple
 from django.utils import timezone
+import time
 
 from .models import ShipmentStatusUpdate, OutgoingMessage
 from libs.prepbusiness.client import PrepBusinessClient
@@ -142,10 +143,18 @@ class WebhookEventProcessor:
         
         try:
             # Ottieni tutte le spedizioni in entrata per questo merchant
+            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
+            start_time_inbound = time.time()
             inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
-            inbound_shipments = inbound_shipments_response.data
+            end_time_inbound = time.time()
+            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
+            
+            inbound_shipments = inbound_shipments_response.data if inbound_shipments_response else []
+            logger.info(f"[_process_outbound_shipment_created] Ricevute {len(inbound_shipments)} spedizioni in entrata grezze.")
+            
             # Filtra solo le spedizioni in entrata non archiviate
             inbound_shipments = [s for s in inbound_shipments if s.archived_at is None]
+            logger.info(f"[_process_outbound_shipment_created] {len(inbound_shipments)} spedizioni in entrata non archiviate.")
             
             # Cerca una spedizione con lo stesso nome
             matching_shipment = next(
@@ -167,10 +176,17 @@ class WebhookEventProcessor:
                 merchant_name = update.merchant_name
                 if not merchant_name and merchant_id:
                     try:
-                        merchants = self.client.get_merchants().data
+                        logger.info(f"[_process_outbound_shipment_created] Nome merchant non disponibile, chiamata API get_merchants...")
+                        start_time_merchants = time.time()
+                        merchants_response = self.client.get_merchants()
+                        end_time_merchants = time.time()
+                        logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
+                        merchants = merchants_response.data if merchants_response else []
                         merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
                         merchant_name = merchant.name if merchant else str(merchant_id)
+                        logger.info(f"[_process_outbound_shipment_created] Nome merchant recuperato: {merchant_name}")
                     except Exception as e:
+                        logger.error(f"[_process_outbound_shipment_created] Errore durante il recupero del nome del merchant via API: {str(e)}")
                         merchant_name = str(merchant_id)
                 # Enqueue message for Chrome extension
                 OutgoingMessage.objects.create(
