@@ -517,39 +517,28 @@ def retry_on_error(max_retries=3, delay=1, backoff=2):
 @retry_on_error(max_retries=3, delay=2, backoff=2)
 def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    MOCK: Restituisce sempre dati fittizi per i dettagli spedizione, senza chiamare l'API reale.
+    Recupera i dettagli di una spedizione con retry logic. API reale, log dettagliati.
     """
-    logger.info(f"[MOCK get_shipment_details] Restituisco dati mock per shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
-    if shipment_type == 'inbound':
-        mock_response = {
-            'shipment': {
-                'id': shipment_id,
-                'name': f"MOCK-IN-{shipment_id}",
-                'status': 'open',
-                'archived_at': None,
-                'created_at': '2024-05-01T10:00:00Z',
-                'updated_at': '2024-05-01T10:00:00Z',
-                'team_id': merchant_id or 1,
-                'warehouse_id': 123,
-                'notes': f"Note mock per spedizione inbound {shipment_id}"
-            }
-        }
-    else:
-        mock_response = {
-            'shipment': {
-                'id': shipment_id,
-                'name': f"MOCK-OUT-{shipment_id}",
-                'status': 'archived',
-                'archived_at': '2024-05-02T10:00:00Z',
-                'created_at': '2024-05-01T10:00:00Z',
-                'updated_at': '2024-05-02T10:00:00Z',
-                'team_id': merchant_id or 1,
-                'merchant_id': merchant_id or 1,
-                'warehouse_id': 123,
-                'notes': f"Note mock per spedizione outbound {shipment_id}"
-            }
-        }
-    return mock_response
+    logger.info(f"[API get_shipment_details] INIZIO: shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    try:
+        if shipment_type == 'inbound':
+            logger.info(f"[API get_shipment_details] Chiamo client.get_inbound_shipment({shipment_id}, merchant_id={merchant_id})")
+            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+        else:
+            logger.info(f"[API get_shipment_details] Chiamo client.get_outbound_shipment({shipment_id}, merchant_id={merchant_id})")
+            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+        # Log della risposta (tronca se lunga)
+        resp_str = str(response)
+        if len(resp_str) > 500:
+            logger.info(f"[API get_shipment_details] Risposta (troncata): {resp_str[:250]} ... {resp_str[-250:]}")
+        else:
+            logger.info(f"[API get_shipment_details] Risposta: {resp_str}")
+        logger.info(f"[API get_shipment_details] FINE OK: shipment_id={shipment_id}, tipo={shipment_type}")
+        return response.model_dump()
+    except Exception as e:
+        logger.error(f"[API get_shipment_details] ERRORE: {e}")
+        logger.error(f"[API get_shipment_details] Traceback: {traceback.format_exc()}")
+        raise
 
 @retry_on_error(max_retries=3, delay=2, backoff=2)
 def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
