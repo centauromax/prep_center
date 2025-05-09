@@ -495,9 +495,11 @@ def search_shipments_by_products(request):
     
     # Check if a search was actually triggered (e.g., by checking if merchant_name is present in GET)
     search_triggered = 'merchant_name' in request.GET
+    logger.info(f"Search triggered: {search_triggered}, GET params: {dict(request.GET)}")
 
     if not search_triggered:
         # Just render the empty form if no search was triggered
+        logger.info("No search triggered, rendering empty form")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
     # Start processing the search request
@@ -530,11 +532,13 @@ def search_shipments_by_products(request):
                 context_vars['error'] = f'Merchant \'{merchant_name}\' non trovato'
                 return render(request, 'prep_management/search_shipments.html', context_vars)
         else: # No merchant name provided in GET request
+             logger.warning("Nessun merchant selezionato")
              context_vars['error'] = 'Seleziona un merchant per avviare la ricerca.'
              return render(request, 'prep_management/search_shipments.html', context_vars)
 
         # --- Start the potentially long process ---
         context_vars['is_waiting'] = True
+        logger.info("Inizio recupero spedizioni...")
 
         company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
         client = PrepBusinessClient(PREP_BUSINESS_API_KEY, company_domain)

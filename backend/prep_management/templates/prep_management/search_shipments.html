@@ -7,7 +7,7 @@
     <!-- Form di ricerca -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" class="row g-3">
+            <form method="get" class="row g-3" onsubmit="console.log('Form submitted with data:', new FormData(this))">
                 <div class="col-md-3">
                     <label for="merchant_name" class="form-label">Cliente</label>
                     <select class="form-select" id="merchant_name" name="merchant_name">
