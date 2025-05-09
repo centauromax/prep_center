@@ -784,9 +784,21 @@ def search_shipments_by_products(request):
                 item_saved_for_this_shipment = False
                 if actual_items_list: 
                     for item_dict in actual_items_list:
-                        logger.info(f"[DEBUG process_batch] Prima di extract_product_info_from_dict per item: {truncate_log_message(item_dict)}")
-                        product_info = extract_product_info_from_dict(item_dict, current_ship_type)
-                        logger.info(f"[DEBUG process_batch] Dopo extract_product_info_from_dict, info estratte: {product_info}")
+                        logger.info(f"[DEBUG process_batch] Loop item: {truncate_log_message(item_dict)} per shipment_id={ship_id}")
+                        product_info = None # Inizializza product_info
+                        try:
+                            logger.info(f"[DEBUG process_batch] Prima di extract_product_info_from_dict per item: {truncate_log_message(item_dict)}")
+                            product_info = extract_product_info_from_dict(item_dict, current_ship_type)
+                            logger.info(f"[DEBUG process_batch] Dopo extract_product_info_from_dict, info estratte: {product_info}")
+                        except Exception as e_extract:
+                            logger.error(f"[DEBUG process_batch] ERRORE in extract_product_info_from_dict per item: {truncate_log_message(item_dict)}, Errore: {e_extract}")
+                            logger.error(f"[DEBUG process_batch] Traceback extract: {traceback.format_exc()}")
+                            continue # Salta questo item se l'estrazione fallisce
+                        
+                        if not product_info: # Ulteriore controllo se product_info è None
+                            logger.warning(f"[DEBUG process_batch] product_info è None dopo extract, salto item: {truncate_log_message(item_dict)}")
+                            continue
+
                         item_name_lower = (product_info.get('title') or '').lower()
                         
                         item_matches_keywords = False
@@ -799,32 +811,59 @@ def search_shipments_by_products(request):
                             item_matches_keywords = True
 
                         if item_matches_keywords: 
-                            SearchResultItem.objects.create(
-                                shipment_id_api=str(ship_id),
-                                shipment_name=ship_name,
-                                shipment_type=current_ship_type,
-                                product_title=product_info.get('title'),
-                                product_sku=product_info.get('sku'),
-                                product_asin=product_info.get('asin'),
-                                product_fnsku=product_info.get('fnsku'),
-                                product_quantity=product_info.get('quantity')
-                            )
+                            # Log prima di creare SearchResultItem
+                            log_data_before_save = {
+                                'shipment_id_api': str(ship_id),
+                                'shipment_name': ship_name,
+                                'shipment_type': current_ship_type,
+                                'product_title': product_info.get('title'),
+                                'product_sku': product_info.get('sku'),
+                                'product_asin': product_info.get('asin'),
+                                'product_fnsku': product_info.get('fnsku'),
+                                'product_quantity': product_info.get('quantity')
+                            }
+                            logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create con dati: {log_data_before_save}")
+                            try:
+                                SearchResultItem.objects.create(**log_data_before_save)
+                                logger.info(f"[DEBUG process_batch] SearchResultItem creato con successo per product: {product_info.get('title')}")
+                            except Exception as e_save:
+                                logger.error(f"[DEBUG process_batch] ERRORE durante SearchResultItem.objects.create: {e_save}")
+                                logger.error(f"[DEBUG process_batch] Dati al momento del salvataggio: {log_data_before_save}")
+                                logger.error(f"[DEBUG process_batch] Traceback save: {traceback.format_exc()}")
                             item_saved_for_this_shipment = True
                 
                 if not item_saved_for_this_shipment and match_in_shipment_title and keywords:
-                    SearchResultItem.objects.create(
-                        shipment_id_api=str(ship_id),
-                        shipment_name=ship_name,
-                        shipment_type=current_ship_type,
-                        product_title=f"Corrispondenza trovata nel titolo spedizione (nessun item specifico)",
-                    )
+                    # Log prima di creare SearchResultItem per match nel titolo
+                    log_data_title_match = {
+                        'shipment_id_api': str(ship_id),
+                        'shipment_name': ship_name,
+                        'shipment_type': current_ship_type,
+                        'product_title': f"Corrispondenza trovata nel titolo spedizione (nessun item specifico)",
+                    }
+                    logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create (match titolo) con dati: {log_data_title_match}")
+                    try:
+                        SearchResultItem.objects.create(**log_data_title_match)
+                        logger.info(f"[DEBUG process_batch] SearchResultItem (match titolo) creato con successo.")
+                    except Exception as e_save_title:
+                        logger.error(f"[DEBUG process_batch] ERRORE durante SearchResultItem.objects.create (match titolo): {e_save_title}")
+                        logger.error(f"[DEBUG process_batch] Dati (match titolo) al momento del salvataggio: {log_data_title_match}")
+                        logger.error(f"[DEBUG process_batch] Traceback save (match titolo): {traceback.format_exc()}")
                 elif not keywords and not actual_items_list: 
-                     SearchResultItem.objects.create(
-                        shipment_id_api=str(ship_id),
-                        shipment_name=ship_name,
-                        shipment_type=current_ship_type,
-                        product_title="Nessuna keyword e nessun item in questa spedizione",
-                    )
+                    # Log prima di creare SearchResultItem per nessun keyword/item
+                    log_data_no_keyword_item = {
+                        'shipment_id_api': str(ship_id),
+                        'shipment_name': ship_name,
+                        'shipment_type': current_ship_type,
+                        'product_title': "Nessuna keyword e nessun item in questa spedizione",
+                    }
+                    logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create (no keyword/item) con dati: {log_data_no_keyword_item}")
+                    try:
+                        SearchResultItem.objects.create(**log_data_no_keyword_item)
+                        logger.info(f"[DEBUG process_batch] SearchResultItem (no keyword/item) creato con successo.")
+                    except Exception as e_save_no_keyword:
+                        logger.error(f"[DEBUG process_batch] ERRORE durante SearchResultItem.objects.create (no keyword/item): {e_save_no_keyword}")
+                        logger.error(f"[DEBUG process_batch] Dati (no keyword/item) al momento del salvataggio: {log_data_no_keyword_item}")
+                        logger.error(f"[DEBUG process_batch] Traceback save (no keyword/item): {traceback.format_exc()}")
             logger.info(f"Fine processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
             return False 
         # --- Fine funzione helper process_shipment_summaries_batch ---
