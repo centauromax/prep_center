@@ -524,6 +524,50 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
     Raises:
         Exception: Se tutti i tentativi falliscono
     """
+    # MOCK: Riconoscimento ID mock e restituzione dati fittizi senza chiamate API
+    is_mock = False
+    
+    # Controlla se l'ID è uno dei nostri mock (1001-1005 per outbound, 2001-2005 per inbound)
+    if (1000 < shipment_id < 1006 and shipment_type == 'outbound') or (2000 < shipment_id < 2006 and shipment_type == 'inbound'):
+        is_mock = True
+        logger.info(f"[MOCK] Rilevato ID mock {shipment_id} per {shipment_type}, utilizzo dati fittizi senza chiamata API")
+    
+    if is_mock:
+        # Crea un mock della risposta
+        if shipment_type == 'inbound':
+            # Struttura mock per InboundShipmentResponse
+            mock_response = {
+                'shipment': {
+                    'id': shipment_id,
+                    'name': f"MOCK-IN-{shipment_id-2000}",
+                    'status': 'open',
+                    'archived_at': None,
+                    'created_at': '2024-05-01T10:00:00Z',
+                    'updated_at': '2024-05-01T10:00:00Z',
+                    'team_id': merchant_id or 1,
+                    'warehouse_id': 123,
+                    'notes': f"Note mock per spedizione inbound {shipment_id}"
+                }
+            }
+        else:  # outbound
+            # Struttura mock per OutboundShipmentResponse
+            mock_response = {
+                'shipment': {
+                    'id': shipment_id,
+                    'name': f"MOCK-OUT-{shipment_id-1000}",
+                    'status': 'archived',  # o 'open' a seconda del contesto
+                    'archived_at': '2024-05-02T10:00:00Z',
+                    'created_at': '2024-05-01T10:00:00Z',
+                    'updated_at': '2024-05-02T10:00:00Z',
+                    'team_id': merchant_id or 1,
+                    'merchant_id': merchant_id or 1,
+                    'warehouse_id': 123,
+                    'notes': f"Note mock per spedizione outbound {shipment_id}"
+                }
+            }
+        return mock_response
+    
+    # Se non è mock, usa l'API reale
     try:
         if shipment_type == 'inbound':
             response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
@@ -552,6 +596,69 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
     Raises:
         Exception: Se tutti i tentativi falliscono
     """
+    # MOCK: Riconoscimento ID mock e restituzione dati fittizi senza chiamate API
+    is_mock = False
+    
+    # Controlla se l'ID è uno dei nostri mock (1001-1005 per outbound, 2001-2005 per inbound)
+    if (1000 < shipment_id < 1006 and shipment_type == 'outbound') or (2000 < shipment_id < 2006 and shipment_type == 'inbound'):
+        is_mock = True
+        logger.info(f"[MOCK] Rilevato ID mock {shipment_id} per {shipment_type}, utilizzo items fittizi senza chiamata API")
+    
+    if is_mock:
+        # Crea mock items diversi a seconda del tipo di spedizione
+        if shipment_type == 'inbound':
+            # Struttura mock per InboundShipmentItems con parola "Singer" in un item per simulare match di ricerca
+            items = []
+            for i in range(1, 4):  # 3 items per spedizione
+                # Aggiungo la parola Singer al secondo item di tutte le spedizioni pari
+                title = f"Prodotto inbound {i}" 
+                if i == 2 and (shipment_id % 2 == 0):
+                    title = f"Singer Prodotto inbound {i}"
+                    
+                item = {
+                    'id': shipment_id * 100 + i,
+                    'name': title,
+                    'sku': f"SKU-IN-{shipment_id}-{i}",
+                    'asin': f"ASIN{shipment_id}{i}",
+                    'fnsku': f"FNSKU{shipment_id}{i}",
+                    'quantity': 10 * i
+                }
+                items.append(item)
+            
+            mock_response = {
+                'items': items,
+                'total': len(items),
+            }
+        else:  # outbound
+            # Struttura mock per OutboundShipmentItems con parola "Singer" in un item per simulare match di ricerca
+            items = []
+            for i in range(1, 4):  # 3 items per spedizione
+                # Aggiungo la parola Singer al primo item di tutte le spedizioni dispari
+                title = f"Prodotto outbound {i}"
+                if i == 1 and (shipment_id % 2 == 1): 
+                    title = f"Singer Prodotto outbound {i}"
+                    
+                item = {
+                    'id': shipment_id * 100 + i,
+                    'quantity': 5 * i,
+                    'item': {
+                        'id': shipment_id * 1000 + i,
+                        'title': title,
+                        'merchant_sku': f"SKU-OUT-{shipment_id}-{i}",
+                        'asin': f"ASIN{shipment_id}{i}",
+                        'fnsku': f"FNSKU{shipment_id}{i}"
+                    }
+                }
+                items.append(item)
+            
+            mock_response = {
+                'items': items,
+                'total': len(items),
+            }
+        
+        return mock_response
+    
+    # Se non è mock, usa l'API reale
     try:
         if shipment_type == 'inbound':
             response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
