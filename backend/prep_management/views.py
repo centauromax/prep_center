@@ -546,20 +546,10 @@ def search_shipments_by_products(request):
         # --- Build Query ---
         q_parts = []
         use_archived_endpoint = shipment_status_filter == 'archived' and (not shipment_type_filter or shipment_type_filter == 'outbound')
-        if shipment_status_filter and not use_archived_endpoint:
-             if shipment_status_filter == 'archived':
-                 q_parts.append('status:"archived" OR status:"closed"')
-             else:
-                 q_parts.append(f'status:"{shipment_status_filter}"')
         if date_from:
             q_parts.append(f'created_at:>="{date_from}"')
         if date_to:
             q_parts.append(f'created_at<="{date_to}"')
-        # IMPORTANT: Modify keyword search if needed. Searching `name` might refer to shipment name, not item name.
-        # Se si cerca per keyword, NON va più aggiunta al filtro API (q_query), ma si filtra localmente DOPO.
-        # if keywords:
-        #     for keyword in keywords:
-        #         q_parts.append(f'name~"{keyword}"') 
         q_parts.append('sort:created_at:desc')
         q_query = ' AND '.join(q_parts) if q_parts else None
         logger.info(f"QUERY AVANZATA Q (per recupero spedizioni): {q_query}")
@@ -584,8 +574,6 @@ def search_shipments_by_products(request):
                 if len(outbound_api_shipments) >= max_results: break
                 # Always request 20 per page, as API seems limited anyway
                 current_per_page = 20 
-                # Stop requesting if asking for 0 or less (should not happen with fixed 20)
-                # if current_per_page <= 0: break
 
                 retry_count = 0
                 max_retries = 5
@@ -599,9 +587,11 @@ def search_shipments_by_products(request):
                             merchant_id=merchant_id, per_page=current_per_page,
                             page=page, search_query=q_query
                         )
+                        logger.info(f"Risposta API ricevuta per pagina {page}: {api_response}")
                         break 
                     except Exception as e_api:
                         error_str = str(e_api)
+                        logger.error(f"Errore API durante il recupero spedizioni: {error_str}", exc_info=True)
                         if '502' in error_str or '429' in error_str:
                             wait_time = 5 * (2 ** retry_count)
                             logger.warning(f"Errore API ({error_str}) su pagina {page}. Retry tra {wait_time}s (tentativo {retry_count+1}/{max_retries})")
@@ -623,6 +613,7 @@ def search_shipments_by_products(request):
                     break
 
                 current_shipments_from_api = api_response.data
+                logger.info(f"Ricevute {len(current_shipments_from_api)} spedizioni dalla pagina {page}")
                 outbound_api_shipments.extend(current_shipments_from_api)
                 partial_count = len(outbound_api_shipments)
                 context_vars['partial_count'] = partial_count # Update final count for this stage
