@@ -601,10 +601,10 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
     logger.info(f"[get_shipment_details] Usando API REALE per {shipment_type} {shipment_id}")
     try:
         if shipment_type == 'inbound':
-            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
+            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id, timeout=30)
             return response.model_dump()
         else:
-            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id, timeout=30)
             return response.model_dump()
     except Exception as e:
         logger.error(f"[get_shipment_details] Errore nel recupero dettagli spedizione {shipment_id}: {str(e)}")
@@ -716,9 +716,9 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
     logger.info(f"[get_shipment_items] Usando API REALE per {shipment_type} {shipment_id}")
     try:
         if shipment_type == 'inbound':
-            response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
+            response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id, timeout=30)
         else:
-            response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
+            response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id, timeout=30)
         return response.model_dump()
     except Exception as e:
         logger.error(f"[get_shipment_items] Errore nel recupero items spedizione {shipment_id}: {str(e)}")
@@ -885,12 +885,14 @@ def search_shipments_by_products(request):
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
                 try:
                     details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                    time.sleep(1)  # Aumento il delay tra le chiamate
                     items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id)
-                    time.sleep(0.5) 
+                    time.sleep(1)  # Aumento il delay anche dopo la seconda chiamata
                 except Exception as e_detail_item:
                     logger.error(f"Errore recupero dettagli/items per spedizione {ship_id}: {e_detail_item}. Salto.")
                     if final_error_message is None: final_error_message = ""
                     final_error_message += f"\nErrore dettagli sped. {ship_id}: {e_detail_item}. "
+                    time.sleep(2)  # Delay più lungo in caso di errore
                     continue 
 
                 shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
