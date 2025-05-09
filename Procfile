@@ -1,0 +1,1 @@
+web: gunicorn --worker-class gevent --workers 4 --timeout 300 --keep-alive 65 --max-requests 1000 --max-requests-jitter 50 --log-level info prep_management.wsgi:application 
