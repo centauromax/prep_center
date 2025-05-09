@@ -8,7 +8,7 @@
     <!-- Form di ricerca -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" class="row g-3" onsubmit="console.log('Form submitted with data:', new FormData(this))">
+            <form method="get" class="row g-3">
                 <div class="col-md-3">
                     <label for="merchant_name" class="form-label">Cliente</label>
                     <select class="form-select" id="merchant_name" name="merchant_name">
@@ -54,8 +54,8 @@
                 </div>
                 
                 <div class="col-md-2">
-                    <label for="max_results" class="form-label">Numero massimo spedizioni</label>
-                    <input type="number" class="form-control" id="max_results" name="max_results" min="1" value="{{ max_results }}">
+                    <label for="max_results" class="form-label">Risultati per pagina</label>
+                    <input type="number" class="form-control" id="max_results" name="max_results" min="10" max="100" value="{{ max_results }}">
                 </div>
                 
                 <div class="col-md-2">
@@ -67,11 +67,6 @@
                     <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
                 </div>
                 
-                <div class="col-md-2">
-                    <label for="debug_page" class="form-label">Pagina iniziale (debug)</label>
-                    <input type="number" class="form-control" id="debug_page" name="debug_page" min="1" value="{{ debug_page }}">
-                </div>
-                
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary">Cerca</button>
                 </div>
@@ -79,40 +74,33 @@
         </div>
     </div>
 
-    <!-- Messaggi di attesa -->
+    <!-- Informazioni di progresso -->
     {% if is_waiting %}
-    <div class="alert alert-warning" role="alert">
-        <strong>Attendere...</strong> La ricerca è in corso e potrebbe richiedere diversi minuti. Non chiudere la pagina!<br>
-        {% if partial_count > 0 %}
-        <span>Record letti finora: {{ partial_count }}</span>
-        {% endif %}
+    <div class="alert alert-info">
+        <h4>Ricerca in corso...</h4>
+        <div class="progress mb-3">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
+                 style="width: {{ search_progress.processed_shipments|default:0 }}%">
+                {{ search_progress.processed_shipments|default:0 }} spedizioni processate
+            </div>
+        </div>
+        <p>Ultimo aggiornamento: {{ search_progress.last_updated|date:"H:i:s" }}</p>
     </div>
     {% endif %}
 
     <!-- Messaggi di errore -->
     {% if error %}
-    <div class="alert alert-danger" role="alert">
-        <pre style="white-space: pre-wrap;">{{ error }}</pre>
+    <div class="alert alert-danger">
+        {{ error }}
     </div>
     {% endif %}
-
-    {% if is_waiting %}
-    <div class="alert alert-info" role="alert">
-        Ricerca in corso... Record letti finora: {{ partial_count }}
-    </div>
-    {% endif %}
-
-    <div class="alert alert-info" role="alert">
-        <strong>Statistiche ricerca:</strong><br>
-        Spedizioni lette: {{ total_shipments_read }}<br>
-        Spedizioni corrispondenti: {{ matching_shipments_count }}
-    </div>
 
     <!-- Risultati della ricerca -->
-    {% if shipments %}
+    {% if results %}
     <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Risultati della ricerca ({{ shipments|length }} spedizioni trovate)</h5>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Risultati della ricerca</h5>
+            <span class="badge bg-primary">Totale items: {{ total_items_found }}</span>
         </div>
         <div class="card-body">
             <div class="table-responsive">
@@ -120,49 +108,90 @@
                     <thead>
                         <tr>
                             <th>ID Spedizione</th>
-                            <th>Nome</th>
+                            <th>Nome Spedizione</th>
                             <th>Tipo</th>
-                            <th>Stato</th>
-                            <th>Prodotti corrispondenti ({{ keywords }})</th>
+                            <th>Prodotto</th>
+                            <th>SKU</th>
+                            <th>ASIN</th>
+                            <th>FNSKU</th>
+                            <th>Quantità</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for result in shipments %}
+                        {% for result in results %}
                         <tr>
-                            <td>{{ result.shipment.id }}</td>
-                            <td>{{ result.shipment.name }}</td>
-                            <td>{{ result.type|title }}</td>
-                            <td>{{ result.shipment.status|title }}</td>
-                            <td>
-                                {% if result.matching_items %}
-                                <ul class="list-unstyled mb-0">
-                                    {% for item in result.matching_items %}
-                                    <li>
-                                        {% if item.item %}
-                                            {{ item.item.title }} (Qty: {{ item.quantity }})
-                                        {% elif item.name %}
-                                            {{ item.name }} (Qty: {{ item.quantity }})
-                                        {% else %}
-                                            Item ID {{ item.id }} (Qty: {{ item.quantity }})
-                                        {% endif %}
-                                    </li>
-                                    {% endfor %}
-                                </ul>
-                                {% else %}
-                                    N/A (Shipment included without matching items due to no keywords)
-                                {% endif %}
-                            </td>
+                            <td>{{ result.shipment_id_api }}</td>
+                            <td>{{ result.shipment_name }}</td>
+                            <td>{{ result.shipment_type }}</td>
+                            <td>{{ result.product_title }}</td>
+                            <td>{{ result.product_sku }}</td>
+                            <td>{{ result.product_asin }}</td>
+                            <td>{{ result.product_fnsku }}</td>
+                            <td>{{ result.product_quantity }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- Paginazione -->
+            {% if total_pages > 1 %}
+            <nav aria-label="Paginazione risultati">
+                <ul class="pagination justify-content-center">
+                    {% if has_previous_page %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ current_page|add:"-1" }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">Precedente</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Precedente</span>
+                    </li>
+                    {% endif %}
+
+                    {% for page_num in total_pages|get_range %}
+                    <li class="page-item {% if page_num == current_page %}active{% endif %}">
+                        <a class="page-link" href="?page={{ page_num }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ page_num }}</a>
+                    </li>
+                    {% endfor %}
+
+                    {% if has_next_page %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ current_page|add:"1" }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">Successivo</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Successivo</span>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            <!-- Informazioni sulla pagina -->
+            <div class="text-center mt-3">
+                <p class="text-muted">
+                    Pagina {{ current_page }} di {{ total_pages }} | 
+                    Mostrando {{ results|length }} risultati su {{ total_items_found }} totali
+                </p>
+            </div>
         </div>
     </div>
-    {% elif request.GET and not error and not is_waiting %}
-    <div class="alert alert-info" role="alert">
-        Nessuna spedizione trovata con i criteri specificati.
+    {% elif search_triggered %}
+    <div class="alert alert-info">
+        Nessun risultato trovato per i criteri di ricerca specificati.
     </div>
     {% endif %}
 </div>
+
+{% block extra_js %}
+<script>
+    // Aggiorna automaticamente la pagina se la ricerca è in corso
+    {% if is_waiting %}
+    setTimeout(function() {
+        window.location.reload();
+    }, 5000);  // Ricarica ogni 5 secondi
+    {% endif %}
+</script>
+{% endblock %}
+
 {% endblock %} 
