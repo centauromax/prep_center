@@ -890,10 +890,13 @@ def search_shipments_by_products(request):
 
                     # Determina il titolo della spedizione
                     shipment_title = ''
-                    if details and hasattr(details, 'shipment') and hasattr(details.shipment, 'name'):
-                        shipment_title = getattr(details.shipment, 'name', '').lower()
-                    elif 'name' in shipment_summary:
-                        shipment_title = shipment_summary['name'].lower()
+                    # details is a dict from model_dump: {'shipment': shipment_dict, ...} or {}
+                    # shipment_dict is {'name': '...', ...}
+                    shipment_data_from_details = details.get('shipment') if isinstance(details, dict) else None
+                    if shipment_data_from_details and isinstance(shipment_data_from_details, dict) and 'name' in shipment_data_from_details:
+                        shipment_title = shipment_data_from_details.get('name', '').lower()
+                    elif 'name' in shipment_summary: # shipment_summary is already a dict with 'name'
+                        shipment_title = shipment_summary.get('name', '').lower()
 
                     # 1. Cerca la keyword nel titolo della spedizione
                     match_in_title = False
@@ -904,33 +907,43 @@ def search_shipments_by_products(request):
 
                     # 2. Se non trovata nel titolo, cerca nei prodotti
                     match_in_items = False
-                    actual_items = items_response.items if hasattr(items_response, 'items') else []
+                    # items_response is a dict from model_dump: {'items': list_of_item_dicts, ...} or {}
+                    actual_items = items_response.get('items', []) if items_response and isinstance(items_response, dict) else []
                     current_matching_items = []
-                    if not match_in_title and actual_items:
-                        for item_detail in actual_items:
+
+                    if not match_in_title and actual_items: # actual_items is a list of item_dicts
+                        for item_detail in actual_items: # item_detail is an item_dict
                             item_name_to_search = ""
                             if shipment_type == 'inbound':
-                                item_name_to_search = getattr(item_detail, 'name', '').lower()
-                            else:
-                                if hasattr(item_detail, 'item') and hasattr(item_detail.item, 'title'):
-                                    item_name_to_search = getattr(item_detail.item, 'title', '').lower()
+                                # item_detail for inbound is { 'name': '...', ... }
+                                item_name_to_search = item_detail.get('name', '').lower() if isinstance(item_detail, dict) else ''
+                            else: # outbound
+                                # item_detail for outbound is { ..., 'item': inventory_item_dict, ... }
+                                # inventory_item_dict is { 'title': '...', ... }
+                                inventory_item_data = item_detail.get('item') if isinstance(item_detail, dict) else None
+                                if inventory_item_data and isinstance(inventory_item_data, dict) and 'title' in inventory_item_data:
+                                    item_name_to_search = inventory_item_data.get('title', '').lower()
+                            
                             if not item_name_to_search:
                                 continue
+                            
                             if search_type == 'AND':
                                 match = all(k.lower() in item_name_to_search for k in keywords)
                             else:
                                 match = any(k.lower() in item_name_to_search for k in keywords)
                             if match:
-                                current_matching_items.append(item_detail)
+                                current_matching_items.append(item_detail) # item_detail is a dict
                         if current_matching_items:
                             match_in_items = True
 
                     # Se trovata nel titolo O in almeno un prodotto, aggiungi la spedizione
                     if match_in_title or match_in_items:
-                        shipment_obj_to_display = details.shipment if details and hasattr(details, 'shipment') else shipment_summary
+                        # shipment_obj_to_display should be a dict
+                        shipment_obj_to_display = shipment_data_from_details if shipment_data_from_details and isinstance(shipment_data_from_details, dict) else shipment_summary
+                        
                         matching_shipments.append({
-                            'shipment': shipment_obj_to_display,
-                            'matching_items': current_matching_items if match_in_items else [],
+                            'shipment': shipment_obj_to_display, # This is a dict
+                            'matching_items': current_matching_items, # This is a list of dicts
                             'type': shipment_type
                         })
 
