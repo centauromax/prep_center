@@ -776,8 +776,18 @@ def search_shipments_by_products(request):
                 
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
                 try:
-                    # Chiamata reale all'API per ottenere gli items
-                    items_response = client.get_shipment_items(ship_id, merchant_id=merchant_id)
+                    # Usiamo il metodo appropriato in base al tipo di spedizione
+                    items_response = None
+                    if current_ship_type == 'outbound':
+                        # Usa get_outbound_shipment_items per spedizioni outbound
+                        logger.info(f"[API] Chiamo client.get_outbound_shipment_items(ship_id={ship_id}, merchant_id={merchant_id})")
+                        items_response = client.get_outbound_shipment_items(ship_id, merchant_id=merchant_id)
+                    else:
+                        # Usa get_shipment_items per spedizioni inbound (che chiama /shipments/inbound/{id}/items)
+                        logger.info(f"[API] Chiamo client.get_shipment_items(ship_id={ship_id}, merchant_id={merchant_id})")
+                        items_response = client.get_shipment_items(ship_id, merchant_id=merchant_id)
+                    
+                    # Converte risposta in dizionario
                     items_response_dict = items_response.model_dump() if hasattr(items_response, 'model_dump') else items_response
                     time.sleep(0.25)  # Ridotto a 0.25s
                 
@@ -788,7 +798,29 @@ def search_shipments_by_products(request):
                     continue 
 
                 shipment_title_lower = (ship_name or '').lower()
-                actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
+                # Otteniamo la lista di items dal dizionario di risposta
+                actual_items_list = []
+                
+                if items_response_dict:
+                    if isinstance(items_response_dict, list):
+                        # Se items_response_dict è già una lista, usiamo quella
+                        actual_items_list = items_response_dict
+                        logger.info(f"items_response_dict è direttamente una lista per ship_id={ship_id}")
+                    elif 'items' in items_response_dict and isinstance(items_response_dict['items'], list):
+                        # Se c'è una chiave 'items' che è una lista
+                        actual_items_list = items_response_dict['items']
+                        logger.info(f"Trovati items in items_response_dict['items'] per ship_id={ship_id}")
+                    elif 'data' in items_response_dict and isinstance(items_response_dict['data'], list):
+                        # Se c'è una chiave 'data' che è una lista
+                        actual_items_list = items_response_dict['data']
+                        logger.info(f"Trovati items in items_response_dict['data'] per ship_id={ship_id}")
+                    else:
+                        # Se non troviamo items in nessuno dei posti comuni, log dei dettagli
+                        logger.warning(f"Non trovata lista di items in items_response_dict per ship_id={ship_id}. "
+                                      f"Chiavi disponibili: {list(items_response_dict.keys())}")
+                
+                # Log del numero di items trovati
+                logger.info(f"Trovati {len(actual_items_list)} items per spedizione {ship_id}")
 
                 match_in_shipment_title = False
                 if keywords:
