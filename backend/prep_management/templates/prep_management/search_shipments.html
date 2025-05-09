@@ -14,12 +14,15 @@
                     <select class="form-select" id="merchant_name" name="merchant_name">
                         <option value="">Seleziona un cliente...</option>
                         {% for merchant in merchants %}
-                        <option value="{{ merchant.name }}" {% if merchant.name == merchant_name %}selected{% endif %}>
-                            {{ merchant.name }}
-                        </option>
+                        <option value="{{ merchant.name }}" {% if merchant.name == merchant_name %}selected{% endif %}>{{ merchant.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                
+                <!-- Se esiste un search_id lo aggiungiamo come campo nascosto per mantenere lo stato -->
+                {% if search_id %}
+                <input type="hidden" name="search_id" value="{{ search_id }}">
+                {% endif %}
                 
                 <div class="col-md-3">
                     <label for="shipment_type" class="form-label">Tipo di spedizione</label>
@@ -135,34 +138,22 @@
             </div>
 
             <!-- Paginazione -->
-            {% if total_pages > 1 %}
-            <nav aria-label="Paginazione risultati">
+            {% if has_next_page or has_previous_page %}
+            <nav aria-label="Page navigation" class="mt-4">
                 <ul class="pagination justify-content-center">
-                    {% if has_previous_page %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ current_page|add:"-1" }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">Precedente</a>
+                    <li class="page-item {% if not has_previous_page %}disabled{% endif %}">
+                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ current_page|add:"-1" }}&search_id={{ search_id }}" tabindex="-1" {% if not has_previous_page %}aria-disabled="true"{% endif %}>Precedente</a>
                     </li>
-                    {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">Precedente</span>
-                    </li>
-                    {% endif %}
-
-                    {% for page_num in total_pages|get_range %}
-                    <li class="page-item {% if page_num == current_page %}active{% endif %}">
-                        <a class="page-link" href="?page={{ page_num }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">{{ page_num }}</a>
+                    
+                    {% for i in total_pages|get_range %}
+                    <li class="page-item {% if i == current_page %}active{% endif %}">
+                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ i }}&search_id={{ search_id }}">{{ i }}</a>
                     </li>
                     {% endfor %}
-
-                    {% if has_next_page %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ current_page|add:"1" }}&merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}">Successivo</a>
+                    
+                    <li class="page-item {% if not has_next_page %}disabled{% endif %}">
+                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ current_page|add:"1" }}&search_id={{ search_id }}">Successiva</a>
                     </li>
-                    {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">Successivo</span>
-                    </li>
-                    {% endif %}
                 </ul>
             </nav>
             {% endif %}

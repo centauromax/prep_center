@@ -691,7 +691,8 @@ def search_shipments_by_products(request):
             'processed_shipments': 0,
             'found_items': 0,
             'last_updated': None
-        }
+        },
+        'search_triggered': False
     }
 
     if request.GET:
@@ -707,22 +708,77 @@ def search_shipments_by_products(request):
             'current_page': int(request.GET.get('page') or 1),
         })
 
+    search_id = request.GET.get('search_id')
     search_triggered = 'merchant_name' in request.GET
+    context_vars['search_triggered'] = search_triggered
     logger.info(f"Search triggered: {search_triggered}, GET params: {dict(request.GET)}")
 
-    if not search_triggered:
+    if not search_triggered and not search_id:
         logger.info("No search triggered, rendering empty form")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
     # Se è una nuova ricerca, elimina i risultati precedenti
-    if context_vars['current_page'] == 1:
+    if search_triggered and not search_id:
         logger.info("Nuova ricerca, eliminazione risultati precedenti dal DB...")
         SearchResultItem.objects.all().delete()
-        logger.info("Risultati precedenti eliminati.")
+        # Genera un nuovo search_id
+        search_id = str(uuid.uuid4())
+        context_vars['search_id'] = search_id
+        logger.info(f"Generato nuovo search_id: {search_id}")
+    elif search_id:
+        context_vars['search_id'] = search_id
+        logger.info(f"Continuazione ricerca con search_id: {search_id}")
 
     total_shipments_inspected_count = 0
-    search_id = str(uuid.uuid4())  # Genera un ID univoco per questa ricerca
+    final_error_message = None
+    current_page = context_vars['current_page']
+    max_results = context_vars['max_results']
 
+    # Recupera i risultati già salvati per questo search_id
+    results_in_db = SearchResultItem.objects.filter(search_id=search_id)
+    total_results = results_in_db.count()
+    
+    # Calcola informazioni sulla paginazione
+    total_pages = (total_results + max_results - 1) // max_results if total_results > 0 else 1
+    has_next_page = current_page < total_pages
+    has_previous_page = current_page > 1
+    
+    # Se siamo su una pagina che contiene già risultati, mostra solo quelli senza elaborare nuove spedizioni
+    if total_results > 0 and current_page <= total_pages:
+        logger.info(f"Mostrando risultati salvati per search_id {search_id}, pagina {current_page}/{total_pages}")
+        
+        # Recupera i risultati per questa pagina
+        paginated_results = results_in_db.order_by('shipment_name', 'product_title')[(current_page-1)*max_results:current_page*max_results]
+        
+        # Aggiorna il contesto con i risultati e lo stato
+        context_vars.update({
+            'is_waiting': False,
+            'results': paginated_results,
+            'total_shipments_inspected': SearchResultItem.objects.filter(search_id=search_id).values('shipment_id_api').distinct().count(),
+            'total_items_found': total_results,
+            'has_next_page': has_next_page,
+            'has_previous_page': has_previous_page,
+            'total_pages': total_pages,
+            'current_page': current_page,
+            'search_id': search_id,
+            'search_progress': {
+                'current_page': current_page,
+                'total_pages': total_pages,
+                'processed_shipments': SearchResultItem.objects.filter(search_id=search_id).values('shipment_id_api').distinct().count(),
+                'found_items': total_results,
+                'last_updated': timezone.now()
+            }
+        })
+        
+        # Se ci sono ancora pagine da elaborare ma non abbastanza risultati, imposta is_waiting a True
+        in_progress = SearchResultItem.objects.filter(search_id=search_id, processing_status="in_progress").exists()
+        if in_progress:
+            context_vars['is_waiting'] = True
+            logger.info("Elaborazione ancora in corso. Impostato is_waiting=True")
+        
+        return render(request, 'prep_management/search_shipments.html', context_vars)
+
+    # Se non abbiamo abbastanza risultati o è una nuova ricerca, procedi con l'elaborazione
     try:
         keywords_str = context_vars['keywords']
         keywords = [k.strip().lower() for k in keywords_str.split(',') if k.strip()]
@@ -732,8 +788,6 @@ def search_shipments_by_products(request):
         shipment_status_filter = context_vars['shipment_status'].strip()
         date_from = context_vars['date_from'].strip()
         date_to = context_vars['date_to'].strip()
-        max_results = context_vars['max_results']
-        current_page = context_vars['current_page']
 
         logger.info(f"Parametri di ricerca: keywords={keywords}, search_type={search_type}, merchant_name={merchant_name}, shipment_type={shipment_type_filter}, shipment_status={shipment_status_filter}, max_results={max_results}, date_from={date_from}, date_to={date_to}, current_page={current_page}")
 
@@ -759,21 +813,29 @@ def search_shipments_by_products(request):
         q_query = ' AND '.join(q_parts) if q_parts else None
         logger.info(f"QUERY AVANZATA Q (per recupero sommari spedizioni): {q_query}")
 
+        # Determina la pagina API da cui partire basandosi sulle spedizioni già elaborate
+        processed_shipments = SearchResultItem.objects.filter(search_id=search_id).values('shipment_id_api').distinct()
+        processed_count = processed_shipments.count()
+        
+        # Imposta start_page per riprendere da dove eravamo rimasti
+        # Assumendo che ogni pagina API abbia 20 risultati
+        api_start_page = (processed_count // 20) + 1
+        logger.info(f"Inizio elaborazione dalla pagina API {api_start_page} dopo {processed_count} spedizioni già elaborate")
+
         # Funzione interna per processare un batch di sommari di spedizioni
         def process_shipment_summaries_batch(shipment_summaries: List[Dict[str, Any]], current_ship_type: str):
             nonlocal total_shipments_inspected_count
             nonlocal final_error_message
             nonlocal shipment_cache
-            
-            logger.info(f"Inizio processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
-            for shipment_summary in shipment_summaries:
-                if total_shipments_inspected_count >= max_results:
-                    logger.info(f"Raggiunto max_results ({max_results}), interrompo processamento dettagli.")
-                    return True
+            nonlocal search_id
 
-                total_shipments_inspected_count += 1
-                context_vars['total_shipments_inspected'] = total_shipments_inspected_count
-                context_vars['partial_count'] = total_shipments_inspected_count 
+            processed_shipments_this_batch = 0
+            logger.info(f"Inizio processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
+            
+            for shipment_summary in shipment_summaries:
+                if processed_shipments_this_batch >= max_results:
+                    logger.info(f"Raggiunto max_results ({max_results}) per questa richiesta, interrompo processamento e salvo lo stato.")
+                    return True
 
                 ship_id = shipment_summary['id']
                 ship_name = shipment_summary['name']
@@ -784,7 +846,27 @@ def search_shipments_by_products(request):
                     logger.info(f"Spedizione {ship_id} già elaborata in precedenza, recupero dalla cache.")
                     continue
                 
+                # Verifica se questa spedizione è già nel database per questo search_id
+                if SearchResultItem.objects.filter(search_id=search_id, shipment_id_api=str(ship_id)).exists():
+                    logger.info(f"Spedizione {ship_id} già presente nel DB per questo search_id, salto.")
+                    shipment_cache[cache_key] = True
+                    continue
+                
+                processed_shipments_this_batch += 1
+                total_shipments_inspected_count += 1
+                
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
+                
+                # Marca questa spedizione come "in elaborazione" nel DB
+                processing_marker = SearchResultItem.objects.create(
+                    search_id=search_id,
+                    shipment_id_api=str(ship_id),
+                    shipment_name=ship_name,
+                    shipment_type=current_ship_type,
+                    product_title="In elaborazione...",
+                    processing_status="in_progress"
+                )
+                
                 try:
                     # Usiamo il metodo appropriato in base al tipo di spedizione
                     items_response = None
@@ -805,10 +887,18 @@ def search_shipments_by_products(request):
                     logger.error(f"Errore recupero items per spedizione {ship_id}: {e_detail_item}. Salto.")
                     if final_error_message is None: final_error_message = ""
                     final_error_message += f"\nErrore recupero items sped. {ship_id}: {e_detail_item}. "
+                    
+                    # Aggiorna il marker di elaborazione per questa spedizione (errore)
+                    processing_marker.product_title = f"Errore: {e_detail_item}"
+                    processing_marker.processing_status = "error"
+                    processing_marker.save()
                     continue 
 
                 # Aggiungi alla cache
                 shipment_cache[cache_key] = True
+                
+                # Rimuovi il marker di elaborazione
+                processing_marker.delete()
 
                 shipment_title_lower = (ship_name or '').lower()
                 # Otteniamo la lista di items dal dizionario di risposta
@@ -875,6 +965,7 @@ def search_shipments_by_products(request):
 
                         if item_matches_keywords: 
                             log_data_before_save = {
+                                'search_id': search_id,
                                 'shipment_id_api': str(ship_id),
                                 'shipment_name': ship_name,
                                 'shipment_type': current_ship_type,
@@ -882,7 +973,8 @@ def search_shipments_by_products(request):
                                 'product_sku': product_info.get('sku'),
                                 'product_asin': product_info.get('asin'),
                                 'product_fnsku': product_info.get('fnsku'),
-                                'product_quantity': product_info.get('quantity')
+                                'product_quantity': product_info.get('quantity'),
+                                'processing_status': 'complete'
                             }
                             logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create con dati: {log_data_before_save}")
                             try:
@@ -896,10 +988,12 @@ def search_shipments_by_products(request):
                 
                 if not item_saved_for_this_shipment and match_in_shipment_title and keywords:
                     log_data_title_match = {
+                        'search_id': search_id,
                         'shipment_id_api': str(ship_id),
                         'shipment_name': ship_name,
                         'shipment_type': current_ship_type,
                         'product_title': f"Corrispondenza trovata nel titolo spedizione (nessun item specifico)",
+                        'processing_status': 'complete'
                     }
                     logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create (match titolo) con dati: {log_data_title_match}")
                     try:
@@ -911,10 +1005,12 @@ def search_shipments_by_products(request):
                         logger.error(f"[DEBUG process_batch] Traceback save (match titolo): {traceback.format_exc()}")
                 elif not keywords and not actual_items_list: 
                     log_data_no_keyword_item = {
+                        'search_id': search_id,
                         'shipment_id_api': str(ship_id),
                         'shipment_name': ship_name,
                         'shipment_type': current_ship_type,
                         'product_title': "Nessuna keyword e nessun item in questa spedizione",
+                        'processing_status': 'complete'
                     }
                     logger.info(f"[DEBUG process_batch] Prima di SearchResultItem.objects.create (no keyword/item) con dati: {log_data_no_keyword_item}")
                     try:
@@ -924,14 +1020,17 @@ def search_shipments_by_products(request):
                         logger.error(f"[DEBUG process_batch] ERRORE durante SearchResultItem.objects.create (no keyword/item): {e_save_no_keyword}")
                         logger.error(f"[DEBUG process_batch] Dati (no keyword/item) al momento del salvataggio: {log_data_no_keyword_item}")
                         logger.error(f"[DEBUG process_batch] Traceback save (no keyword/item): {traceback.format_exc()}")
-            logger.info(f"Fine processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
-            return False 
-
-        final_error_message = context_vars.get('error') 
+            
+            logger.info(f"Fine processamento di {processed_shipments_this_batch} spedizioni su {len(shipment_summaries)} disponibili in questo batch. Tipo: {current_ship_type}.")
+            return processed_shipments_this_batch >= max_results
+        
+        # Elabora solo le spedizioni necessarie per questa pagina
+        spedizioni_da_elaborare = max_results
+        stop_processing = False
 
         # CICLO API PER OUTBOUND
-        if not shipment_type_filter or shipment_type_filter == 'outbound':
-            page = current_page
+        if (not shipment_type_filter or shipment_type_filter == 'outbound') and not stop_processing:
+            page = api_start_page
             api_method_name = 'get_outbound_shipments'
             log_prefix = "outbound"
             if shipment_status_filter == 'archived':
@@ -941,11 +1040,7 @@ def search_shipments_by_products(request):
             api_method = getattr(client, api_method_name)
             logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
 
-            while True:
-                if total_shipments_inspected_count >= max_results:
-                    logger.info(f"Raggiunto max_results ({max_results}), interrompo paginazione.")
-                    break
-                    
+            while not stop_processing:
                 current_per_page = 20 
                 api_response = None
                 retry_count = 0
@@ -986,14 +1081,15 @@ def search_shipments_by_products(request):
                 should_stop = process_shipment_summaries_batch(current_shipment_summaries, 'outbound')
                 if should_stop:
                     logger.info("Interruzione richiesta da process_shipment_summaries_batch")
+                    stop_processing = True
                     break
                     
                 page += 1
                 time.sleep(0.15)  # Impostato a 0.15s
 
         # CICLO API PER INBOUND
-        if (not shipment_type_filter or shipment_type_filter == 'inbound') and total_shipments_inspected_count < max_results:
-            page = current_page
+        if (not shipment_type_filter or shipment_type_filter == 'inbound') and not stop_processing:
+            page = api_start_page
             api_method_name = 'get_inbound_shipments'
             log_prefix = "inbound"
             if shipment_status_filter == 'archived':
@@ -1004,11 +1100,7 @@ def search_shipments_by_products(request):
                 api_method = getattr(client, api_method_name)
                 logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
                 
-                while True:
-                    if total_shipments_inspected_count >= max_results:
-                        logger.info(f"Raggiunto max_results ({max_results}), interrompo paginazione.")
-                        break
-                        
+                while not stop_processing:
                     current_per_page = 20
                     api_response = None
                     retry_count = 0
@@ -1049,23 +1141,25 @@ def search_shipments_by_products(request):
                     should_stop = process_shipment_summaries_batch(current_shipment_summaries, 'inbound')
                     if should_stop:
                         logger.info("Interruzione richiesta da process_shipment_summaries_batch")
+                        stop_processing = True
                         break
                         
                     page += 1
                     time.sleep(0.15)  # Impostato a 0.15s
 
-        # Calcola informazioni sulla paginazione
-        total_items = SearchResultItem.objects.count()
-        total_pages = (total_items + max_results - 1) // max_results
+        # Ricalcola informazioni sulla paginazione
+        results_in_db = SearchResultItem.objects.filter(search_id=search_id, processing_status='complete')
+        total_results = results_in_db.count()
+        total_pages = (total_results + max_results - 1) // max_results if total_results > 0 else 1
         has_next_page = current_page < total_pages
         has_previous_page = current_page > 1
 
         # Aggiorna il contesto con le informazioni di paginazione
         context_vars.update({
-            'is_waiting': False,
-            'results': SearchResultItem.objects.all().order_by('shipment_name', 'product_title')[(current_page-1)*max_results:current_page*max_results],
-            'total_shipments_inspected': total_shipments_inspected_count,
-            'total_items_found': total_items,
+            'is_waiting': SearchResultItem.objects.filter(search_id=search_id, processing_status='in_progress').exists(),
+            'results': results_in_db.order_by('shipment_name', 'product_title')[(current_page-1)*max_results:current_page*max_results],
+            'total_shipments_inspected': SearchResultItem.objects.filter(search_id=search_id).values('shipment_id_api').distinct().count(),
+            'total_items_found': total_results,
             'error': final_error_message,
             'has_next_page': has_next_page,
             'has_previous_page': has_previous_page,
@@ -1075,13 +1169,13 @@ def search_shipments_by_products(request):
             'search_progress': {
                 'current_page': current_page,
                 'total_pages': total_pages,
-                'processed_shipments': total_shipments_inspected_count,
-                'found_items': total_items,
+                'processed_shipments': SearchResultItem.objects.filter(search_id=search_id).values('shipment_id_api').distinct().count(),
+                'found_items': total_results,
                 'last_updated': timezone.now()
             }
         })
 
-        logger.info(f"[DEBUG] Prima del render finale: Spedizioni ispezionate: {total_shipments_inspected_count}, Items salvati nel DB: {total_items}. Error: {context_vars.get('error')}")
+        logger.info(f"[DEBUG] Prima del render finale: Spedizioni ispezionate: {total_shipments_inspected_count}, Items salvati nel DB: {total_results}. Error: {context_vars.get('error')}")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
     except Exception as e_global:
@@ -1090,5 +1184,5 @@ def search_shipments_by_products(request):
         context_vars['is_waiting'] = False
         context_vars['results'] = SearchResultItem.objects.all().order_by('shipment_name', 'product_title')[(current_page-1)*max_results:current_page*max_results]
         context_vars['total_shipments_inspected'] = total_shipments_inspected_count
-        context_vars['total_items_found'] = context_vars['results'].count()
+        context_vars['total_items_found'] = SearchResultItem.objects.filter(search_id=search_id).count()
         return render(request, 'prep_management/search_shipments.html', context_vars)

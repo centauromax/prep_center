@@ -124,20 +124,23 @@ class SearchResultItem(models.Model):
     """
     Modello per memorizzare un singolo item trovato durante la ricerca spedizioni.
     """
-    shipment_id_api = models.CharField(max_length=50, help_text="ID API della spedizione")
-    shipment_name = models.CharField(max_length=255, help_text="Nome della spedizione")
-    shipment_type = models.CharField(max_length=20, help_text="Tipo di spedizione (inbound/outbound)")
-    
-    product_title = models.TextField(blank=True, null=True, help_text="Titolo/Nome del prodotto")
-    product_sku = models.CharField(max_length=255, blank=True, null=True, help_text="SKU del prodotto")
-    product_asin = models.CharField(max_length=50, blank=True, null=True, help_text="ASIN del prodotto")
-    product_fnsku = models.CharField(max_length=50, blank=True, null=True, help_text="FNSKU del prodotto")
-    product_quantity = models.IntegerField(blank=True, null=True, help_text="Quantità del prodotto nella spedizione")
-
+    search_id = models.CharField(max_length=36, null=True, blank=True)  # UUID per raggruppare i risultati
+    shipment_id_api = models.CharField(max_length=36, null=False, blank=False)
+    shipment_name = models.CharField(max_length=255, null=True, blank=True)
+    shipment_type = models.CharField(max_length=36, null=True, blank=True)
+    product_title = models.CharField(max_length=255, null=True, blank=True)
+    product_sku = models.CharField(max_length=255, null=True, blank=True)
+    product_asin = models.CharField(max_length=255, null=True, blank=True)
+    product_fnsku = models.CharField(max_length=255, null=True, blank=True)
+    product_quantity = models.IntegerField(null=True, blank=True)
+    processing_status = models.CharField(max_length=20, null=False, default='complete', 
+                                       choices=[('in_progress', 'In Progress'), 
+                                               ('complete', 'Complete'),
+                                               ('error', 'Error')])
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.shipment_name} - {self.product_title or 'N/A'}"
+        return f"{self.product_title} ({self.shipment_id_api})"
 
     class Meta:
         ordering = ['shipment_name', 'product_title']
