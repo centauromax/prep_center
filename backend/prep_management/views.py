@@ -556,6 +556,8 @@ def search_shipments_by_products(request):
 
         # --- Retrieve Shipments (Outbound focused for now) ---
         retrieved_shipments_for_filtering = []
+        
+        # Recupera spedizioni outbound se richiesto
         if not shipment_type_filter or shipment_type_filter == 'outbound':
             outbound_api_shipments = []
             page = debug_page_start
@@ -572,7 +574,6 @@ def search_shipments_by_products(request):
 
             while True:
                 if len(outbound_api_shipments) >= max_results: break
-                # Always request 20 per page, as API seems limited anyway
                 current_per_page = 20 
 
                 retry_count = 0
@@ -582,7 +583,7 @@ def search_shipments_by_products(request):
                 while retry_count < max_retries:
                     try:
                         logger.info(f"Tentativo {retry_count+1}/{max_retries} - Recupero pagina {page} delle spedizioni {log_message_prefix}, per_page={current_per_page}")
-                        context_vars['partial_count'] = len(outbound_api_shipments) # Update count during wait
+                        context_vars['partial_count'] = len(outbound_api_shipments)
                         api_response = api_method(
                             merchant_id=merchant_id, per_page=current_per_page,
                             page=page, search_query=q_query
@@ -595,13 +596,13 @@ def search_shipments_by_products(request):
                         if '502' in error_str or '429' in error_str:
                             wait_time = 5 * (2 ** retry_count)
                             logger.warning(f"Errore API ({error_str}) su pagina {page}. Retry tra {wait_time}s (tentativo {retry_count+1}/{max_retries})")
-                            context_vars['error'] = f"Errore temporaneo API ({error_str}) pagina {page}. Attesa {wait_time}s..." # Temporary error message
+                            context_vars['error'] = f"Errore temporaneo API ({error_str}) pagina {page}. Attesa {wait_time}s..."
                             time.sleep(wait_time)
                             retry_count += 1
                         else:
                             logger.error(f"Errore API non gestito durante il recupero spedizioni: {e_api}", exc_info=True)
                             context_vars['error'] = f"Errore API imprevisto durante recupero pagina {page}: {e_api}. Record letti: {len(outbound_api_shipments)}"
-                            raise # Rilancia per il blocco try...except globale
+                            raise
                 
                 if retry_count >= max_retries:
                     logger.error(f"Superato numero massimo di retry per pagina {page} ({log_message_prefix}).")
@@ -616,13 +617,12 @@ def search_shipments_by_products(request):
                 logger.info(f"Ricevute {len(current_shipments_from_api)} spedizioni dalla pagina {page}")
                 outbound_api_shipments.extend(current_shipments_from_api)
                 partial_count = len(outbound_api_shipments)
-                context_vars['partial_count'] = partial_count # Update final count for this stage
+                context_vars['partial_count'] = partial_count
 
                 if not first_page_logged:
-                    # Simplified logging to avoid potential errors with complex getattr/str
                     logger.info(f"DEBUG URL chiamata: {api_method_name}?merchant_id={merchant_id}&per_page={current_per_page}&page={page}&search_query={q_query}")
                     try:
-                       raw_resp_str = str(api_response)[:2000] # Limit length
+                       raw_resp_str = str(api_response)[:2000]
                        logger.info(f"DEBUG Risposta grezza (prime 2000 char): {raw_resp_str}")
                     except Exception as log_e:
                        logger.warning(f"Impossibile loggare risposta grezza: {log_e}")
@@ -637,7 +637,7 @@ def search_shipments_by_products(request):
                 
                 page += 1
                 logger.info(f"Attesa di 3 secondi prima della prossima pagina...")
-                context_vars['error'] = None # Clear temporary error message before sleep
+                context_vars['error'] = None
                 time.sleep(3)
 
             logger.info(f"Totale spedizioni {log_message_prefix} recuperate prima del filtraggio per item: {len(outbound_api_shipments)}")
@@ -648,6 +648,99 @@ def search_shipments_by_products(request):
                  retrieved_shipments_for_filtering.append({
                      'id': ship_data.id, 'name': ship_data.name, 
                      'status': status, 'type': 'outbound'
+                 })
+
+        # Recupera spedizioni inbound se richiesto
+        if not shipment_type_filter or shipment_type_filter == 'inbound':
+            inbound_api_shipments = []
+            page = debug_page_start
+            first_page_logged = False
+            
+            api_method_name = 'get_inbound_shipments'
+            log_message_prefix = "inbound"
+            if shipment_status_filter == 'archived':
+                api_method_name = 'get_archived_inbound_shipments'
+                log_message_prefix = "inbound archiviate"
+            
+            api_method = getattr(client, api_method_name)
+            logger.info(f"Recupero spedizioni {log_message_prefix} per merchant {merchant_id} con filtro q: {q_query}")
+
+            while True:
+                if len(inbound_api_shipments) >= max_results: break
+                current_per_page = 20 
+
+                retry_count = 0
+                max_retries = 5
+                api_response = None
+                
+                while retry_count < max_retries:
+                    try:
+                        logger.info(f"Tentativo {retry_count+1}/{max_retries} - Recupero pagina {page} delle spedizioni {log_message_prefix}, per_page={current_per_page}")
+                        context_vars['partial_count'] = len(inbound_api_shipments)
+                        api_response = api_method(
+                            merchant_id=merchant_id, per_page=current_per_page,
+                            page=page, search_query=q_query
+                        )
+                        logger.info(f"Risposta API ricevuta per pagina {page}: {api_response}")
+                        break 
+                    except Exception as e_api:
+                        error_str = str(e_api)
+                        logger.error(f"Errore API durante il recupero spedizioni: {error_str}", exc_info=True)
+                        if '502' in error_str or '429' in error_str:
+                            wait_time = 5 * (2 ** retry_count)
+                            logger.warning(f"Errore API ({error_str}) su pagina {page}. Retry tra {wait_time}s (tentativo {retry_count+1}/{max_retries})")
+                            context_vars['error'] = f"Errore temporaneo API ({error_str}) pagina {page}. Attesa {wait_time}s..."
+                            time.sleep(wait_time)
+                            retry_count += 1
+                        else:
+                            logger.error(f"Errore API non gestito durante il recupero spedizioni: {e_api}", exc_info=True)
+                            context_vars['error'] = f"Errore API imprevisto durante recupero pagina {page}: {e_api}. Record letti: {len(inbound_api_shipments)}"
+                            raise
+                
+                if retry_count >= max_retries:
+                    logger.error(f"Superato numero massimo di retry per pagina {page} ({log_message_prefix}).")
+                    context_vars['error'] = f"Errore API (502/429) persistente dopo {max_retries} tentativi sulla pagina {page}. Record letti: {len(inbound_api_shipments)}"
+                    break 
+                
+                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
+                    logger.info(f"Nessun dato o risposta API non valida per pagina {page} ({log_message_prefix}). Interruzione paginazione.")
+                    break
+
+                current_shipments_from_api = api_response.data
+                logger.info(f"Ricevute {len(current_shipments_from_api)} spedizioni dalla pagina {page}")
+                inbound_api_shipments.extend(current_shipments_from_api)
+                partial_count = len(inbound_api_shipments)
+                context_vars['partial_count'] = partial_count
+
+                if not first_page_logged:
+                    logger.info(f"DEBUG URL chiamata: {api_method_name}?merchant_id={merchant_id}&per_page={current_per_page}&page={page}&search_query={q_query}")
+                    try:
+                       raw_resp_str = str(api_response)[:2000]
+                       logger.info(f"DEBUG Risposta grezza (prime 2000 char): {raw_resp_str}")
+                    except Exception as log_e:
+                       logger.warning(f"Impossibile loggare risposta grezza: {log_e}")
+                    first_page_logged = True
+                
+                api_current_page = getattr(api_response, 'current_page', page)
+                api_last_page = getattr(api_response, 'last_page', page)
+                logger.info(f"Pagina {api_current_page}/{api_last_page} ({log_message_prefix}), {len(current_shipments_from_api)} spedizioni ricevute, accumulate: {partial_count}")
+
+                if api_current_page >= api_last_page or len(inbound_api_shipments) >= max_results:
+                    break
+                
+                page += 1
+                logger.info(f"Attesa di 3 secondi prima della prossima pagina...")
+                context_vars['error'] = None
+                time.sleep(3)
+
+            logger.info(f"Totale spedizioni {log_message_prefix} recuperate prima del filtraggio per item: {len(inbound_api_shipments)}")
+            for ship_data in inbound_api_shipments:
+                 status = ship_data.status
+                 if isinstance(status, Enum): status = status.value 
+                 if status == 'closed': status = 'archived'
+                 retrieved_shipments_for_filtering.append({
+                     'id': ship_data.id, 'name': ship_data.name, 
+                     'status': status, 'type': 'inbound'
                  })
         
         # Aggiorna il contatore delle spedizioni lette
@@ -725,6 +818,9 @@ def search_shipments_by_products(request):
                     logger.error(f"Errore nel recupero dettagli/item per spedizione {shipment_summary.get('id', 'N/A')}: {e_detail}")
                     if not final_error_message:
                         final_error_message = (final_error_message or "") + f"\nAttenzione: Errore recupero dettagli spedizione {shipment_summary.get('id', 'N/A')}. Risultati potrebbero essere incompleti."
+                
+                # Aggiungi un secondo di sleep tra le richieste dei dettagli
+                time.sleep(1)
         elif retrieved_shipments_for_filtering and not keywords:
             logger.info("Nessuna keyword specificata, mostro tutte le spedizioni recuperate.")
             for shipment_summary in retrieved_shipments_for_filtering:
