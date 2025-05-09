@@ -752,21 +752,59 @@ def search_shipments_by_products(request):
 
         if retrieved_shipments_for_filtering and keywords: # Only filter if keywords provided
             logger.info(f"Inizio filtraggio per prodotti/titolo spedizione ({keywords_str}) su {len(retrieved_shipments_for_filtering)} spedizioni.")
+            
+            # Test di rate limiting
+            logger.info("Esecuzione test di rate limiting...")
+            try:
+                test_shipment = retrieved_shipments_for_filtering[0]
+                test_id = test_shipment['id']
+                test_type = test_shipment['type']
+                logger.info(f"Test richiesta dettagli per spedizione {test_id} (tipo: {test_type})")
+                
+                if test_type == 'inbound':
+                    test_response = client.get_inbound_shipment_items(test_id, merchant_id=merchant_id)
+                else:
+                    test_response = client.get_outbound_shipment_items(test_id, merchant_id=merchant_id)
+                
+                logger.info(f"Test completato con successo. Risposta: {test_response}")
+                logger.info("Attendo 5 secondi prima di procedere con le altre richieste...")
+                time.sleep(5)
+            except Exception as e_test:
+                logger.error(f"Test rate limiting fallito: {str(e_test)}", exc_info=True)
+                context_vars['error'] = f"Test di connessione API fallito: {str(e_test)}. Potrebbe essere un problema di rate limiting."
+                return render(request, 'prep_management/search_shipments.html', context_vars)
+            
             for shipment_summary in retrieved_shipments_for_filtering:
                 try:
                     shipment_id = shipment_summary['id']
                     shipment_type = shipment_summary['type']
-                    logger.debug(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
+                    logger.info(f"Recupero dettagli per spedizione {shipment_id} (tipo: {shipment_type})")
 
                     # Recupera dettagli spedizione (serve per il titolo)
                     details = None
                     items_response = None
-                    if shipment_type == 'inbound':
-                        # details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id) # Se serve
-                        items_response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
-                    else:
-                        details = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
-                        items_response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
+                    try:
+                        if shipment_type == 'inbound':
+                            # details = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id) # Se serve
+                            logger.info(f"Richiesta items inbound per spedizione {shipment_id}")
+                            items_response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
+                            logger.info(f"Risposta items inbound ricevuta per spedizione {shipment_id}")
+                        else:
+                            logger.info(f"Richiesta dettagli outbound per spedizione {shipment_id}")
+                            details = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
+                            logger.info(f"Risposta dettagli outbound ricevuta per spedizione {shipment_id}")
+                            logger.info(f"Richiesta items outbound per spedizione {shipment_id}")
+                            items_response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
+                            logger.info(f"Risposta items outbound ricevuta per spedizione {shipment_id}")
+                    except Exception as e_api:
+                        logger.error(f"Errore API durante il recupero dettagli spedizione {shipment_id}: {str(e_api)}", exc_info=True)
+                        if '502' in str(e_api):
+                            logger.warning(f"Errore 502 rilevato per spedizione {shipment_id}. Probabile rate limiting.")
+                            context_vars['error'] = f"Errore 502 durante il recupero dettagli spedizione {shipment_id}. Probabile rate limiting dell'API."
+                            # Continua con la prossima spedizione invece di interrompere
+                            continue
+                        else:
+                            raise
 
                     # Determina il titolo della spedizione
                     shipment_title = ''
@@ -820,6 +858,7 @@ def search_shipments_by_products(request):
                         final_error_message = (final_error_message or "") + f"\nAttenzione: Errore recupero dettagli spedizione {shipment_summary.get('id', 'N/A')}. Risultati potrebbero essere incompleti."
                 
                 # Aggiungi un secondo di sleep tra le richieste dei dettagli
+                logger.info(f"Attendo 1 secondo prima della prossima richiesta...")
                 time.sleep(1)
         elif retrieved_shipments_for_filtering and not keywords:
             logger.info("Nessuna keyword specificata, mostro tutte le spedizioni recuperate.")
