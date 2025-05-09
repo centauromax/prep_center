@@ -660,13 +660,11 @@ def search_shipments_by_products(request):
         logger.info("No search triggered, rendering empty form")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
-    # Se la ricerca è triggerata, pulisci i risultati precedenti
     logger.info("Nuova ricerca, eliminazione risultati precedenti dal DB...")
     SearchResultItem.objects.all().delete()
     logger.info("Risultati precedenti eliminati.")
 
     total_shipments_inspected_count = 0
-    # total_items_found_count = 0 # Sarà il count dei SearchResultItem alla fine
 
     try:
         keywords_str = context_vars['keywords']
@@ -702,193 +700,53 @@ def search_shipments_by_products(request):
         if date_to: q_parts.append(f'created_at<="{date_to}"')
         q_parts.append('sort:created_at:desc')
         q_query = ' AND '.join(q_parts) if q_parts else None
-        logger.info(f"QUERY AVANZATA Q (per recupero spedizioni): {q_query}")
+        logger.info(f"QUERY AVANZATA Q (per recupero sommari spedizioni): {q_query}")
 
-        # Lista per contenere le spedizioni da processare (solo ID, nome, tipo, stato)
-        # Questa lista viene riempita pagina per pagina e poi processata.
-        shipment_summaries_to_process_this_iteration = []
-        
-        # --- Blocco di recupero spedizioni Outbound ---
-        if not shipment_type_filter or shipment_type_filter == 'outbound':
-            page = debug_page_start
-            outbound_shipments_retrieved_count = 0
-            api_method_name = 'get_outbound_shipments'
-            log_prefix = "outbound"
-            if shipment_status_filter == 'archived':
-                api_method_name = 'get_archived_outbound_shipments'
-                log_prefix = "outbound archiviate"
-            api_method = getattr(client, api_method_name)
+        # Funzione interna per processare un batch di sommari di spedizioni
+        def process_shipment_summaries_batch(shipment_summaries: List[Dict[str, Any]], current_ship_type: str):
+            nonlocal total_shipments_inspected_count # Permette di modificare la variabile esterna
+            nonlocal final_error_message # Permette di modificare la variabile esterna
+            
+            logger.info(f"Inizio processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
+            for shipment_summary in shipment_summaries:
+                if total_shipments_inspected_count >= max_results:
+                    logger.info(f"Raggiunto max_results ({max_results}), interrompo processamento dettagli.")
+                    return True # Indica di interrompere anche il ciclo di paginazione esterno
 
-            while True:
-                if total_shipments_inspected_count >= max_results: break
-                current_per_page = 20 
-                # ... (gestione retry per api_method come prima) ...
+                total_shipments_inspected_count += 1
+                context_vars['total_shipments_inspected'] = total_shipments_inspected_count
+                context_vars['partial_count'] = total_shipments_inspected_count 
+
+                ship_id = shipment_summary['id']
+                ship_name = shipment_summary['name']
+                
+                logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
                 try:
-                    logger.info(f"Tentativo recupero pagina {page} spedizioni {log_prefix}, per_page={current_per_page}")
-                    api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
-                    logger.info(f"Risposta API pagina {page} ({log_prefix}): {truncate_log_message(api_response)}")
-                except Exception as e_api:
-                    # ... (gestione errori e retry come prima, se fallisce break o gestisci) ...
-                    context_vars['error'] = f"Errore API recupero pagina {page} ({log_prefix}): {e_api}"
-                    break # Interrompe il ciclo while per questo tipo di spedizione
-                
-                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
-                    logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
-                    break
+                    details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                    items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                    time.sleep(0.5) 
+                except Exception as e_detail_item:
+                    logger.error(f"Errore recupero dettagli/items per spedizione {ship_id}: {e_detail_item}. Salto.")
+                    if final_error_message is None: final_error_message = ""
+                    final_error_message += f"\nErrore dettagli sped. {ship_id}: {e_detail_item}. "
+                    continue 
 
-                current_shipments_from_api = api_response.data
-                logger.info(f"Ricevute {len(current_shipments_from_api)} spedizioni {log_prefix} da pagina {page}")
-                
-                for ship_data in current_shipments_from_api:
-                    if total_shipments_inspected_count >= max_results: break
-                    status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
-                    if status_val == 'closed': status_val = 'archived' # Normalizzazione
-                    
-                    shipment_summaries_to_process_this_iteration.append({
-                        'id': ship_data.id, 'name': ship_data.name,
-                        'status': status_val, 'type': 'outbound'
-                    })
-                    total_shipments_inspected_count += 1
-                
-                # --- Inizio Processamento del Blocco Corrente ---
-                logger.info(f"Inizio processamento di {len(shipment_summaries_to_process_this_iteration)} spedizioni {log_prefix} recuperate.")
-                for shipment_summary in shipment_summaries_to_process_this_iteration:
-                    ship_id = shipment_summary['id']
-                    ship_name = shipment_summary['name']
-                    ship_type = shipment_summary['type']
-                    logger.info(f"Processo spedizione {ship_id} ({ship_name}), tipo: {ship_type}")
-                    try:
-                        details_dict = get_shipment_details(client, ship_id, ship_type, merchant_id=merchant_id)
-                        items_response_dict = get_shipment_items(client, ship_id, ship_type, merchant_id=merchant_id)
-                        time.sleep(0.5) # Piccolo delay per non sovraccaricare
-                    except Exception as e_detail_item:
-                        logger.error(f"Errore recupero dettagli/items per spedizione {ship_id}: {e_detail_item}. Salto.")
-                        if context_vars['error'] is None: context_vars['error'] = ""
-                        context_vars['error'] += f"\nErrore dettagli sped. {ship_id}: {e_detail_item}. "
-                        continue
+                shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
+                actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
 
-                    shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
-                    actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
+                match_in_shipment_title = False
+                if keywords:
+                    if search_type == 'AND':
+                        match_in_shipment_title = all(k in shipment_title_lower for k in keywords)
+                    else: 
+                        match_in_shipment_title = any(k in shipment_title_lower for k in keywords)
+                elif not keywords: 
+                    match_in_shipment_title = True 
 
-                    match_in_shipment_title = False
-                    if keywords:
-                        if search_type == 'AND':
-                            match_in_shipment_title = all(k in shipment_title_lower for k in keywords)
-                        else: # OR
-                            match_in_shipment_title = any(k in shipment_title_lower for k in keywords)
-                    elif not keywords: # Se non ci sono keyword, consideriamo il titolo come "match" se altri filtri sono attivi
-                        match_in_shipment_title = True 
-
+                item_saved_for_this_shipment = False
+                if actual_items_list: 
                     for item_dict in actual_items_list:
-                        product_info = extract_product_info_from_dict(item_dict, ship_type)
-                        item_name_lower = (product_info.get('title') or '').lower()
-                        
-                        item_matches_keywords = False
-                        if keywords:
-                            if search_type == 'AND':
-                                item_matches_keywords = all(k in item_name_lower for k in keywords)
-                            else: # OR
-                                item_matches_keywords = any(k in item_name_lower for k in keywords)
-                        elif not keywords: # Se non ci sono keyword, l'item è un "match" se la sua spedizione lo è
-                            item_matches_keywords = True
-
-                        if match_in_shipment_title or item_matches_keywords:
-                            SearchResultItem.objects.create(
-                                shipment_id_api=str(ship_id),
-                                shipment_name=ship_name,
-                                shipment_type=ship_type,
-                                product_title=product_info.get('title'),
-                                product_sku=product_info.get('sku'),
-                                product_asin=product_info.get('asin'),
-                                product_fnsku=product_info.get('fnsku'),
-                                product_quantity=product_info.get('quantity')
-                            )
-                logger.info(f"Fine processamento blocco {log_prefix}.")
-                shipment_summaries_to_process_this_iteration.clear() # Svuota per il prossimo blocco
-                # --- Fine Processamento del Blocco Corrente ---
-
-                api_current_page = getattr(api_response, 'current_page', page)
-                api_last_page = getattr(api_response, 'last_page', page)
-                if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results:
-                    break
-                page += 1
-                time.sleep(1) # Delay tra pagine API
-        
-        # --- Blocco di recupero spedizioni Inbound (simile a Outbound) ---
-        if not shipment_type_filter or shipment_type_filter == 'inbound':
-            # ... (logica simile al blocco outbound, ma per spedizioni inbound) ...
-            # ... assicurarsi di usare api_method diversi (es. get_inbound_shipments) ...
-            # ... e di aggiornare `total_shipments_inspected_count` e `shipment_summaries_to_process_this_iteration` ...
-            # ... e di chiamare il blocco di processamento come sopra ...
-            page = debug_page_start
-            inbound_shipments_retrieved_count = 0 # Non usato direttamente per il limite, ma per log
-            api_method_name = 'get_inbound_shipments'
-            log_prefix = "inbound"
-            # Non c'è endpoint standard per inbound archiviate nel client, quindi non lo gestiamo qui per ora
-            # o si assume che `get_inbound_shipments` con `q_query` gestisca lo stato.
-            # Se shipment_status_filter == 'archived' per inbound, potrebbe non funzionare come atteso.
-            api_method = getattr(client, api_method_name)
-
-            while True:
-                if total_shipments_inspected_count >= max_results: break
-                current_per_page = 20
-                try:
-                    logger.info(f"Tentativo recupero pagina {page} spedizioni {log_prefix}, per_page={current_per_page}")
-                    api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
-                    logger.info(f"Risposta API pagina {page} ({log_prefix}): {truncate_log_message(api_response)}")
-                except Exception as e_api:
-                    context_vars['error'] = f"Errore API recupero pagina {page} ({log_prefix}): {e_api}"
-                    break 
-                
-                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
-                    logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
-                    break
-
-                current_shipments_from_api = api_response.data
-                logger.info(f"Ricevute {len(current_shipments_from_api)} spedizioni {log_prefix} da pagina {page}")
-
-                for ship_data in current_shipments_from_api:
-                    if total_shipments_inspected_count >= max_results: break
-                    status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
-                    # Per inbound, 'archived' potrebbe non essere uno stato diretto, dipende dall'API.
-                    # Assumiamo che `q_query` gestisca il filtro stato se necessario per inbound.
-                    shipment_summaries_to_process_this_iteration.append({
-                        'id': ship_data.id, 'name': ship_data.name,
-                        'status': status_val, 'type': 'inbound'
-                    })
-                    total_shipments_inspected_count += 1
-                
-                logger.info(f"Inizio processamento di {len(shipment_summaries_to_process_this_iteration)} spedizioni {log_prefix} recuperate.")
-                for shipment_summary in shipment_summaries_to_process_this_iteration:
-                    # ... (identica logica di processamento e salvataggio DB come per outbound) ...
-                    ship_id = shipment_summary['id']
-                    ship_name = shipment_summary['name']
-                    ship_type = shipment_summary['type']
-                    logger.info(f"Processo spedizione {ship_id} ({ship_name}), tipo: {ship_type}")
-                    try:
-                        details_dict = get_shipment_details(client, ship_id, ship_type, merchant_id=merchant_id)
-                        items_response_dict = get_shipment_items(client, ship_id, ship_type, merchant_id=merchant_id)
-                        time.sleep(0.5) 
-                    except Exception as e_detail_item:
-                        logger.error(f"Errore recupero dettagli/items per spedizione {ship_id}: {e_detail_item}. Salto.")
-                        if context_vars['error'] is None: context_vars['error'] = ""
-                        context_vars['error'] += f"\nErrore dettagli sped. {ship_id}: {e_detail_item}. "
-                        continue
-
-                    shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
-                    actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
-
-                    match_in_shipment_title = False
-                    if keywords:
-                        if search_type == 'AND':
-                            match_in_shipment_title = all(k in shipment_title_lower for k in keywords)
-                        else: 
-                            match_in_shipment_title = any(k in shipment_title_lower for k in keywords)
-                    elif not keywords: 
-                        match_in_shipment_title = True 
-
-                    for item_dict in actual_items_list:
-                        product_info = extract_product_info_from_dict(item_dict, ship_type)
+                        product_info = extract_product_info_from_dict(item_dict, current_ship_type)
                         item_name_lower = (product_info.get('title') or '').lower()
                         
                         item_matches_keywords = False
@@ -900,39 +758,152 @@ def search_shipments_by_products(request):
                         elif not keywords: 
                             item_matches_keywords = True
 
-                        if match_in_shipment_title or item_matches_keywords:
+                        if item_matches_keywords: 
                             SearchResultItem.objects.create(
                                 shipment_id_api=str(ship_id),
                                 shipment_name=ship_name,
-                                shipment_type=ship_type,
+                                shipment_type=current_ship_type,
                                 product_title=product_info.get('title'),
                                 product_sku=product_info.get('sku'),
                                 product_asin=product_info.get('asin'),
                                 product_fnsku=product_info.get('fnsku'),
                                 product_quantity=product_info.get('quantity')
                             )
-                logger.info(f"Fine processamento blocco {log_prefix}.")
-                shipment_summaries_to_process_this_iteration.clear()
+                            item_saved_for_this_shipment = True
+                
+                if not item_saved_for_this_shipment and match_in_shipment_title and keywords:
+                    SearchResultItem.objects.create(
+                        shipment_id_api=str(ship_id),
+                        shipment_name=ship_name,
+                        shipment_type=current_ship_type,
+                        product_title=f"Corrispondenza trovata nel titolo spedizione (nessun item specifico)",
+                    )
+                elif not keywords and not actual_items_list: 
+                     SearchResultItem.objects.create(
+                        shipment_id_api=str(ship_id),
+                        shipment_name=ship_name,
+                        shipment_type=current_ship_type,
+                        product_title="Nessuna keyword e nessun item in questa spedizione",
+                    )
+            logger.info(f"Fine processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
+            return False 
+        # --- Fine funzione helper process_shipment_summaries_batch ---
+
+        final_error_message = context_vars.get('error') 
+
+        # CICLO API PER OUTBOUND
+        if not shipment_type_filter or shipment_type_filter == 'outbound':
+            page = debug_page_start
+            api_method_name = 'get_outbound_shipments'
+            log_prefix = "outbound"
+            if shipment_status_filter == 'archived':
+                api_method_name = 'get_archived_outbound_shipments'
+                log_prefix = "outbound archiviate"
+            api_method = getattr(client, api_method_name)
+            logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
+
+            while True:
+                if total_shipments_inspected_count >= max_results: break
+                current_per_page = 20 
+                api_response = None
+                retry_count = 0; max_retries = 3 
+                while retry_count < max_retries:
+                    try:
+                        logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
+                        api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
+                        break
+                    except Exception as e_api:
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
+                            break
+                        time.sleep(5 * (2**retry_count)) # Exponential backoff for API call
+                if final_error_message and retry_count >= max_retries: break 
+                
+                if not api_response or not hasattr(api_response, 'data') or not api_response.data:
+                    logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
+                    break
+
+                current_shipment_summaries = []
+                for ship_data in api_response.data:
+                    status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
+                    if status_val == 'closed': status_val = 'archived'
+                    current_shipment_summaries.append({
+                        'id': ship_data.id, 'name': ship_data.name,
+                        'status': status_val, 'type': 'outbound'
+                    })
+                
+                stop_pagination = process_shipment_summaries_batch(current_shipment_summaries, 'outbound')
+                if stop_pagination: break
 
                 api_current_page = getattr(api_response, 'current_page', page)
                 api_last_page = getattr(api_response, 'last_page', page)
-                if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results:
-                    break
+                if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results: break
                 page += 1
-                time.sleep(1)
+                time.sleep(1) 
+
+        # CICLO API PER INBOUND
+        if (not shipment_type_filter or shipment_type_filter == 'inbound') and total_shipments_inspected_count < max_results:
+            page = debug_page_start
+            api_method_name = 'get_inbound_shipments'
+            log_prefix = "inbound"
+            if hasattr(client, api_method_name):
+                api_method = getattr(client, api_method_name)
+                logger.info(f"Recupero spedizioni {log_prefix} per merchant {merchant_id} con filtro q: {q_query}")
+                while True:
+                    if total_shipments_inspected_count >= max_results: break
+                    current_per_page = 20
+                    api_response = None
+                    retry_count = 0; max_retries = 3
+                    while retry_count < max_retries:
+                        try:
+                            logger.info(f"API Call: Page {page} ({log_prefix}), per_page={current_per_page}")
+                            api_response = api_method(merchant_id=merchant_id, per_page=current_per_page, page=page, search_query=q_query)
+                            break
+                        except Exception as e_api:
+                            retry_count += 1
+                            if retry_count >= max_retries:
+                                final_error_message = f"Errore API persistente su {log_prefix} pagina {page}."
+                                break
+                            time.sleep(5 * (2**retry_count))
+                    if final_error_message and retry_count >= max_retries: break
+
+                    if not api_response or not hasattr(api_response, 'data') or not api_response.data:
+                        logger.info(f"Nessun dato per pagina {page} ({log_prefix}). Fine paginazione.")
+                        break
+
+                    current_shipment_summaries = []
+                    for ship_data in api_response.data:
+                        status_val = ship_data.status.value if isinstance(ship_data.status, Enum) else ship_data.status
+                        current_shipment_summaries.append({
+                            'id': ship_data.id, 'name': ship_data.name,
+                            'status': status_val, 'type': 'inbound'
+                        })
+                    
+                    stop_pagination = process_shipment_summaries_batch(current_shipment_summaries, 'inbound')
+                    if stop_pagination: break
+
+                    api_current_page = getattr(api_response, 'current_page', page)
+                    api_last_page = getattr(api_response, 'last_page', page)
+                    if api_current_page >= api_last_page or total_shipments_inspected_count >= max_results: break
+                    page += 1
+                    time.sleep(1)
+            else:
+                logger.info("Metodo API per spedizioni inbound non trovato o non applicabile.")
 
         context_vars['is_waiting'] = False
         context_vars['results'] = SearchResultItem.objects.all().order_by('shipment_name', 'product_title')
         context_vars['total_shipments_inspected'] = total_shipments_inspected_count
         context_vars['total_items_found'] = context_vars['results'].count()
-        logger.info(f"Ricerca completata. {total_shipments_inspected_count} spedizioni ispezionate, {context_vars['total_items_found']} items trovati e salvati nel DB.")
+        context_vars['error'] = final_error_message
+        logger.info(f"Rendering pagina. Spedizioni ispezionate: {total_shipments_inspected_count}, Items salvati nel DB: {context_vars['total_items_found']}. Error: {context_vars.get('error')}")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
     except Exception as e_global:
         logger.error(f"ERRORE GLOBALE NELLA VIEW search_shipments_by_products: {e_global}", exc_info=True)
-        context_vars['error'] = f"Errore imprevisto: {e_global}"
+        context_vars['error'] = f"Errore imprevisto: {e_global}. Spedizioni parzialmente ispezionate: {total_shipments_inspected_count}"
         context_vars['is_waiting'] = False
-        # Mostra comunque i risultati parziali salvati nel DB, se ce ne sono
-        context_vars['results'] = SearchResultItem.objects.all().order_by('shipment_name', 'product_title')
+        context_vars['results'] = SearchResultItem.objects.all().order_by('shipment_name', 'product_title') # Mostra ciò che è stato salvato
+        context_vars['total_shipments_inspected'] = total_shipments_inspected_count
         context_vars['total_items_found'] = context_vars['results'].count()
         return render(request, 'prep_management/search_shipments.html', context_vars)
