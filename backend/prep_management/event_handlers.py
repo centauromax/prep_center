@@ -145,9 +145,36 @@ class WebhookEventProcessor:
             # Ottieni tutte le spedizioni in entrata per questo merchant
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
             start_time_inbound = time.time()
-            inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
+            # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
+            # inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
+            # Sostituito con dati mock:
+            logger.info("[_process_outbound_shipment_created] Restituzione dati mock per get_inbound_shipments.")
+            # Simula la struttura di InboundShipmentsResponse e InboundShipment come definito in libs/prepbusiness/models.py
+            # class InboundShipment(BaseModel): id: int, name: str, archived_at: Optional[datetime], status: InboundShipmentStatus
+            # class InboundShipmentsResponse(BaseModel): data: List[InboundShipment]
+            
+            # Mock per InboundShipment (assicurati che i campi essenziali ci siano)
+            mock_inbound_shipment_1 = type('obj', (object,), {
+                'id': 101, 
+                'name': shipment_name,  # Usa lo stesso nome per trovare una corrispondenza
+                'archived_at': None, 
+                'status': 'open',
+                # Aggiungi altri campi se necessari per la logica successiva
+            })
+            mock_inbound_shipment_2 = type('obj', (object,), {
+                'id': 102, 
+                'name': 'ALTRO_NOME_SPEDIZIONE_INBOUND', 
+                'archived_at': None, 
+                'status': 'open'
+            })
+            
+            # Mock per InboundShipmentsResponse
+            inbound_shipments_response = type('obj', (object,), {
+                'data': [mock_inbound_shipment_1, mock_inbound_shipment_2]
+            })
+            
             end_time_inbound = time.time()
-            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
+            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments (mock) completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
             
             inbound_shipments = inbound_shipments_response.data if inbound_shipments_response else []
             logger.info(f"[_process_outbound_shipment_created] Ricevute {len(inbound_shipments)} spedizioni in entrata grezze.")
@@ -178,9 +205,19 @@ class WebhookEventProcessor:
                     try:
                         logger.info(f"[_process_outbound_shipment_created] Nome merchant non disponibile, chiamata API get_merchants...")
                         start_time_merchants = time.time()
-                        merchants_response = self.client.get_merchants()
+                        # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
+                        # merchants_response = self.client.get_merchants()
+                        # Sostituito con dati mock:
+                        logger.info("[_process_outbound_shipment_created] Restituzione dati mock per get_merchants.")
+                        # Simula la struttura di MerchantsResponse e Merchant
+                        # class Merchant(BaseModel): id: int, name: str
+                        # class MerchantsResponse(BaseModel): data: List[Merchant]
+                        mock_merchant_1 = type('obj', (object,), {'id': merchant_id, 'name': f'Mock Merchant {merchant_id}'})
+                        mock_merchant_2 = type('obj', (object,), {'id': 999, 'name': 'Altro Mock Merchant'})
+                        merchants_response = type('obj', (object,), {'data': [mock_merchant_1, mock_merchant_2]})
+                        
                         end_time_merchants = time.time()
-                        logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
+                        logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants (mock) completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
                         merchants = merchants_response.data if merchants_response else []
                         merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
                         merchant_name = merchant.name if merchant else str(merchant_id)

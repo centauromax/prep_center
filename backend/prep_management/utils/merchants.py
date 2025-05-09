@@ -26,12 +26,22 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
     logger.info(f"Tentativo di connessione a Prep Business API: URL={PREP_BUSINESS_API_URL}, API Key={api_key_safe}")
     
     try:
-        client = PrepBusinessClient()
-        filters = {"active": True} if active_only else {}
+        # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
+        # client = PrepBusinessClient()
+        # filters = {"active": True} if active_only else {}
+        # 
+        # logger.info(f"Richiesta merchants con filtri: {filters}")
+        # merchants = client.get_merchants(filters)
+        # logger.info(f"Recuperati {len(merchants)} merchants da Prep Business")
         
-        logger.info(f"Richiesta merchants con filtri: {filters}")
-        merchants = client.get_merchants(filters)
-        logger.info(f"Recuperati {len(merchants)} merchants da Prep Business")
+        # Sostituito con dati mock:
+        logger.info("Restituzione dati mock per merchants.")
+        merchants = [
+            {'id': 1, 'name': 'Mock Merchant 1', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
+            {'id': 2, 'name': 'Mock Merchant 2 (Inactive)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
+        ]
+        if active_only:
+            merchants = [m for m in merchants if m.get('active', True)]
         
         # Logga un esempio di merchant per debug (se disponibile)
         if merchants and len(merchants) > 0:
