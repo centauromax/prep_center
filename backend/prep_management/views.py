@@ -521,8 +521,9 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
     Recupera i dettagli di una spedizione con retry logic. API reale, log dettagliati.
     """
     logger.info(f"[API get_shipment_details] INIZIO: shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    response_obj = None
+    dumped_response = None
     try:
-        raw_response_content = None # Variabile per salvare il contenuto grezzo
         if shipment_type == 'inbound':
             logger.info(f"[API get_shipment_details] Chiamo client.get_inbound_shipment({shipment_id}, merchant_id={merchant_id})")
             response_obj = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
@@ -536,18 +537,25 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
         else:
             logger.info(f"[API get_shipment_details] Risposta Pydantic: {resp_str}")
             
-        logger.info(f"[API get_shipment_details] Prima di model_dump() per shipment_id={shipment_id}")
-        dumped_response = response_obj.model_dump()
-        logger.info(f"[API get_shipment_details] Dopo model_dump() per shipment_id={shipment_id}")
-        
+        # Isolo model_dump() in un try-except separato
+        try:
+            logger.info(f"[API get_shipment_details] Prima di model_dump() per shipment_id={shipment_id}")
+            dumped_response = response_obj.model_dump()
+            logger.info(f"[API get_shipment_details] Dopo model_dump() per shipment_id={shipment_id}. Risultato (troncato): {truncate_log_message(dumped_response)}")
+        except Exception as e_dump:
+            logger.error(f"[API get_shipment_details] ERRORE durante model_dump() per shipment_id={shipment_id}: {e_dump}")
+            logger.error(f"[API get_shipment_details] Traceback model_dump(): {traceback.format_exc()}")
+            logger.error(f"[API get_shipment_details] Oggetto response_obj al momento dell'errore model_dump(): {truncate_log_message(response_obj)}")
+            raise # Rilancio l'eccezione per farla gestire dal try-except esterno
+            
         logger.info(f"[API get_shipment_details] FINE OK: shipment_id={shipment_id}, tipo={shipment_type}")
         return dumped_response
         
     except Exception as e:
-        logger.error(f"[API get_shipment_details] ERRORE: {e}")
-        logger.error(f"[API get_shipment_details] Traceback: {traceback.format_exc()}")
-        if raw_response_content:
-            logger.error(f"[API get_shipment_details] Contenuto grezzo della risposta al momento dell'errore: {truncate_log_message(raw_response_content)}")
+        logger.error(f"[API get_shipment_details] ERRORE (esterno a model_dump): {e} per shipment_id={shipment_id}")
+        logger.error(f"[API get_shipment_details] Traceback (esterno a model_dump): {traceback.format_exc()}")
+        if response_obj: # Logga l'oggetto Pydantic se disponibile, anche se model_dump è fallito o non è stato raggiunto
+            logger.error(f"[API get_shipment_details] Oggetto response_obj (Pydantic) al momento dell'errore esterno: {truncate_log_message(response_obj)}")
         raise
 
 @retry_on_error(max_retries=3, delay=2, backoff=2)
