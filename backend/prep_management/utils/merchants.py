@@ -38,22 +38,20 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
         )
         logger.info("[get_merchants] PrepBusinessClient inizializzato correttamente")
         
-        filters = {"active": True} if active_only else {}
+        logger.info("[get_merchants] Esecuzione chiamata API get_merchants")
+        merchants_response = client.get_merchants()
         
-        logger.info(f"[get_merchants] Esecuzione chiamata API get_merchants con filtri: {filters}")
-        merchants = client.get_merchants(filters)
-        
-        if not hasattr(merchants, 'data'):
-            logger.info(f"[get_merchants] Ricevuta risposta senza attributo 'data' dal client: {type(merchants)}")
+        if not hasattr(merchants_response, 'data'):
+            logger.info(f"[get_merchants] Ricevuta risposta senza attributo 'data' dal client: {type(merchants_response)}")
             # Se la risposta è già una lista (vecchia versione del client)
-            if isinstance(merchants, list):
-                merchant_list = merchants
+            if isinstance(merchants_response, list):
+                merchant_list = merchants_response
             else:
-                logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants)}")
+                logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
                 merchant_list = []
         else:
             logger.info(f"[get_merchants] Ricevuta risposta con attributo 'data' dal client")
-            merchant_list = merchants.data
+            merchant_list = merchants_response.data
         
         logger.info(f"[get_merchants] Recuperati {len(merchant_list)} merchants da Prep Business")
         
@@ -67,6 +65,11 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
             else:
                 # Già un dizionario
                 merchant_dicts.append(m)
+        
+        # Filtra per active se richiesto
+        if active_only:
+            merchant_dicts = [m for m in merchant_dicts if m.get('active', True)]
+            logger.info(f"[get_merchants] Dopo filtro active_only: {len(merchant_dicts)} merchants")
         
         # Logga un esempio di merchant per debug (se disponibile)
         if merchant_dicts and len(merchant_dicts) > 0:
