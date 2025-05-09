@@ -26,13 +26,27 @@ class WebhookEventProcessor:
     
     def __init__(self):
         """Inizializza il processore degli eventi."""
+        logger.info("[WebhookEventProcessor.__init__] Inizio inizializzazione.")
         # Crea un client PrepBusiness per le chiamate API necessarie
         domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
-        self.client = PrepBusinessClient(
-            api_key=PREP_BUSINESS_API_KEY,
-            company_domain=domain,
-            timeout=PREP_BUSINESS_API_TIMEOUT,
-        )
+        logger.info(f"[WebhookEventProcessor.__init__] Dominio calcolato per il client: {domain}")
+        
+        # ATTENZIONE: Valutare se commentare l'intera inizializzazione del client
+        # self.client = None # Opzione 1: Disabilitare completamente il client qui
+        
+        try:
+            logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
+            self.client = PrepBusinessClient(
+                api_key=PREP_BUSINESS_API_KEY,
+                company_domain=domain,
+                timeout=PREP_BUSINESS_API_TIMEOUT,
+            )
+            logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+        except Exception as e_client_init:
+            logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {str(e_client_init)}")
+            self.client = None # Assicurati che self.client sia None se l'init fallisce
+            
+        logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
     
     def process_event(self, update_id: int) -> Dict[str, Any]:
         """
@@ -44,11 +58,15 @@ class WebhookEventProcessor:
         Returns:
             Dizionario con i risultati dell'elaborazione
         """
+        logger.info(f"[WebhookEventProcessor.process_event] Inizio elaborazione per update_id: {update_id}")
         try:
             # Recupera l'aggiornamento dal database
             try:
+                logger.info(f"[WebhookEventProcessor.process_event] Tentativo recupero Update ID: {update_id} dal DB.")
                 update = ShipmentStatusUpdate.objects.get(id=update_id)
+                logger.info(f"[WebhookEventProcessor.process_event] Update ID: {update_id} recuperato.")
             except ShipmentStatusUpdate.DoesNotExist:
+                logger.warning(f"[WebhookEventProcessor.process_event] Aggiornamento con ID {update_id} non trovato nel DB.")
                 return {
                     'success': False,
                     'message': f'Aggiornamento con ID {update_id} non trovato',
@@ -57,6 +75,7 @@ class WebhookEventProcessor:
             
             # Se già elaborato, restituisce il risultato salvato
             if update.processed:
+                logger.info(f"[WebhookEventProcessor.process_event] Update ID: {update_id} già processato. Salto.")
                 return {
                     'success': True,
                     'message': f'Aggiornamento già elaborato in precedenza',
@@ -66,35 +85,42 @@ class WebhookEventProcessor:
             
             # Elabora in base al tipo di evento
             event_type = update.event_type
+            logger.info(f"[WebhookEventProcessor.process_event] Evento tipo: {event_type} per Update ID: {update_id}.")
             result = None
             
             if event_type == 'outbound_shipment.created':
+                logger.info(f"[WebhookEventProcessor.process_event] Chiamata a _process_outbound_shipment_created per Update ID: {update_id}.")
                 result = self._process_outbound_shipment_created(update)
             elif event_type.startswith('inbound_shipment.'):
+                logger.info(f"[WebhookEventProcessor.process_event] Chiamata a _process_inbound_shipment_event per Update ID: {update_id}.")
                 result = self._process_inbound_shipment_event(update)
             else:
                 # Handler generico per eventi non specificamente gestiti
+                logger.info(f"[WebhookEventProcessor.process_event] Evento {event_type} non gestito specificamente per Update ID: {update_id}.")
                 result = {
                     'success': True,
                     'message': f'Evento {event_type} ricevuto ma nessuna elaborazione specifica richiesta',
                 }
             
             # Aggiorna il record con il risultato dell'elaborazione
+            logger.info(f"[WebhookEventProcessor.process_event] Tentativo salvataggio risultato per Update ID: {update_id}.")
             update.processed = True
             update.processed_at = timezone.now()
             update.process_success = result.get('success', False)
             update.process_message = result.get('message', '')
             update.process_result = result
             update.save()
+            logger.info(f"[WebhookEventProcessor.process_event] Risultato salvato per Update ID: {update_id}.")
             
             return result
             
         except Exception as e:
-            logger.error(f"Errore durante l'elaborazione dell'evento: {str(e)}")
+            logger.error(f"[WebhookEventProcessor.process_event] Eccezione durante process_event per Update ID: {update_id}. Errore: {str(e)}")
             logger.exception("Traceback completo:")
             
             # Aggiorna il record con l'errore
             try:
+                logger.info(f"[WebhookEventProcessor.process_event] Tentativo salvataggio errore per Update ID: {update_id}.")
                 update.processed = True
                 update.processed_at = timezone.now()
                 update.process_success = False
@@ -105,9 +131,10 @@ class WebhookEventProcessor:
                     'message': str(e)
                 }
                 update.save()
+                logger.info(f"[WebhookEventProcessor.process_event] Errore salvato per Update ID: {update_id}.")
             except Exception:
                 # In caso di errore anche nel salvataggio, logga e continua
-                logger.exception("Errore durante il salvataggio dell'errore di elaborazione")
+                logger.exception("[WebhookEventProcessor.process_event] Eccezione durante il salvataggio dell'errore di elaborazione.")
             
             return {
                 'success': False,
