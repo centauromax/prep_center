@@ -525,27 +525,27 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
         raw_response_content = None # Variabile per salvare il contenuto grezzo
         if shipment_type == 'inbound':
             logger.info(f"[API get_shipment_details] Chiamo client.get_inbound_shipment({shipment_id}, merchant_id={merchant_id})")
-            # Per ottenere il contenuto grezzo, potremmo dover modificare il client o fare una chiamata separata
-            # Temporaneamente, ci affidiamo al log di httpx. Successivamente, potremmo voler esporre il contenuto grezzo dal client.
             response_obj = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
         else:
             logger.info(f"[API get_shipment_details] Chiamo client.get_outbound_shipment({shipment_id}, merchant_id={merchant_id})")
             response_obj = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
         
-        # Log della risposta Pydantic (tronca se lunga)
         resp_str = str(response_obj)
         if len(resp_str) > 500:
             logger.info(f"[API get_shipment_details] Risposta Pydantic (troncata): {resp_str[:250]} ... {resp_str[-250:]}")
         else:
             logger.info(f"[API get_shipment_details] Risposta Pydantic: {resp_str}")
             
+        logger.info(f"[API get_shipment_details] Prima di model_dump() per shipment_id={shipment_id}")
+        dumped_response = response_obj.model_dump()
+        logger.info(f"[API get_shipment_details] Dopo model_dump() per shipment_id={shipment_id}")
+        
         logger.info(f"[API get_shipment_details] FINE OK: shipment_id={shipment_id}, tipo={shipment_type}")
-        return response_obj.model_dump()
+        return dumped_response
         
     except Exception as e:
         logger.error(f"[API get_shipment_details] ERRORE: {e}")
         logger.error(f"[API get_shipment_details] Traceback: {traceback.format_exc()}")
-        # Se abbiamo il contenuto grezzo e c'è un errore, logghiamolo
         if raw_response_content:
             logger.error(f"[API get_shipment_details] Contenuto grezzo della risposta al momento dell'errore: {truncate_log_message(raw_response_content)}")
         raise
@@ -776,7 +776,9 @@ def search_shipments_by_products(request):
                 item_saved_for_this_shipment = False
                 if actual_items_list: 
                     for item_dict in actual_items_list:
+                        logger.info(f"[DEBUG process_batch] Prima di extract_product_info_from_dict per item: {truncate_log_message(item_dict)}")
                         product_info = extract_product_info_from_dict(item_dict, current_ship_type)
+                        logger.info(f"[DEBUG process_batch] Dopo extract_product_info_from_dict, info estratte: {product_info}")
                         item_name_lower = (product_info.get('title') or '').lower()
                         
                         item_matches_keywords = False
