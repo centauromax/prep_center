@@ -517,212 +517,82 @@ def retry_on_error(max_retries=3, delay=1, backoff=2):
 @retry_on_error(max_retries=3, delay=2, backoff=2)
 def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    Recupera i dettagli di una spedizione con retry logic.
-    
-    Args:
-        client: Istanza del client PrepBusiness
-        shipment_id: ID della spedizione
-        shipment_type: Tipo di spedizione ('inbound' o 'outbound')
-        merchant_id: ID opzionale del merchant
-        
-    Returns:
-        Dict con i dettagli della spedizione
-        
-    Raises:
-        Exception: Se tutti i tentativi falliscono
+    MOCK: Restituisce sempre dati fittizi per i dettagli spedizione, senza chiamare l'API reale.
     """
-    # Determina se dovremmo usare mock o API reale
-    is_mock = False
-    
-    # Log dettagliato per debug
-    logger.info(f"[get_shipment_details] Chiamata per ID={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
-    
-    # 1. Controllo esplicito per range di ID mock
-    if (shipment_id >= 1001 and shipment_id <= 1005) and shipment_type == 'outbound':
-        is_mock = True
-        logger.info(f"[get_shipment_details] ID {shipment_id} riconosciuto come mock outbound (1001-1005)")
-    elif (shipment_id >= 2001 and shipment_id <= 2005) and shipment_type == 'inbound':
-        is_mock = True
-        logger.info(f"[get_shipment_details] ID {shipment_id} riconosciuto come mock inbound (2001-2005)")
+    logger.info(f"[MOCK get_shipment_details] Restituisco dati mock per shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    if shipment_type == 'inbound':
+        mock_response = {
+            'shipment': {
+                'id': shipment_id,
+                'name': f"MOCK-IN-{shipment_id}",
+                'status': 'open',
+                'archived_at': None,
+                'created_at': '2024-05-01T10:00:00Z',
+                'updated_at': '2024-05-01T10:00:00Z',
+                'team_id': merchant_id or 1,
+                'warehouse_id': 123,
+                'notes': f"Note mock per spedizione inbound {shipment_id}"
+            }
+        }
     else:
-        logger.info(f"[get_shipment_details] ID {shipment_id} NON riconosciuto come mock")
-    
-    # Ulteriore verifica con nome mock per maggiore sicurezza
-    if not is_mock and shipment_type == 'outbound' and isinstance(shipment_id, int):
-        # Cerca un pattern come "MOCK-OUT-X" nei dettagli disponibili
-        id_residuo = shipment_id - 1000
-        if 1 <= id_residuo <= 5:
-            is_mock = True
-            logger.info(f"[get_shipment_details] ID {shipment_id} rilevato come mock outbound dall'ID residuo ({id_residuo})")
-    elif not is_mock and shipment_type == 'inbound' and isinstance(shipment_id, int):
-        # Cerca un pattern come "MOCK-IN-X" nei dettagli disponibili
-        id_residuo = shipment_id - 2000
-        if 1 <= id_residuo <= 5:
-            is_mock = True
-            logger.info(f"[get_shipment_details] ID {shipment_id} rilevato come mock inbound dall'ID residuo ({id_residuo})")
-    
-    if is_mock:
-        logger.info(f"[get_shipment_details] ✓ Usando MOCK per {shipment_type} {shipment_id}")
-        # Crea un mock della risposta
-        if shipment_type == 'inbound':
-            # Struttura mock per InboundShipmentResponse
-            mock_response = {
-                'shipment': {
-                    'id': shipment_id,
-                    'name': f"MOCK-IN-{shipment_id-2000}",
-                    'status': 'open',
-                    'archived_at': None,
-                    'created_at': '2024-05-01T10:00:00Z',
-                    'updated_at': '2024-05-01T10:00:00Z',
-                    'team_id': merchant_id or 1,
-                    'warehouse_id': 123,
-                    'notes': f"Note mock per spedizione inbound {shipment_id}"
-                }
+        mock_response = {
+            'shipment': {
+                'id': shipment_id,
+                'name': f"MOCK-OUT-{shipment_id}",
+                'status': 'archived',
+                'archived_at': '2024-05-02T10:00:00Z',
+                'created_at': '2024-05-01T10:00:00Z',
+                'updated_at': '2024-05-02T10:00:00Z',
+                'team_id': merchant_id or 1,
+                'merchant_id': merchant_id or 1,
+                'warehouse_id': 123,
+                'notes': f"Note mock per spedizione outbound {shipment_id}"
             }
-        else:  # outbound
-            # Struttura mock per OutboundShipmentResponse
-            mock_response = {
-                'shipment': {
-                    'id': shipment_id,
-                    'name': f"MOCK-OUT-{shipment_id-1000}",
-                    'status': 'archived',  # o 'open' a seconda del contesto
-                    'archived_at': '2024-05-02T10:00:00Z',
-                    'created_at': '2024-05-01T10:00:00Z',
-                    'updated_at': '2024-05-02T10:00:00Z',
-                    'team_id': merchant_id or 1,
-                    'merchant_id': merchant_id or 1,
-                    'warehouse_id': 123,
-                    'notes': f"Note mock per spedizione outbound {shipment_id}"
-                }
-            }
-        return mock_response
-    
-    # Se non è mock, usa l'API reale
-    logger.info(f"[get_shipment_details] Usando API REALE per {shipment_type} {shipment_id}")
-    try:
-        if shipment_type == 'inbound':
-            response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id, timeout=30)
-            return response.model_dump()
-        else:
-            response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id, timeout=30)
-            return response.model_dump()
-    except Exception as e:
-        logger.error(f"[get_shipment_details] Errore nel recupero dettagli spedizione {shipment_id}: {str(e)}")
-        raise
+        }
+    return mock_response
 
 @retry_on_error(max_retries=3, delay=2, backoff=2)
 def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_type: str, merchant_id: Optional[int] = None) -> Dict[str, Any]:
     """
-    Recupera gli items di una spedizione con retry logic.
-    
-    Args:
-        client: Istanza del client PrepBusiness
-        shipment_id: ID della spedizione
-        shipment_type: Tipo di spedizione ('inbound' o 'outbound')
-        merchant_id: ID opzionale del merchant
-        
-    Returns:
-        Dict con gli items della spedizione
-        
-    Raises:
-        Exception: Se tutti i tentativi falliscono
+    MOCK: Restituisce sempre dati fittizi per gli items spedizione, senza chiamare l'API reale.
     """
-    # Determina se dovremmo usare mock o API reale
-    is_mock = False
-    
-    # Log dettagliato per debug
-    logger.info(f"[get_shipment_items] Chiamata per ID={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
-    
-    # 1. Controllo esplicito per range di ID mock
-    if (shipment_id >= 1001 and shipment_id <= 1005) and shipment_type == 'outbound':
-        is_mock = True
-        logger.info(f"[get_shipment_items] ID {shipment_id} riconosciuto come mock outbound (1001-1005)")
-    elif (shipment_id >= 2001 and shipment_id <= 2005) and shipment_type == 'inbound':
-        is_mock = True
-        logger.info(f"[get_shipment_items] ID {shipment_id} riconosciuto come mock inbound (2001-2005)")
+    logger.info(f"[MOCK get_shipment_items] Restituisco dati mock per shipment_id={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    if shipment_type == 'inbound':
+        items = []
+        for i in range(1, 4):
+            title = f"Prodotto inbound {i}"
+            if i == 2 and (shipment_id % 2 == 0):
+                title = f"Singer Prodotto inbound {i}"
+            item = {
+                'id': shipment_id * 100 + i,
+                'name': title,
+                'sku': f"SKU-IN-{shipment_id}-{i}",
+                'asin': f"ASIN{shipment_id}{i}",
+                'fnsku': f"FNSKU{shipment_id}{i}",
+                'quantity': 10 * i
+            }
+            items.append(item)
+        mock_response = {'items': items, 'total': len(items)}
     else:
-        logger.info(f"[get_shipment_items] ID {shipment_id} NON riconosciuto come mock")
-    
-    # Ulteriore verifica con nome mock per maggiore sicurezza
-    if not is_mock and shipment_type == 'outbound' and isinstance(shipment_id, int):
-        # Cerca un pattern come "MOCK-OUT-X" nei dettagli disponibili
-        id_residuo = shipment_id - 1000
-        if 1 <= id_residuo <= 5:
-            is_mock = True
-            logger.info(f"[get_shipment_items] ID {shipment_id} rilevato come mock outbound dall'ID residuo ({id_residuo})")
-    elif not is_mock and shipment_type == 'inbound' and isinstance(shipment_id, int):
-        # Cerca un pattern come "MOCK-IN-X" nei dettagli disponibili
-        id_residuo = shipment_id - 2000
-        if 1 <= id_residuo <= 5:
-            is_mock = True
-            logger.info(f"[get_shipment_items] ID {shipment_id} rilevato come mock inbound dall'ID residuo ({id_residuo})")
-    
-    if is_mock:
-        logger.info(f"[get_shipment_items] ✓ Usando MOCK per {shipment_type} {shipment_id}")
-        # Crea mock items diversi a seconda del tipo di spedizione
-        if shipment_type == 'inbound':
-            # Struttura mock per InboundShipmentItems con parola "Singer" in un item per simulare match di ricerca
-            items = []
-            for i in range(1, 4):  # 3 items per spedizione
-                # Aggiungo la parola Singer al secondo item di tutte le spedizioni pari
-                title = f"Prodotto inbound {i}" 
-                if i == 2 and (shipment_id % 2 == 0):
-                    title = f"Singer Prodotto inbound {i}"
-                    
-                item = {
-                    'id': shipment_id * 100 + i,
-                    'name': title,
-                    'sku': f"SKU-IN-{shipment_id}-{i}",
+        items = []
+        for i in range(1, 4):
+            title = f"Prodotto outbound {i}"
+            if i == 1 and (shipment_id % 2 == 1):
+                title = f"Singer Prodotto outbound {i}"
+            item = {
+                'id': shipment_id * 100 + i,
+                'quantity': 5 * i,
+                'item': {
+                    'id': shipment_id * 1000 + i,
+                    'title': title,
+                    'merchant_sku': f"SKU-OUT-{shipment_id}-{i}",
                     'asin': f"ASIN{shipment_id}{i}",
-                    'fnsku': f"FNSKU{shipment_id}{i}",
-                    'quantity': 10 * i
+                    'fnsku': f"FNSKU{shipment_id}{i}"
                 }
-                items.append(item)
-            
-            mock_response = {
-                'items': items,
-                'total': len(items),
             }
-        else:  # outbound
-            # Struttura mock per OutboundShipmentItems con parola "Singer" in un item per simulare match di ricerca
-            items = []
-            for i in range(1, 4):  # 3 items per spedizione
-                # Aggiungo la parola Singer al primo item di tutte le spedizioni dispari
-                title = f"Prodotto outbound {i}"
-                if i == 1 and (shipment_id % 2 == 1): 
-                    title = f"Singer Prodotto outbound {i}"
-                    
-                item = {
-                    'id': shipment_id * 100 + i,
-                    'quantity': 5 * i,
-                    'item': {
-                        'id': shipment_id * 1000 + i,
-                        'title': title,
-                        'merchant_sku': f"SKU-OUT-{shipment_id}-{i}",
-                        'asin': f"ASIN{shipment_id}{i}",
-                        'fnsku': f"FNSKU{shipment_id}{i}"
-                    }
-                }
-                items.append(item)
-            
-            mock_response = {
-                'items': items,
-                'total': len(items),
-            }
-        
-        return mock_response
-    
-    # Se non è mock, usa l'API reale
-    logger.info(f"[get_shipment_items] Usando API REALE per {shipment_type} {shipment_id}")
-    try:
-        if shipment_type == 'inbound':
-            response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id, timeout=30)
-        else:
-            response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id, timeout=30)
-        return response.model_dump()
-    except Exception as e:
-        logger.error(f"[get_shipment_items] Errore nel recupero items spedizione {shipment_id}: {str(e)}")
-        raise
+            items.append(item)
+        mock_response = {'items': items, 'total': len(items)}
+    return mock_response
 
 def extract_product_info_from_dict(item_dict: Dict[str, Any], shipment_type: str) -> Dict[str, Any]:
     """Estrae SKU, ASIN, FNSKU, Titolo e Quantità da un item_dict."""
@@ -883,17 +753,14 @@ def search_shipments_by_products(request):
                 ship_name = shipment_summary['name']
                 
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
-                try:
-                    details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
-                    time.sleep(1)  # Aumento il delay tra le chiamate
-                    items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id)
-                    time.sleep(1)  # Aumento il delay anche dopo la seconda chiamata
-                except Exception as e_detail_item:
-                    logger.error(f"Errore recupero dettagli/items per spedizione {ship_id}: {e_detail_item}. Salto.")
-                    if final_error_message is None: final_error_message = ""
-                    final_error_message += f"\nErrore dettagli sped. {ship_id}: {e_detail_item}. "
-                    time.sleep(2)  # Delay più lungo in caso di errore
-                    continue 
+                logger.info(f"[DEBUG] Prima di get_shipment_details per shipment_id={ship_id}, tipo={current_ship_type}")
+                details_dict = get_shipment_details(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                logger.info(f"[DEBUG] Dopo get_shipment_details per shipment_id={ship_id}, tipo={current_ship_type}")
+                time.sleep(0.5)
+                logger.info(f"[DEBUG] Prima di get_shipment_items per shipment_id={ship_id}, tipo={current_ship_type}")
+                items_response_dict = get_shipment_items(client, ship_id, current_ship_type, merchant_id=merchant_id)
+                logger.info(f"[DEBUG] Dopo get_shipment_items per shipment_id={ship_id}, tipo={current_ship_type}")
+                time.sleep(0.5)
 
                 shipment_title_lower = (details_dict.get('shipment', {}).get('name', '') or ship_name or '').lower()
                 actual_items_list = items_response_dict.get('items', []) if items_response_dict else []
@@ -1090,7 +957,7 @@ def search_shipments_by_products(request):
         context_vars['total_shipments_inspected'] = total_shipments_inspected_count
         context_vars['total_items_found'] = context_vars['results'].count()
         context_vars['error'] = final_error_message
-        logger.info(f"Rendering pagina. Spedizioni ispezionate: {total_shipments_inspected_count}, Items salvati nel DB: {context_vars['total_items_found']}. Error: {context_vars.get('error')}")
+        logger.info(f"[DEBUG] Prima del render finale: Spedizioni ispezionate: {total_shipments_inspected_count}, Items salvati nel DB: {context_vars['total_items_found']}. Error: {context_vars.get('error')}")
         return render(request, 'prep_management/search_shipments.html', context_vars)
 
     except Exception as e_global:
