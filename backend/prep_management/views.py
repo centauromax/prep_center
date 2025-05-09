@@ -661,13 +661,16 @@ def extract_product_info_from_dict(item_dict: Dict[str, Any], shipment_type: str
 
 def search_shipments_by_products(request):
     merchants = get_merchants()
+    # Cache locale per evitare di elaborare due volte la stessa spedizione
+    shipment_cache = {}
+    
     context_vars = {
         'keywords': '',
         'search_type': 'OR',
         'merchant_name': '',
         'shipment_type': '',
         'shipment_status': '',
-        'max_results': 40,  # Ridotto a 40 per pagina
+        'max_results': 20,  # Ridotto a 20 per pagina per coincidere con PrepBusiness
         'date_from': '',
         'date_to': '',
         'current_page': 1,
@@ -698,7 +701,7 @@ def search_shipments_by_products(request):
             'merchant_name': request.GET.get('merchant_name', ''),
             'shipment_type': request.GET.get('shipment_type', ''),
             'shipment_status': request.GET.get('shipment_status', ''),
-            'max_results': int(request.GET.get('max_results') or 40),
+            'max_results': int(request.GET.get('max_results') or 20),
             'date_from': request.GET.get('date_from', ''),
             'date_to': request.GET.get('date_to', ''),
             'current_page': int(request.GET.get('page') or 1),
@@ -760,6 +763,7 @@ def search_shipments_by_products(request):
         def process_shipment_summaries_batch(shipment_summaries: List[Dict[str, Any]], current_ship_type: str):
             nonlocal total_shipments_inspected_count
             nonlocal final_error_message
+            nonlocal shipment_cache
             
             logger.info(f"Inizio processamento di {len(shipment_summaries)} spedizioni {current_ship_type}.")
             for shipment_summary in shipment_summaries:
@@ -774,6 +778,12 @@ def search_shipments_by_products(request):
                 ship_id = shipment_summary['id']
                 ship_name = shipment_summary['name']
                 
+                # Verifica se questa spedizione è già stata elaborata
+                cache_key = f"{ship_id}_{current_ship_type}"
+                if cache_key in shipment_cache:
+                    logger.info(f"Spedizione {ship_id} già elaborata in precedenza, recupero dalla cache.")
+                    continue
+                
                 logger.info(f"Processo spedizione {total_shipments_inspected_count}/{max_results}: ID {ship_id} ({ship_name}), tipo: {current_ship_type}")
                 try:
                     # Usiamo il metodo appropriato in base al tipo di spedizione
@@ -783,19 +793,22 @@ def search_shipments_by_products(request):
                         logger.info(f"[API] Chiamo client.get_outbound_shipment_items(ship_id={ship_id}, merchant_id={merchant_id})")
                         items_response = client.get_outbound_shipment_items(ship_id, merchant_id=merchant_id)
                     else:
-                        # Usa get_shipment_items per spedizioni inbound (che chiama /shipments/inbound/{id}/items)
-                        logger.info(f"[API] Chiamo client.get_shipment_items(ship_id={ship_id}, merchant_id={merchant_id})")
-                        items_response = client.get_shipment_items(ship_id, merchant_id=merchant_id)
+                        # Usa get_inbound_shipment_items per spedizioni inbound
+                        logger.info(f"[API] Chiamo client.get_inbound_shipment_items(ship_id={ship_id}, merchant_id={merchant_id})")
+                        items_response = client.get_inbound_shipment_items(ship_id, merchant_id=merchant_id)
                     
                     # Converte risposta in dizionario
                     items_response_dict = items_response.model_dump() if hasattr(items_response, 'model_dump') else items_response
-                    time.sleep(0.25)  # Ridotto a 0.25s
+                    time.sleep(0.15)  # Impostato a 0.15s
                 
                 except Exception as e_detail_item:
                     logger.error(f"Errore recupero items per spedizione {ship_id}: {e_detail_item}. Salto.")
                     if final_error_message is None: final_error_message = ""
                     final_error_message += f"\nErrore recupero items sped. {ship_id}: {e_detail_item}. "
                     continue 
+
+                # Aggiungi alla cache
+                shipment_cache[cache_key] = True
 
                 shipment_title_lower = (ship_name or '').lower()
                 # Otteniamo la lista di items dal dizionario di risposta
@@ -950,7 +963,7 @@ def search_shipments_by_products(request):
                             logger.error(final_error_message)
                             break
                         logger.warning(f"Tentativo {retry_count}/{max_retries} fallito: {str(e_api)}")
-                        time.sleep(0.25 * (2**retry_count))  # Ridotto a 0.25s
+                        time.sleep(0.15 * (2**retry_count))  # Impostato a 0.15s * backoff
                         
                 if final_error_message and retry_count >= max_retries:
                     logger.error("Interruzione paginazione per errore persistente")
@@ -976,7 +989,7 @@ def search_shipments_by_products(request):
                     break
                     
                 page += 1
-                time.sleep(0.25)  # Ridotto a 0.25s
+                time.sleep(0.15)  # Impostato a 0.15s
 
         # CICLO API PER INBOUND
         if (not shipment_type_filter or shipment_type_filter == 'inbound') and total_shipments_inspected_count < max_results:
@@ -1013,7 +1026,7 @@ def search_shipments_by_products(request):
                                 logger.error(final_error_message)
                                 break
                             logger.warning(f"Tentativo {retry_count}/{max_retries} fallito: {str(e_api)}")
-                            time.sleep(0.25 * (2**retry_count))  # Ridotto a 0.25s
+                            time.sleep(0.15 * (2**retry_count))  # Impostato a 0.15s * backoff
                             
                     if final_error_message and retry_count >= max_retries:
                         logger.error("Interruzione paginazione per errore persistente")
@@ -1039,7 +1052,7 @@ def search_shipments_by_products(request):
                         break
                         
                     page += 1
-                    time.sleep(0.25)  # Ridotto a 0.25s
+                    time.sleep(0.15)  # Impostato a 0.15s
 
         # Calcola informazioni sulla paginazione
         total_items = SearchResultItem.objects.count()

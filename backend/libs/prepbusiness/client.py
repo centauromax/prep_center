@@ -1092,7 +1092,7 @@ class PrepBusinessClient:
         
         return AddItemToShipmentResponse.model_validate(response)
 
-    def get_shipment_items(
+    def get_inbound_shipment_items(
         self,
         shipment_id: int,
         merchant_id: Optional[int] = None
@@ -2163,4 +2163,15 @@ class PrepBusinessClient:
             f"/merchants/{merchant_id}/webhooks/{webhook_id}"
         )
         
-        return DeleteWebhookResponse.model_validate(response) 
+        return DeleteWebhookResponse.model_validate(response)
+
+    def get_shipment_items(
+        self,
+        shipment_id: int,
+        merchant_id: Optional[int] = None
+    ) -> ShipmentItemsResponse:
+        """Alias for get_inbound_shipment_items for backward compatibility.
+        This method is deprecated and will be removed in a future version.
+        Please use get_inbound_shipment_items instead.
+        """
+        return self.get_inbound_shipment_items(shipment_id, merchant_id) 
