@@ -531,15 +531,38 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
     Raises:
         Exception: Se tutti i tentativi falliscono
     """
-    # MOCK: Riconoscimento ID mock e restituzione dati fittizi senza chiamate API
+    # Determina se dovremmo usare mock o API reale
     is_mock = False
     
-    # Controlla se l'ID è uno dei nostri mock (1001-1005 per outbound, 2001-2005 per inbound)
-    if (1000 < shipment_id < 1006 and shipment_type == 'outbound') or (2000 < shipment_id < 2006 and shipment_type == 'inbound'):
+    # Log dettagliato per debug
+    logger.info(f"[get_shipment_details] Chiamata per ID={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    
+    # 1. Controllo esplicito per range di ID mock
+    if (shipment_id >= 1001 and shipment_id <= 1005) and shipment_type == 'outbound':
         is_mock = True
-        logger.info(f"[MOCK] Rilevato ID mock {shipment_id} per {shipment_type}, utilizzo dati fittizi senza chiamata API")
+        logger.info(f"[get_shipment_details] ID {shipment_id} riconosciuto come mock outbound (1001-1005)")
+    elif (shipment_id >= 2001 and shipment_id <= 2005) and shipment_type == 'inbound':
+        is_mock = True
+        logger.info(f"[get_shipment_details] ID {shipment_id} riconosciuto come mock inbound (2001-2005)")
+    else:
+        logger.info(f"[get_shipment_details] ID {shipment_id} NON riconosciuto come mock")
+    
+    # Ulteriore verifica con nome mock per maggiore sicurezza
+    if not is_mock and shipment_type == 'outbound' and isinstance(shipment_id, int):
+        # Cerca un pattern come "MOCK-OUT-X" nei dettagli disponibili
+        id_residuo = shipment_id - 1000
+        if 1 <= id_residuo <= 5:
+            is_mock = True
+            logger.info(f"[get_shipment_details] ID {shipment_id} rilevato come mock outbound dall'ID residuo ({id_residuo})")
+    elif not is_mock and shipment_type == 'inbound' and isinstance(shipment_id, int):
+        # Cerca un pattern come "MOCK-IN-X" nei dettagli disponibili
+        id_residuo = shipment_id - 2000
+        if 1 <= id_residuo <= 5:
+            is_mock = True
+            logger.info(f"[get_shipment_details] ID {shipment_id} rilevato come mock inbound dall'ID residuo ({id_residuo})")
     
     if is_mock:
+        logger.info(f"[get_shipment_details] ✓ Usando MOCK per {shipment_type} {shipment_id}")
         # Crea un mock della risposta
         if shipment_type == 'inbound':
             # Struttura mock per InboundShipmentResponse
@@ -575,6 +598,7 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
         return mock_response
     
     # Se non è mock, usa l'API reale
+    logger.info(f"[get_shipment_details] Usando API REALE per {shipment_type} {shipment_id}")
     try:
         if shipment_type == 'inbound':
             response = client.get_inbound_shipment(shipment_id, merchant_id=merchant_id)
@@ -583,7 +607,7 @@ def get_shipment_details(client: PrepBusinessClient, shipment_id: int, shipment_
             response = client.get_outbound_shipment(shipment_id, merchant_id=merchant_id)
             return response.model_dump()
     except Exception as e:
-        logger.error(f"Errore nel recupero dettagli spedizione {shipment_id}: {str(e)}")
+        logger.error(f"[get_shipment_details] Errore nel recupero dettagli spedizione {shipment_id}: {str(e)}")
         raise
 
 @retry_on_error(max_retries=3, delay=2, backoff=2)
@@ -603,15 +627,38 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
     Raises:
         Exception: Se tutti i tentativi falliscono
     """
-    # MOCK: Riconoscimento ID mock e restituzione dati fittizi senza chiamate API
+    # Determina se dovremmo usare mock o API reale
     is_mock = False
     
-    # Controlla se l'ID è uno dei nostri mock (1001-1005 per outbound, 2001-2005 per inbound)
-    if (1000 < shipment_id < 1006 and shipment_type == 'outbound') or (2000 < shipment_id < 2006 and shipment_type == 'inbound'):
+    # Log dettagliato per debug
+    logger.info(f"[get_shipment_items] Chiamata per ID={shipment_id}, tipo={shipment_type}, merchant={merchant_id}")
+    
+    # 1. Controllo esplicito per range di ID mock
+    if (shipment_id >= 1001 and shipment_id <= 1005) and shipment_type == 'outbound':
         is_mock = True
-        logger.info(f"[MOCK] Rilevato ID mock {shipment_id} per {shipment_type}, utilizzo items fittizi senza chiamata API")
+        logger.info(f"[get_shipment_items] ID {shipment_id} riconosciuto come mock outbound (1001-1005)")
+    elif (shipment_id >= 2001 and shipment_id <= 2005) and shipment_type == 'inbound':
+        is_mock = True
+        logger.info(f"[get_shipment_items] ID {shipment_id} riconosciuto come mock inbound (2001-2005)")
+    else:
+        logger.info(f"[get_shipment_items] ID {shipment_id} NON riconosciuto come mock")
+    
+    # Ulteriore verifica con nome mock per maggiore sicurezza
+    if not is_mock and shipment_type == 'outbound' and isinstance(shipment_id, int):
+        # Cerca un pattern come "MOCK-OUT-X" nei dettagli disponibili
+        id_residuo = shipment_id - 1000
+        if 1 <= id_residuo <= 5:
+            is_mock = True
+            logger.info(f"[get_shipment_items] ID {shipment_id} rilevato come mock outbound dall'ID residuo ({id_residuo})")
+    elif not is_mock and shipment_type == 'inbound' and isinstance(shipment_id, int):
+        # Cerca un pattern come "MOCK-IN-X" nei dettagli disponibili
+        id_residuo = shipment_id - 2000
+        if 1 <= id_residuo <= 5:
+            is_mock = True
+            logger.info(f"[get_shipment_items] ID {shipment_id} rilevato come mock inbound dall'ID residuo ({id_residuo})")
     
     if is_mock:
+        logger.info(f"[get_shipment_items] ✓ Usando MOCK per {shipment_type} {shipment_id}")
         # Crea mock items diversi a seconda del tipo di spedizione
         if shipment_type == 'inbound':
             # Struttura mock per InboundShipmentItems con parola "Singer" in un item per simulare match di ricerca
@@ -666,6 +713,7 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
         return mock_response
     
     # Se non è mock, usa l'API reale
+    logger.info(f"[get_shipment_items] Usando API REALE per {shipment_type} {shipment_id}")
     try:
         if shipment_type == 'inbound':
             response = client.get_inbound_shipment_items(shipment_id, merchant_id=merchant_id)
@@ -673,7 +721,7 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
             response = client.get_outbound_shipment_items(shipment_id, merchant_id=merchant_id)
         return response.model_dump()
     except Exception as e:
-        logger.error(f"Errore nel recupero items spedizione {shipment_id}: {str(e)}")
+        logger.error(f"[get_shipment_items] Errore nel recupero items spedizione {shipment_id}: {str(e)}")
         raise
 
 def extract_product_info_from_dict(item_dict: Dict[str, Any], shipment_type: str) -> Dict[str, Any]:
