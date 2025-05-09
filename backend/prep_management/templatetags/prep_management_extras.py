@@ -30,4 +30,15 @@ def pprint_json(value):
     try:
         return json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True)
     except (TypeError, ValueError):
-        return str(value) 
+        return str(value)
+
+@register.filter
+def get_range(value):
+    """
+    Filter - returns a list containing range made from given value
+    Usage (in template):
+    <ul>{% for i in 3|get_range %}
+      <li>{{ i }}. Do something</li>
+    {% endfor %}</ul>
+    """
+    return range(1, int(value) + 1) 
