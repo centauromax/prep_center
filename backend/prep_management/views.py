@@ -611,7 +611,7 @@ def search_shipments_by_products(request):
     merchants = get_merchants()
     context = {
         'merchants': merchants,
-        'merchant_id': request.POST.get('merchant_id') or request.GET.get('merchant_id', ''),
+        'merchant_id': request.POST.get('merchant_id') or request.GET.get('merchant_id'),
         'shipment_type': request.POST.get('shipment_type') or request.GET.get('shipment_type', ''),
         'shipment_status': request.POST.get('shipment_status') or request.GET.get('shipment_status', ''),
         'keywords': request.POST.get('keywords') or request.GET.get('keywords', ''),
@@ -627,7 +627,7 @@ def search_shipments_by_products(request):
         search_id = str(uuid.uuid4())
         
         # Get merchant ID from session
-        merchant_id = request.session.get('merchant_id')
+        merchant_id = request.POST.get('merchant_id') or request.GET.get('merchant_id')
         if not merchant_id:
             return JsonResponse({'error': 'Merchant ID non trovato'}, status=400)
         
