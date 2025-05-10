@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Submit form via AJAX
-        fetch('/prep_management/search_shipments/', {
+        fetch('/prep_management/search-shipments/', {
             method: 'POST',
             body: new FormData(searchForm),
             headers: {
