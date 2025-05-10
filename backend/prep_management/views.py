@@ -607,6 +607,16 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
 
 # @login_required
 def search_shipments_by_products(request):
+    merchants = get_merchants()
+    context = {
+        'merchants': merchants,
+        'merchant_id': request.POST.get('merchant_id') or request.GET.get('merchant_id', ''),
+        'shipment_type': request.POST.get('shipment_type') or request.GET.get('shipment_type', ''),
+        'shipment_status': request.POST.get('shipment_status') or request.GET.get('shipment_status', ''),
+        'keywords': request.POST.get('keywords') or request.GET.get('keywords', ''),
+        'search_type': request.POST.get('search_type') or request.GET.get('search_type', 'OR'),
+        'max_results': request.POST.get('max_results') or request.GET.get('max_results', 10),
+    }
     if request.method == 'POST':
         search_terms = request.POST.get('search_terms', '').strip()
         if not search_terms:
