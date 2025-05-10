@@ -679,7 +679,8 @@ def search_shipments_by_products(request):
     if not search_id:
         return render(request, 'prep_management/search_shipments.html', {
             'results': [],
-            'is_waiting': False
+            'is_waiting': False,
+            **context
         })
     
     try:
@@ -693,7 +694,8 @@ def search_shipments_by_products(request):
             return render(request, 'prep_management/search_shipments.html', {
                 'results': [],
                 'is_waiting': True,
-                'search_id': search_id
+                'search_id': search_id,
+                **context
             })
         
         # Paginate results
@@ -706,12 +708,14 @@ def search_shipments_by_products(request):
         return render(request, 'prep_management/search_shipments.html', {
             'results': page_obj,
             'is_waiting': False,
-            'search_id': search_id
+            'search_id': search_id,
+            **context
         })
         
     except Exception as e:
         logger.error(f"Error retrieving search results: {str(e)}")
         return render(request, 'prep_management/search_shipments.html', {
             'error': str(e),
-            'is_waiting': False
+            'is_waiting': False,
+            **context
         })
