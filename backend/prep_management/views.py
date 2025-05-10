@@ -41,7 +41,7 @@ from libs.prepbusiness.models import (
 )
 from .tasks import process_shipment_batch
 from .utils.extractors import extract_product_info_from_dict
-from django.contrib.auth.decorators import login_required
+# from django.contrib.auth.decorators import login_required
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -605,7 +605,7 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
         mock_response = {'items': items, 'total': len(items)}
     return mock_response
 
-@login_required
+# @login_required
 def search_shipments_by_products(request):
     if request.method == 'POST':
         search_terms = request.POST.get('search_terms', '').strip()
