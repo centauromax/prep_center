@@ -41,6 +41,7 @@ from libs.prepbusiness.models import (
 )
 from .tasks import process_shipment_batch
 from .utils.extractors import extract_product_info_from_dict
+from django.contrib.auth.decorators import login_required
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
