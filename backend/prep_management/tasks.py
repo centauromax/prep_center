@@ -3,9 +3,17 @@ from celery import shared_task
 from django.db import transaction
 from .models import SearchResultItem
 from .utils.extractors import extract_product_info_from_dict
-from .clients import get_client
+from libs.prepbusiness.client import PrepBusinessClient
+from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 
 logger = logging.getLogger(__name__)
+
+def get_client():
+    company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
+    return PrepBusinessClient(
+        api_key=PREP_BUSINESS_API_KEY,
+        company_domain=company_domain
+    )
 
 @shared_task(bind=True, max_retries=3)
 def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, shipment_type='outbound'):
