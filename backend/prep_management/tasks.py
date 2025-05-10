@@ -2,13 +2,13 @@ import logging
 from celery import shared_task
 from django.db import transaction
 from .models import SearchResultItem
-from .utils import extract_product_info_from_dict
+from .utils.extractors import extract_product_info_from_dict
 from .clients import get_client
 
 logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, max_retries=3)
-def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1):
+def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, shipment_type='outbound'):
     """
     Process a batch of shipments asynchronously
     """
@@ -34,7 +34,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1):
                 # Process each item
                 for item in items:
                     try:
-                        product_info = extract_product_info_from_dict(item)
+                        product_info = extract_product_info_from_dict(item, shipment_type)
                         if product_info:
                             results.append({
                                 'shipment_id': shipment_id,
