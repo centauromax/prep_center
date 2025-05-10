@@ -605,6 +605,7 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
         mock_response = {'items': items, 'total': len(items)}
     return mock_response
 
+@csrf_exempt
 # @login_required
 def search_shipments_by_products(request):
     merchants = get_merchants()
