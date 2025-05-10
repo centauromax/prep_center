@@ -40,6 +40,7 @@ from libs.prepbusiness.models import (
     ShipmentItemsResponse
 )
 from .tasks import process_shipment_batch
+from .utils.extractors import extract_product_info_from_dict
 
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -602,63 +603,6 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
             items.append(item)
         mock_response = {'items': items, 'total': len(items)}
     return mock_response
-
-def extract_product_info_from_dict(item_dict: Dict[str, Any], shipment_type: str) -> Dict[str, Any]:
-    """Estrae SKU, ASIN, FNSKU, Titolo e Quantità da un item_dict."""
-    product_title = None
-    product_sku = None
-    product_asin = None
-    product_fnsku = None
-    product_quantity = item_dict.get('quantity')
-
-    if shipment_type == 'inbound':
-        # Inbound item_dict: {'name': '...', 'sku': '...', 'asin': '...', 'fnsku': '...', 'quantity': ...}
-        # La struttura esatta potrebbe variare, adattare secondo il modello effettivo. Qui presumo campi diretti.
-        # Questa parte potrebbe necessitare di un'ispezione più approfondita dei dati reali inbound.
-        product_title = item_dict.get('name')
-        product_sku = item_dict.get('sku') # Assumendo che esista un campo sku diretto
-        product_asin = item_dict.get('asin') # Assumendo che esista un campo asin diretto
-        # FNSKU potrebbe non essere sempre presente direttamente sull'item di una spedizione inbound
-        # Potrebbe essere sull'oggetto InventoryItem collegato, se disponibile
-        # Per ora, lo lasciamo None se non direttamente sull'item_dict
-
-    elif shipment_type == 'outbound':
-        # Outbound item_dict: {
-        #   'quantity': ..., 
-        #   'item': {
-        #     'title': '...', 
-        #     'merchant_sku': '...', 
-        #     'asin': '...', 
-        #     'fnsku': '...',
-        #     'identifiers': [{'identifier': 'val', 'identifier_type': 'ASIN'}, ...]
-        #   }
-        # }
-        inventory_item_data = item_dict.get('item') if isinstance(item_dict, dict) else None
-        if inventory_item_data and isinstance(inventory_item_data, dict):
-            product_title = inventory_item_data.get('title')
-            product_sku = inventory_item_data.get('merchant_sku')
-            product_asin = inventory_item_data.get('asin')
-            product_fnsku = inventory_item_data.get('fnsku')
-            
-            # Fallback per ASIN/FNSKU da identifiers se non diretti
-            if not product_asin and 'identifiers' in inventory_item_data:
-                for ident in inventory_item_data.get('identifiers', []):
-                    if ident.get('identifier_type') == 'ASIN':
-                        product_asin = ident.get('identifier')
-                        break
-            if not product_fnsku and 'identifiers' in inventory_item_data:
-                for ident in inventory_item_data.get('identifiers', []):
-                    if ident.get('identifier_type') == 'FNSKU':
-                        product_fnsku = ident.get('identifier')
-                        break
-    
-    return {
-        'title': product_title,
-        'sku': product_sku,
-        'asin': product_asin,
-        'fnsku': product_fnsku,
-        'quantity': product_quantity
-    }
 
 @login_required
 def search_shipments_by_products(request):
