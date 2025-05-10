@@ -619,7 +619,7 @@ def search_shipments_by_products(request):
         'max_results': request.POST.get('max_results') or request.GET.get('max_results', 10),
     }
     if request.method == 'POST':
-        search_terms = request.POST.get('search_terms', '').strip()
+        search_terms = request.POST.get('keywords', '').strip()
         if not search_terms:
             return JsonResponse({'error': 'Nessun termine di ricerca fornito'}, status=400)
         
