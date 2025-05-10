@@ -6,7 +6,7 @@
 <div class="container mt-4">
     <h2>Ricerca Spedizioni per Prodotti</h2>
     
-    <form method="post" id="searchForm" class="mb-4">
+    <form method="post" id="searchForm" class="mb-4" action="{% url 'search_shipments_by_products' %}">
         {% csrf_token %}
         <div class="row">
             <div class="col-md-3">
@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
         
         // Submit form via AJAX
-        fetch('/prep_management/search-shipments/', {
+        fetch(searchForm.action, {
             method: 'POST',
             body: new FormData(searchForm),
             headers: {
