@@ -1,119 +1,42 @@
 {% extends "base.html" %}
 {% load prep_management_extras %}
+{% load static %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-4">Ricerca spedizioni per prodotti</h1>
-
-    <!-- Form di ricerca -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-md-3">
-                    <label for="merchant_name" class="form-label">Cliente</label>
-                    <select class="form-select" id="merchant_name" name="merchant_name">
-                        <option value="">Seleziona un cliente...</option>
-                        {% for merchant in merchants %}
-                        <option value="{{ merchant.name }}" {% if merchant.name == merchant_name %}selected{% endif %}>{{ merchant.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <!-- Se esiste un search_id lo aggiungiamo come campo nascosto per mantenere lo stato -->
-                {% if search_id %}
-                <input type="hidden" name="search_id" value="{{ search_id }}">
-                {% endif %}
-                
-                <div class="col-md-3">
-                    <label for="shipment_type" class="form-label">Tipo di spedizione</label>
-                    <select class="form-select" id="shipment_type" name="shipment_type">
-                        <option value="">Tutte le spedizioni</option>
-                        <option value="inbound" {% if shipment_type == 'inbound' %}selected{% endif %}>In entrata</option>
-                        <option value="outbound" {% if shipment_type == 'outbound' %}selected{% endif %}>In uscita</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="keywords" class="form-label">Parole chiave prodotti (separate da virgola)</label>
-                    <input type="text" class="form-control" id="keywords" name="keywords" 
-                           value="{{ keywords }}" placeholder="es. maglia, rossa, cotone">
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="search_type" class="form-label">Tipo di ricerca keywords</label>
-                    <select class="form-select" id="search_type" name="search_type">
-                        <option value="OR" {% if search_type == 'OR' %}selected{% endif %}>OR (almeno una parola)</option>
-                        <option value="AND" {% if search_type == 'AND' %}selected{% endif %}>AND (tutte le parole)</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-3">
-                    <label for="shipment_status" class="form-label">Stato spedizione</label>
-                    <select class="form-select" id="shipment_status" name="shipment_status">
-                        <option value="">Tutte</option>
-                        <option value="open" {% if shipment_status == 'open' %}selected{% endif %}>Aperte</option>
-                        <option value="archived" {% if shipment_status == 'archived' %}selected{% endif %}>Archiviate</option>
-                    </select>
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="max_results" class="form-label">Risultati per pagina</label>
-                    <input type="number" class="form-control" id="max_results" name="max_results" min="10" max="100" value="{{ max_results }}">
-                </div>
-                
-                <div class="col-md-2">
-                    <label for="date_from" class="form-label">Data da</label>
-                    <input type="date" class="form-control" id="date_from" name="date_from" value="{{ date_from }}">
-                </div>
-                <div class="col-md-2">
-                    <label for="date_to" class="form-label">Data a</label>
-                    <input type="date" class="form-control" id="date_to" name="date_to" value="{{ date_to }}">
-                </div>
-                
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">Cerca</button>
-                </div>
-            </form>
+    <h2>Ricerca Spedizioni per Prodotti</h2>
+    
+    <form method="post" id="searchForm" class="mb-4">
+        {% csrf_token %}
+        <div class="form-group">
+            <label for="search_terms">Inserisci i termini di ricerca (uno per riga):</label>
+            <textarea class="form-control" id="search_terms" name="search_terms" rows="5" required></textarea>
         </div>
-    </div>
+        <button type="submit" class="btn btn-primary">Cerca</button>
+    </form>
 
-    <!-- Informazioni di progresso -->
-    {% if is_waiting %}
-    <div class="alert alert-info">
-        <h4>Ricerca in corso...</h4>
-        <div class="progress mb-3">
-            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" 
-                 style="width: {{ search_progress.processed_shipments|default:0 }}%">
-                {{ search_progress.processed_shipments|default:0 }} spedizioni processate
+    <div id="searchResults">
+        {% if is_waiting %}
+            <div class="alert alert-info">
+                <h4>Ricerca in corso...</h4>
+                <p>Stiamo elaborando i risultati. Questa pagina si aggiornerà automaticamente.</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                </div>
             </div>
-        </div>
-        <p>Ultimo aggiornamento: {{ search_progress.last_updated|date:"H:i:s" }}</p>
-    </div>
-    {% endif %}
-
-    <!-- Messaggi di errore -->
-    {% if error %}
-    <div class="alert alert-danger">
-        {{ error }}
-    </div>
-    {% endif %}
-
-    <!-- Risultati della ricerca -->
-    {% if results %}
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Risultati della ricerca</h5>
-            <span class="badge bg-primary">Totale items: {{ total_items_found }}</span>
-        </div>
-        <div class="card-body">
+        {% elif error %}
+            <div class="alert alert-danger">
+                <h4>Errore</h4>
+                <p>{{ error }}</p>
+            </div>
+        {% elif results %}
+            <h3>Risultati della Ricerca</h3>
             <div class="table-responsive">
                 <table class="table table-striped">
                     <thead>
                         <tr>
-                            <th>ID Spedizione</th>
-                            <th>Nome Spedizione</th>
-                            <th>Tipo</th>
-                            <th>Prodotto</th>
+                            <th>Spedizione ID</th>
+                            <th>Titolo</th>
                             <th>SKU</th>
                             <th>ASIN</th>
                             <th>FNSKU</th>
@@ -123,65 +46,125 @@
                     <tbody>
                         {% for result in results %}
                         <tr>
-                            <td>{{ result.shipment_id_api }}</td>
-                            <td>{{ result.shipment_name }}</td>
-                            <td>{{ result.shipment_type }}</td>
-                            <td>{{ result.product_title }}</td>
-                            <td>{{ result.product_sku }}</td>
-                            <td>{{ result.product_asin }}</td>
-                            <td>{{ result.product_fnsku }}</td>
-                            <td>{{ result.product_quantity }}</td>
+                            <td>{{ result.shipment_id }}</td>
+                            <td>{{ result.title }}</td>
+                            <td>{{ result.sku }}</td>
+                            <td>{{ result.asin }}</td>
+                            <td>{{ result.fnsku }}</td>
+                            <td>{{ result.quantity }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-
-            <!-- Paginazione -->
-            {% if has_next_page or has_previous_page %}
-            <nav aria-label="Page navigation" class="mt-4">
+            
+            {% if results.has_other_pages %}
+            <nav aria-label="Page navigation">
                 <ul class="pagination justify-content-center">
-                    <li class="page-item {% if not has_previous_page %}disabled{% endif %}">
-                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ current_page|add:"-1" }}&search_id={{ search_id }}" tabindex="-1" {% if not has_previous_page %}aria-disabled="true"{% endif %}>Precedente</a>
+                    {% if results.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.previous_page_number }}">Precedente</a>
                     </li>
+                    {% endif %}
                     
-                    {% for i in total_pages|get_range %}
-                    <li class="page-item {% if i == current_page %}active{% endif %}">
-                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ i }}&search_id={{ search_id }}">{{ i }}</a>
+                    {% for num in results.paginator.page_range %}
+                    <li class="page-item {% if results.number == num %}active{% endif %}">
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ num }}">{{ num }}</a>
                     </li>
                     {% endfor %}
                     
-                    <li class="page-item {% if not has_next_page %}disabled{% endif %}">
-                        <a class="page-link" href="?merchant_name={{ merchant_name }}&keywords={{ keywords }}&search_type={{ search_type }}&shipment_type={{ shipment_type }}&shipment_status={{ shipment_status }}&max_results={{ max_results }}&date_from={{ date_from }}&date_to={{ date_to }}&page={{ current_page|add:"1" }}&search_id={{ search_id }}">Successiva</a>
+                    {% if results.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.next_page_number }}">Successivo</a>
                     </li>
+                    {% endif %}
                 </ul>
             </nav>
             {% endif %}
-
-            <!-- Informazioni sulla pagina -->
-            <div class="text-center mt-3">
-                <p class="text-muted">
-                    Pagina {{ current_page }} di {{ total_pages }} | 
-                    Mostrando {{ results|length }} risultati su {{ total_items_found }} totali
-                </p>
+        {% else %}
+            <div class="alert alert-info">
+                <p>Nessun risultato trovato.</p>
             </div>
-        </div>
+        {% endif %}
     </div>
-    {% elif search_triggered %}
-    <div class="alert alert-info">
-        Nessun risultato trovato per i criteri di ricerca specificati.
-    </div>
-    {% endif %}
 </div>
 
 {% block extra_js %}
 <script>
-    // Aggiorna automaticamente la pagina se la ricerca è in corso
-    {% if is_waiting %}
-    setTimeout(function() {
-        window.location.reload();
-    }, 5000);  // Ricarica ogni 5 secondi
-    {% endif %}
+document.addEventListener('DOMContentLoaded', function() {
+    const searchForm = document.getElementById('searchForm');
+    const searchResults = document.getElementById('searchResults');
+    
+    searchForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading state
+        searchResults.innerHTML = `
+            <div class="alert alert-info">
+                <h4>Ricerca in corso...</h4>
+                <p>Stiamo elaborando i risultati. Questa pagina si aggiornerà automaticamente.</p>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                </div>
+            </div>
+        `;
+        
+        // Submit form via AJAX
+        fetch(searchForm.action, {
+            method: 'POST',
+            body: new FormData(searchForm),
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'processing') {
+                // Start polling for results
+                pollResults(data.search_id);
+            } else if (data.error) {
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h4>Errore</h4>
+                        <p>${data.error}</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            searchResults.innerHTML = `
+                <div class="alert alert-danger">
+                    <h4>Errore</h4>
+                    <p>Si è verificato un errore durante la ricerca: ${error}</p>
+                </div>
+            `;
+        });
+    });
+    
+    function pollResults(searchId) {
+        const pollInterval = setInterval(() => {
+            fetch(`?search_id=${searchId}`)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    const newResults = doc.getElementById('searchResults');
+                    
+                    if (newResults) {
+                        searchResults.innerHTML = newResults.innerHTML;
+                        
+                        // If we have results and we're not waiting anymore, stop polling
+                        if (!newResults.querySelector('.alert-info')) {
+                            clearInterval(pollInterval);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error polling results:', error);
+                });
+        }, 5000); // Poll every 5 seconds
+    }
+});
 </script>
 {% endblock %}
 
