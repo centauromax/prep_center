@@ -639,7 +639,9 @@ def search_shipments_by_products(request):
         try:
             # Get all shipments
             client = get_client()
-            shipments_response = client.get_outbound_shipments(merchant_id=merchant_id)
+            shipment_status = request.POST.get('shipment_status') or request.GET.get('shipment_status', '')
+            logger.info(f"[search_shipments_by_products] Filtro stato spedizione: {shipment_status}")
+            shipments_response = client.get_outbound_shipments(merchant_id=merchant_id, status=shipment_status)
             logger.info(f"[search_shipments_by_products] Risposta da client.get_outbound_shipments: {shipments_response}") # LOG RAW RESPONSE
             
             if not shipments_response or 'shipments' not in shipments_response or not shipments_response['shipments']:

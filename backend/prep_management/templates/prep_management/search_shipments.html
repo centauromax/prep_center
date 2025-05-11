@@ -161,6 +161,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.status === 'processing') {
                 // Start polling for results
                 pollResults(data.search_id);
+            } else if (data.status === 'no_results') {
+                searchResults.innerHTML = `
+                    <div class="alert alert-info">
+                        <p>Nessun risultato trovato.</p>
+                    </div>
+                `;
             } else if (data.error) {
                 searchResults.innerHTML = `
                     <div class="alert alert-danger">
