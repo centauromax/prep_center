@@ -21,6 +21,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
     """
     Process a batch of shipments asynchronously
     """
+    logger.info(f"[Celery][process_shipment_batch] INIZIO - search_id={search_id}, shipment_ids={shipment_ids}, merchant_id={merchant_id}, page={page}, shipment_type={shipment_type}")
     try:
         client = get_client()
         results = []
@@ -34,7 +35,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
                 )
                 
                 if not items_response or 'items' not in items_response:
-                    logger.warning(f"No items found for shipment {shipment_id}")
+                    logger.warning(f"[Celery][process_shipment_batch] Nessun item per shipment_id={shipment_id}")
                     continue
                 
                 items = items_response['items']
@@ -54,7 +55,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
                         continue
                 
             except Exception as e:
-                logger.error(f"Error processing shipment {shipment_id}: {str(e)}")
+                logger.error(f"[Celery][process_shipment_batch] Errore durante l'elaborazione di shipment_id={shipment_id}: {e}")
                 continue
         
         # Save results to database
@@ -77,9 +78,9 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
             'results_count': len(results)
         }
         
-    except Exception as e:
-        logger.error(f"Error in process_shipment_batch: {str(e)}")
-        self.retry(exc=e, countdown=60)  # Retry after 1 minute
+    except Exception as exc:
+        logger.error(f"[Celery][process_shipment_batch] ERRORE: {exc}")
+        raise self.retry(exc=exc)
 
 @shared_task
 def cleanup_old_searches():

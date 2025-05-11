@@ -10,7 +10,7 @@
   "services": [
     {
       "name": "celery",
-      "startCommand": "celery -A prep_center worker -l info -Q prep_management"
+      "startCommand": "celery -A prep_center worker -l info"
     },
     {
       "name": "celery-beat",

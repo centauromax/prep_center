@@ -609,6 +609,7 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
 @csrf_exempt
 # @login_required
 def search_shipments_by_products(request):
+    logger.info(f"[search_shipments_by_products] INIZIO - method={request.method}, POST={request.POST.dict()}, GET={request.GET.dict()}")
     merchants = get_merchants()
     context = {
         'merchants': merchants,
@@ -622,15 +623,16 @@ def search_shipments_by_products(request):
     if request.method == 'POST':
         search_terms = request.POST.get('keywords', '').strip()
         if not search_terms:
+            logger.info("[search_shipments_by_products] Nessun termine di ricerca fornito")
             return JsonResponse({'error': 'Nessun termine di ricerca fornito'}, status=400)
+        merchant_id = request.POST.get('merchant_id') or request.GET.get('merchant_id')
+        if not merchant_id:
+            logger.info("[search_shipments_by_products] Merchant ID non trovato")
+            return JsonResponse({'error': 'Merchant ID non trovato'}, status=400)
+        logger.info(f"[search_shipments_by_products] Parametri validi: merchant_id={merchant_id}, search_terms={search_terms}")
         
         # Generate a unique search ID
         search_id = str(uuid.uuid4())
-        
-        # Get merchant ID from session
-        merchant_id = request.POST.get('merchant_id') or request.GET.get('merchant_id')
-        if not merchant_id:
-            return JsonResponse({'error': 'Merchant ID non trovato'}, status=400)
         
         try:
             # Get all shipments
