@@ -619,7 +619,7 @@ def search_shipments_by_products(request):
         'shipment_status': request.POST.get('shipment_status') or request.GET.get('shipment_status', ''),
         'keywords': request.POST.get('keywords') or request.GET.get('keywords', ''),
         'search_type': request.POST.get('search_type') or request.GET.get('search_type', 'OR'),
-        'max_results': request.POST.get('max_results') or request.GET.get('max_results', 10),
+        'max_shipments': request.POST.get('max_shipments') or request.GET.get('max_shipments', 20),
     }
     if request.method == 'GET':
         logger.info(f"[search_shipments_by_products] GET polling - search_id={request.GET.get('search_id')}, page={request.GET.get('page')}")

@@ -35,8 +35,8 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label for="max_results" class="form-label">Risultati per pagina</label>
-                <input type="number" class="form-control" id="max_results" name="max_results" min="10" max="100" value="{{ max_results|default:10 }}">
+                <label for="max_shipments" class="form-label">Massimo numero di spedizioni</label>
+                <input type="number" class="form-control" id="max_shipments" name="max_shipments" min="1" max="1000" value="{{ max_shipments|default:20 }}">
             </div>
         </div>
         <div class="row mt-3">
