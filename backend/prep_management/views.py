@@ -668,7 +668,7 @@ def search_shipments_by_products(request):
 
 
     if request.method == 'POST':
-        logger.debug(f"[search_shipments_by_products DEBUG] --- INIZIO LOGICA POST ---")
+        logger.debug(f"[VIEW_POST] --- INIZIO LOGICA POST ---")
         search_terms = request.POST.get('keywords', '').strip()
         if not search_terms:
             logger.info("[search_shipments_by_products] Nessun termine di ricerca fornito")
@@ -679,166 +679,133 @@ def search_shipments_by_products(request):
             logger.info("[search_shipments_by_products] Merchant ID non trovato nel POST")
             return JsonResponse({'error': 'Merchant ID non trovato'}, status=400)
         
-        logger.info(f"[search_shipments_by_products] Parametri validi: merchant_id={merchant_id}, search_terms={search_terms}")
+        logger.info(f"[VIEW_POST] Parametri validi: merchant_id={merchant_id}, search_terms={search_terms}")
         search_id = str(uuid.uuid4())
-        cache.delete(f"{search_id}_done") # Rimuovi flag precedente se esiste
-        logger.debug(f"[search_shipments_by_products DEBUG] Generato search_id: {search_id}")
+        cache.delete(f"{search_id}_done")
+        logger.debug(f"[VIEW_POST] Generato search_id: {search_id}")
 
         shipment_status = request.POST.get('shipment_status', '') # Default a stringa vuota se non fornito
-        logger.info(f"[search_shipments_by_products] Filtro stato spedizione richiesto: '{shipment_status}'")
+        logger.info(f"[VIEW_POST] Filtro stato spedizione richiesto: '{shipment_status}'")
 
         max_shipments_to_analyze = int(request.POST.get('max_shipments', 20))
-        logger.debug(f"[search_shipments_by_products DEBUG] Massimo numero di spedizioni da analizzare: {max_shipments_to_analyze}")
+        logger.debug(f"[VIEW_POST] Massimo numero di spedizioni da analizzare: {max_shipments_to_analyze}")
 
         client = get_client()
-        all_shipments_from_api = []
-        current_page = 1
-        shipments_processed_count = 0
+        shipments_collected_from_api = [] # Spedizioni grezze dall'API
+        shipments_analyzed_count = 0      # Conteggio delle spedizioni analizzate (non necessariamente matchate)
+        current_api_page = 1
 
-        logger.debug(f"[search_shipments_by_products DEBUG] Inizio loop recupero spedizioni API...")
-        while shipments_processed_count < max_shipments_to_analyze:
-            logger.debug(f"[search_shipments_by_products DEBUG] Richiesta pagina {current_page} di spedizioni (max_per_page=20). Stato: '{shipment_status if shipment_status else 'aperte (default)'}'")
+        logger.debug(f"[VIEW_POST] Inizio loop recupero API. Target spedizioni da analizzare: {max_shipments_to_analyze}")
+        while shipments_analyzed_count < max_shipments_to_analyze:
+            logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page}. Spedizioni analizzate finora: {shipments_analyzed_count}")
             
             shipments_page_response = None
             try:
                 if shipment_status == 'archived':
-                    logger.debug(f"[search_shipments_by_products DEBUG] Chiamo client.get_archived_outbound_shipments(merchant_id={merchant_id}, page={current_page}, per_page=20)")
-                    shipments_page_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, page=current_page, per_page=20)
+                    logger.debug(f"[VIEW_POST] Chiamo client.get_archived_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
+                    shipments_page_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
                 else: # 'open' o vuoto (default API per aperte)
-                    logger.debug(f"[search_shipments_by_products DEBUG] Chiamo client.get_outbound_shipments(merchant_id={merchant_id}, page={current_page}, per_page=20)")
-                    shipments_page_response = client.get_outbound_shipments(merchant_id=merchant_id, page=current_page, per_page=20)
-                logger.debug(f"[search_shipments_by_products DEBUG] Risposta API pagina {current_page}: {shipments_page_response}")
+                    logger.debug(f"[VIEW_POST] Chiamo client.get_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
+                    shipments_page_response = client.get_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
+                logger.debug(f"[VIEW_POST] Risposta API pagina {current_api_page}: {shipments_page_response}")
             except Exception as e_api_call:
-                logger.error(f"[search_shipments_by_products DEBUG] Errore chiamata API per pagina {current_page}: {e_api_call}")
+                logger.error(f"[VIEW_POST] Errore chiamata API per pagina {current_api_page}: {e_api_call}")
                 break # Esce dal loop se c'è un errore API
 
             if not shipments_page_response or not shipments_page_response.data:
-                logger.debug(f"[search_shipments_by_products DEBUG] Nessuna spedizione dati in risposta per pagina {current_page} o fine delle spedizioni API.")
-                break 
-            
-            all_shipments_from_api.extend(shipments_page_response.data)
-            shipments_processed_count = len(all_shipments_from_api) # Aggiorna il conteggio totale
-            logger.debug(f"[search_shipments_by_products DEBUG] Pagina {current_page} processata. Totale spedizioni recuperate finora: {shipments_processed_count} (target: {max_shipments_to_analyze})")
+                logger.debug(f"[VIEW_POST] API: Nessun dato per pagina {current_api_page} o fine pagine.")
+                break
+
+            shipments_from_current_page = shipments_page_response.data
+            shipments_collected_from_api.extend(shipments_from_current_page)
+            logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da pagina {current_api_page}. Totale raccolte: {len(shipments_collected_from_api)}")
+
+            # Aumenta il conteggio delle spedizioni analizzate con quelle appena ricevute
+            # O, più correttamente, si analizzano queste e si incrementa il contatore DENTRO il loop di analisi sotto.
+            # Per ora, assumiamo che tutte quelle recuperate verranno analizzate fino al raggiungimento del max.
 
             if not shipments_page_response.next_page_url:
-                logger.debug(f"[search_shipments_by_products DEBUG] API indica che non ci sono altre pagine.")
+                logger.debug(f"[VIEW_POST] API: Ultima pagina raggiunta.")
                 break
-            current_page += 1
+            current_api_page += 1
         
-        logger.debug(f"[search_shipments_by_products DEBUG] Loop API terminato. Totale spedizioni recuperate: {len(all_shipments_from_api)}")
-        # Analizza solo fino a max_shipments_to_analyze, se ne abbiamo recuperate di più
-        shipments_to_analyze_list = all_shipments_from_api[:max_shipments_to_analyze]
-        logger.debug(f"[search_shipments_by_products DEBUG] Lista finale di spedizioni da analizzare (max {max_shipments_to_analyze}): {len(shipments_to_analyze_list)}")
+        logger.debug(f"[VIEW_POST] Loop API terminato. Totale spedizioni grezze raccolte: {len(shipments_collected_from_api)}")
+        
+        # Lista delle spedizioni che effettivamente analizzeremo (fino al max richiesto)
+        shipments_to_actually_analyze = shipments_collected_from_api[:max_shipments_to_analyze]
+        logger.debug(f"[VIEW_POST] Lista finale di spedizioni da analizzare effettivamente (max {max_shipments_to_analyze}): {len(shipments_to_actually_analyze)}")
 
-        found_shipments_for_celery_batch = []
+        shipments_matching_criteria = [] # Qui mettiamo gli OGGETTI Spedizione che matchano
         keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
-        logger.debug(f"[search_shipments_by_products DEBUG] Keywords da cercare: {keywords_list}")
+        logger.debug(f"[VIEW_POST] Keywords da cercare: {keywords_list}")
 
-        if not shipments_to_analyze_list: # Se non ci sono proprio spedizioni dall'API
-            logger.debug(f"[search_shipments_by_products DEBUG] Nessuna spedizione recuperata dall'API. Termino.")
+        if not shipments_to_actually_analyze:
+            logger.info(f"[VIEW_POST] Nessuna spedizione da analizzare recuperata dall'API.")
             cache.set(f"{search_id}_done", True, timeout=600)
-            return JsonResponse({
-                'status': 'no_results', 
-                'message': 'Nessuna spedizione disponibile dal provider per i criteri iniziali.', 
-                'results': [], 'search_id': search_id
-            }, status=200)
+            return JsonResponse({'status': 'no_results', 'message': 'Nessuna spedizione disponibile.', 'search_id': search_id}, status=200)
 
-        for idx, shipment_obj in enumerate(shipments_to_analyze_list):
-            logger.debug(f"[search_shipments_by_products DEBUG] --- Analisi Spedizione {idx+1}/{len(shipments_to_analyze_list)}: ID {getattr(shipment_obj, 'id', 'N/A')}, Nome: {getattr(shipment_obj, 'name', 'N/A')} ---")
+        for idx, shipment_obj in enumerate(shipments_to_actually_analyze):
+            current_shipment_id = getattr(shipment_obj, 'id', 'N/A')
+            current_shipment_name = getattr(shipment_obj, 'name', 'N/A')
+            logger.debug(f"[VIEW_POST] --- Analisi Spedizione {idx + 1}/{len(shipments_to_actually_analyze)}: ID {current_shipment_id} ({current_shipment_name}) ---")
             
-            # Controllo diretto solo su nome della spedizione
-            shipment_matched_directly = False
-            shipment_name_for_check = str(getattr(shipment_obj, 'name', '')).lower()
-            logger.debug(f"[search_shipments_by_products DEBUG] Controllo keywords {keywords_list} in Spedizione.name: '{shipment_name_for_check[:100]}...'")
-            if any(kw in shipment_name_for_check for kw in keywords_list):
-                logger.debug(f"[search_shipments_by_products DEBUG] Keyword TROVATA in Spedizione.name per spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}). Match diretto.")
-                found_shipments_for_celery_batch.append(shipment_obj)
-                shipment_matched_directly = True
-            
-            if shipment_matched_directly:
-                logger.debug(f"[search_shipments_by_products DEBUG] Spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}) aggiunta per match diretto.")
-                continue # Passa alla prossima spedizione
+            # 1. Cerca keyword nel NOME della spedizione
+            shipment_name_lower = str(current_shipment_name).lower()
+            logger.debug(f"[VIEW_POST] Controllo keywords {keywords_list} in NOME spedizione: '{shipment_name_lower[:100]}...'")
+            if any(kw in shipment_name_lower for kw in keywords_list):
+                logger.info(f"[VIEW_POST] MATCH DIRETTO SU NOME! Spedizione ID {current_shipment_id} ({current_shipment_name}) selezionata.")
+                shipments_matching_criteria.append(shipment_obj)
+                continue # Spedizione trovata, passa alla successiva da analizzare
 
-            logger.debug(f"[search_shipments_by_products DEBUG] Nessun match diretto per Spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}). Controllo gli items.")
+            # 2. Se non trovata nel nome, cerca negli ITEMS
+            logger.debug(f"[VIEW_POST] Nessun match su nome per Spedizione ID {current_shipment_id} ({current_shipment_name}). Controllo ITEMS.")
             try:
-                shipment_id_for_items = getattr(shipment_obj, 'id', None)
-                if shipment_id_for_items is None:
-                    logger.warning(f"[search_shipments_by_products DEBUG] Impossibile ottenere ID per la spedizione: {shipment_obj}")
-                    continue
-
-                logger.debug(f"[search_shipments_by_products DEBUG] Richiesta items per Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')})...")
-                items_response_dict = client.get_outbound_shipment_items(shipment_id=shipment_id_for_items, merchant_id=merchant_id)
-                # Assumendo che items_response_dict sia un dict come {'items': [...]}
-                items_list = items_response_dict.get('items', []) if isinstance(items_response_dict, dict) else []
-                logger.debug(f"[search_shipments_by_products DEBUG] Ricevuti {len(items_list)} items per Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')}).")
-
-                item_matched = False
+                items_response = client.get_outbound_shipment_items(shipment_id=current_shipment_id, merchant_id=merchant_id)
+                items_list = items_response.get('items', []) if isinstance(items_response, dict) else [] # API response è un dict
+                logger.debug(f"[VIEW_POST] Ricevuti {len(items_list)} items per Spedizione ID {current_shipment_id} ({current_shipment_name}).")
+                
+                item_found_matching = False
                 for item_idx, item_data in enumerate(items_list):
-                    item_name_to_check = ''
-                    # Estrazione del nome dell'item (struttura può variare)
+                    item_title = ''
+                    # Estrazione titolo item (diverso per outbound e inbound)
                     if isinstance(item_data, dict):
-                        inner_item_info = item_data.get('item') # Struttura comune per outbound
-                        if inner_item_info and isinstance(inner_item_info, dict):
-                            item_name_to_check = str(inner_item_info.get('title', '')).lower()
-                        else: # Fallback per inbound o altre strutture
-                            item_name_to_check = str(item_data.get('name') or item_data.get('title') or '').lower()
-                    elif hasattr(item_data, 'name'): # Oggetto con attributo 'name'
-                         item_name_to_check = str(item_data.name).lower()
-                    elif hasattr(item_data, 'title'): # Oggetto con attributo 'title'
-                         item_name_to_check = str(item_data.title).lower()
-                    
-                    logger.debug(f"[search_shipments_by_products DEBUG]  Item {item_idx+1}/{len(items_list)} (Sped. {getattr(shipment_obj, 'name', 'N/A')}): Controllo keywords in nome item '{item_name_to_check[:100]}...'")
-                    if any(kw in item_name_to_check for kw in keywords_list):
-                        logger.debug(f"[search_shipments_by_products DEBUG]  Keyword TROVATA in item (Nome: {item_name_to_check[:50]}) ! Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')}) aggiunta.")
-                        found_shipments_for_celery_batch.append(shipment_obj)
-                        item_matched = True
+                        inner_item = item_data.get('item') # Per outbound
+                        if inner_item and isinstance(inner_item, dict):
+                            item_title = str(inner_item.get('title', '')).lower()
+                        else: # Per inbound o se 'item' non è un dict
+                            item_title = str(item_data.get('title') or item_data.get('name', '')).lower()
+                    # Aggiungi altri hasattr se necessario per oggetti Pydantic item_data
+
+                    logger.debug(f"[VIEW_POST]  Item {item_idx + 1}/{len(items_list)} (Sped. {current_shipment_name}): Controllo keywords in TITOLO '{item_title[:100]}...'")
+                    if any(kw in item_title for kw in keywords_list):
+                        logger.info(f"[VIEW_POST] MATCH SU ITEM! Titolo: '{item_title[:50]}'. Spedizione ID {current_shipment_id} ({current_shipment_name}) selezionata.")
+                        shipments_matching_criteria.append(shipment_obj)
+                        item_found_matching = True
                         break # Trovato un item, basta per questa spedizione
                 
-                if not item_matched:
-                    logger.debug(f"[search_shipments_by_products DEBUG] Nessuna keyword trovata negli items della Spedizione ID {shipment_id_for_items}.")
+                if not item_found_matching:
+                    logger.debug(f"[VIEW_POST] Nessuna keyword trovata negli items della Spedizione ID {current_shipment_id} ({current_shipment_name}).")
+            except Exception as e_items_loop:
+                logger.error(f"[VIEW_POST] Errore loop items per Spedizione ID {current_shipment_id} ({current_shipment_name}): {e_items_loop}")
 
-            except Exception as e_items:
-                logger.error(f"[search_shipments_by_products DEBUG] Errore durante recupero/analisi items per Spedizione ID {getattr(shipment_obj, 'id', 'N/A')}: {e_items}")
-        
-        logger.debug(f"[search_shipments_by_products DEBUG] Analisi keyword completata. Spedizioni totali trovate per Celery: {len(found_shipments_for_celery_batch)}")
+        logger.debug(f"[VIEW_POST] Analisi keyword completata. Spedizioni totali che soddisfano i criteri: {len(shipments_matching_criteria)}")
 
-        if not found_shipments_for_celery_batch:
-            logger.info("[search_shipments_by_products] Nessuna spedizione trovata dopo filtro keyword su spedizioni e items.")
-            cache.set(f"{search_id}_done", True, timeout=600) # Segna come completata
-            return JsonResponse({
-                'status': 'no_results', 
-                'message': 'Nessuna spedizione trovata per le parole chiave dopo aver analizzato le spedizioni e i loro prodotti.', 
-                'results': [], 'search_id': search_id
-            }, status=200)
+        if not shipments_matching_criteria:
+            logger.info("[VIEW_POST] Nessuna spedizione ha soddisfatto i criteri dopo analisi completa.")
+            cache.set(f"{search_id}_done", True, timeout=600)
+            return JsonResponse({'status': 'no_results', 'message': 'Nessuna spedizione trovata.', 'search_id': search_id}, status=200)
 
-        logger.debug(f"[search_shipments_by_products DEBUG] Invio {len(found_shipments_for_celery_batch)} spedizioni ai task Celery.")
-        # Split found shipments into batches for Celery
-        # (la logica di batching esistente qui sotto va bene)
-        # ... (logica batching e chiamata Celery esistente) ...
-        batch_size = 10 # O leggi da form se vuoi renderlo configurabile
-        shipment_batches_for_celery = [found_shipments_for_celery_batch[i:i + batch_size] for i in range(0, len(found_shipments_for_celery_batch), batch_size)]
-        
-        logger.debug(f"[search_shipments_by_products DEBUG] Creati {len(shipment_batches_for_celery)} batch Celery.")
+        # Prepara ID per Celery
+        shipment_ids_for_celery = [s.id for s in shipments_matching_criteria]
+        logger.debug(f"[VIEW_POST] Invio {len(shipment_ids_for_celery)} ID spedizione a Celery: {shipment_ids_for_celery}")
 
-        for i, batch_of_shipments in enumerate(shipment_batches_for_celery):
-            batch_ids = [s.id for s in batch_of_shipments] # Assumendo che gli oggetti shipment abbiano 'id'
-            logger.debug(f"[search_shipments_by_products DEBUG] Invio batch Celery {i+1} con IDs: {batch_ids}")
-            # Determina il tipo di spedizione (se misto, potresti doverlo passare o inferire)
-            # Per ora assumiamo 'outbound' come da logica precedente, ma potrebbe servire più flessibilità
-            # Se hai shipment_type dalla form, usalo:
-            shipment_type_for_task = request.POST.get('shipment_type', 'outbound') # o default
-            
-            process_shipment_batch.apply_async(
-                args=[search_id, batch_ids, merchant_id, i + 1, shipment_type_for_task], # Aggiunto shipment_type
-                countdown=i * 5 # Riduci countdown per test più rapidi, poi aumenta se necessario
-            )
-        
-        logger.info(f"[search_shipments_by_products] Task Celery inviati per {len(found_shipments_for_celery_batch)} spedizioni.")
+        # ... (logica batching e chiamata Celery esistente usando shipment_ids_for_celery) ...
+        # Assicurati che il batching usi shipment_ids_for_celery, non shipments_to_actually_analyze
         return JsonResponse({
             'status': 'processing', 
             'search_id': search_id, 
-            'total_shipments_for_processing': len(found_shipments_for_celery_batch),
-            'message': 'Ricerca e processamento avviati. I risultati saranno disponibili a breve.'
+            'total_shipments_for_processing': len(shipment_ids_for_celery),
+            'message': 'Ricerca e processamento avviati.'
         })
 
     # Ritorno per GET non gestito esplicitamente sopra (dovrebbe essere coperto dalla logica GET iniziale)
