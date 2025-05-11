@@ -620,6 +620,8 @@ def search_shipments_by_products(request):
         'search_type': request.POST.get('search_type') or request.GET.get('search_type', 'OR'),
         'max_results': request.POST.get('max_results') or request.GET.get('max_results', 10),
     }
+    if request.method == 'GET':
+        logger.info(f"[search_shipments_by_products] GET polling - search_id={request.GET.get('search_id')}, page={request.GET.get('page')}")
     if request.method == 'POST':
         search_terms = request.POST.get('keywords', '').strip()
         if not search_terms:
