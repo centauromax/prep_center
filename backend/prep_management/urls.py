@@ -13,5 +13,5 @@ urlpatterns = [
     path('queue/push/', views.push_outgoing_message, name='push_outgoing_message'),
     path('queue/poll/', views.poll_outgoing_messages, name='poll_outgoing_messages'),
     path('queue/consume/<int:pk>/', views.push_outgoing_message, name='consume_outgoing_message'),
-    path('search-shipments/', views.search_shipments_by_products, name='search_shipments_by_products'),
+    path('search-shipments', views.search_shipments_by_products, name='search_shipments_by_products'),
 ]
