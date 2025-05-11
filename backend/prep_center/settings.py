@@ -200,6 +200,12 @@ if not os.path.exists(LOG_DIR):
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'truncate_long_messages': {
+            '()': 'prep_center.logging_filters.TruncatingLogFilter',
+            'max_length': 1000,
+        }
+    },
     'formatters': {
         'verbose': {
             'format': '[{levelname}] {asctime} {module} {message}',
@@ -210,36 +216,42 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['truncate_long_messages'],
         },
         'django_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'django.log'),
             'formatter': 'verbose',
             'mode': 'a',
+            'filters': ['truncate_long_messages'],
         },
         'fbasaving_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'fbasaving.log'),
             'formatter': 'verbose',
             'mode': 'a',
+            'filters': ['truncate_long_messages'],
         },
         'picture_check_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'picture_check.log'),
             'formatter': 'verbose',
             'mode': 'a',
+            'filters': ['truncate_long_messages'],
         },
         'prep_business_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'prep_business.log'),
             'formatter': 'verbose',
             'mode': 'a',
+            'filters': ['truncate_long_messages'],
         },
         'prep_management_file': {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOG_DIR, 'prep_management.log'),
             'formatter': 'verbose',
             'mode': 'a',
+            'filters': ['truncate_long_messages'],
         }
     },
     'root': {
