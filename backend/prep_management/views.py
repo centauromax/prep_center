@@ -684,19 +684,22 @@ def search_shipments_by_products(request):
         cache.delete(f"{search_id}_done")
         logger.debug(f"[VIEW_POST] Generato search_id: {search_id}")
 
-        shipment_status = request.POST.get('shipment_status', '') # Default a stringa vuota se non fornito
+        shipment_status = request.POST.get('shipment_status', '')
         logger.info(f"[VIEW_POST] Filtro stato spedizione richiesto: '{shipment_status}'")
-
         max_shipments_to_analyze = int(request.POST.get('max_shipments', 20))
         logger.debug(f"[VIEW_POST] Massimo numero di spedizioni da analizzare: {max_shipments_to_analyze}")
 
         client = get_client()
-        shipments_collected_from_api = [] # Spedizioni grezze dall'API
-        shipments_analyzed_count = 0      # Conteggio delle spedizioni analizzate (non necessariamente matchate)
+        shipments_collected_from_api = [] 
         current_api_page = 1
 
         logger.debug(f"[VIEW_POST] Inizio loop recupero API. Target spedizioni da analizzare: {max_shipments_to_analyze}")
-        while len(shipments_collected_from_api) < max_shipments_to_analyze:
+        
+        while True: # Loop potenzialmente infinito, interrotto da condizioni interne
+            if len(shipments_collected_from_api) >= max_shipments_to_analyze:
+                logger.debug(f"[VIEW_POST] RAGGIUNTO/SUPERATO target ({max_shipments_to_analyze} spedizioni) con {len(shipments_collected_from_api)} raccolte. Interrompo recupero API.")
+                break
+
             logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page}. Spedizioni raccolte finora: {len(shipments_collected_from_api)}")
             
             shipments_page_response = None
@@ -704,29 +707,26 @@ def search_shipments_by_products(request):
                 if shipment_status == 'archived':
                     logger.debug(f"[VIEW_POST] Chiamo client.get_archived_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
                     shipments_page_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
-                else: # 'open' o vuoto (default API per aperte)
+                else: 
                     logger.debug(f"[VIEW_POST] Chiamo client.get_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
                     shipments_page_response = client.get_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
                 logger.debug(f"[VIEW_POST] Risposta API pagina {current_api_page}: {shipments_page_response}")
             except Exception as e_api_call:
                 logger.error(f"[VIEW_POST] Errore chiamata API per pagina {current_api_page}: {e_api_call}")
-                break # Esce dal loop se c'è un errore API
+                break # Esce dal loop while se c'è un errore API
 
             if not shipments_page_response or not shipments_page_response.data:
-                logger.debug(f"[VIEW_POST] API: Nessun dato per pagina {current_api_page} o fine pagine.")
-                break
-
+                logger.debug(f"[VIEW_POST] API: Nessun dato per pagina {current_api_page} o fine pagine (no data). Interrompo.")
+                break 
+            
             shipments_from_current_page = shipments_page_response.data
             shipments_collected_from_api.extend(shipments_from_current_page)
             logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da pagina {current_api_page}. Totale raccolte ora: {len(shipments_collected_from_api)}")
 
-            # Aumenta il conteggio delle spedizioni analizzate con quelle appena ricevute
-            # O, più correttamente, si analizzano queste e si incrementa il contatore DENTRO il loop di analisi sotto.
-            # Per ora, assumiamo che tutte quelle recuperate verranno analizzate fino al raggiungimento del max.
-
             if not shipments_page_response.next_page_url:
-                logger.debug(f"[VIEW_POST] API: Ultima pagina raggiunta.")
+                logger.debug(f"[VIEW_POST] API: Ultima pagina raggiunta (next_page_url è vuoto/None). Interrompo.")
                 break
+            
             current_api_page += 1
         
         logger.debug(f"[VIEW_POST] Loop API terminato. Totale spedizioni grezze raccolte: {len(shipments_collected_from_api)}")
