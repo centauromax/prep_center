@@ -640,12 +640,20 @@ def search_shipments_by_products(request):
             # Get all shipments
             client = get_client()
             shipments_response = client.get_outbound_shipments(merchant_id=merchant_id)
+            logger.info(f"[search_shipments_by_products] Risposta da client.get_outbound_shipments: {shipments_response}") # LOG RAW RESPONSE
             
-            if not shipments_response or 'shipments' not in shipments_response:
-                return JsonResponse({'error': 'Nessuna spedizione trovata'}, status=404)
+            if not shipments_response or 'shipments' not in shipments_response or not shipments_response['shipments']:
+                logger.info("[search_shipments_by_products] Nessuna spedizione trovata o risposta API non valida.")
+                return JsonResponse({
+                    'status': 'no_results',
+                    'message': 'Nessuna spedizione trovata per i criteri specificati.',
+                    'results': [], 
+                    'search_id': search_id # Includi search_id anche qui
+                }, status=200) # RESTITUISCI 200 OK
             
             shipments = shipments_response['shipments']
             total_shipments = len(shipments)
+            logger.info(f"[search_shipments_by_products] Trovate {total_shipments} spedizioni prima del filtro.")
             
             # Split shipments into batches of 10
             batch_size = 10
