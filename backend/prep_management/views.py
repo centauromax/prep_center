@@ -696,8 +696,8 @@ def search_shipments_by_products(request):
         current_api_page = 1
 
         logger.debug(f"[VIEW_POST] Inizio loop recupero API. Target spedizioni da analizzare: {max_shipments_to_analyze}")
-        while shipments_analyzed_count < max_shipments_to_analyze:
-            logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page}. Spedizioni analizzate finora: {shipments_analyzed_count}")
+        while len(shipments_collected_from_api) < max_shipments_to_analyze:
+            logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page}. Spedizioni raccolte finora: {len(shipments_collected_from_api)}")
             
             shipments_page_response = None
             try:
@@ -718,7 +718,7 @@ def search_shipments_by_products(request):
 
             shipments_from_current_page = shipments_page_response.data
             shipments_collected_from_api.extend(shipments_from_current_page)
-            logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da pagina {current_api_page}. Totale raccolte: {len(shipments_collected_from_api)}")
+            logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da pagina {current_api_page}. Totale raccolte ora: {len(shipments_collected_from_api)}")
 
             # Aumenta il conteggio delle spedizioni analizzate con quelle appena ricevute
             # O, più correttamente, si analizzano queste e si incrementa il contatore DENTRO il loop di analisi sotto.
