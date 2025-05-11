@@ -52,6 +52,7 @@ from libs.config import (
     PREP_BUSINESS_RETRY_BACKOFF
 )
 import re
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -745,33 +746,31 @@ def search_shipments_by_products(request):
         for idx, shipment_obj in enumerate(shipments_to_analyze_list):
             logger.debug(f"[search_shipments_by_products DEBUG] --- Analisi Spedizione {idx+1}/{len(shipments_to_analyze_list)}: ID {getattr(shipment_obj, 'id', 'N/A')}, Nome: {getattr(shipment_obj, 'name', 'N/A')} ---")
             
-            # Controllo diretto su nome, note, searchable_identifiers della spedizione
+            # Controllo diretto solo su nome della spedizione
             shipment_matched_directly = False
-            for field_name in ['name', 'notes', 'searchable_identifiers']:
-                shipment_field_value = str(getattr(shipment_obj, field_name, '')).lower()
-                logger.debug(f"[search_shipments_by_products DEBUG] Controllo keywords in Spedizione.{field_name}: '{shipment_field_value[:100]}...'")
-                if any(kw in shipment_field_value for kw in keywords_list):
-                    logger.debug(f"[search_shipments_by_products DEBUG] Keyword TROVATA in Spedizione.{field_name} per spedizione ID {getattr(shipment_obj, 'id', 'N/A')}. Match diretto.")
-                    found_shipments_for_celery_batch.append(shipment_obj)
-                    shipment_matched_directly = True
-                    break # Trovata, passa alla prossima spedizione
+            shipment_name_for_check = str(getattr(shipment_obj, 'name', '')).lower()
+            logger.debug(f"[search_shipments_by_products DEBUG] Controllo keywords {keywords_list} in Spedizione.name: '{shipment_name_for_check[:100]}...'")
+            if any(kw in shipment_name_for_check for kw in keywords_list):
+                logger.debug(f"[search_shipments_by_products DEBUG] Keyword TROVATA in Spedizione.name per spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}). Match diretto.")
+                found_shipments_for_celery_batch.append(shipment_obj)
+                shipment_matched_directly = True
             
             if shipment_matched_directly:
-                logger.debug(f"[search_shipments_by_products DEBUG] Spedizione ID {getattr(shipment_obj, 'id', 'N/A')} aggiunta per match diretto.")
+                logger.debug(f"[search_shipments_by_products DEBUG] Spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}) aggiunta per match diretto.")
                 continue # Passa alla prossima spedizione
 
-            logger.debug(f"[search_shipments_by_products DEBUG] Nessun match diretto per Spedizione ID {getattr(shipment_obj, 'id', 'N/A')}. Controllo gli items.")
+            logger.debug(f"[search_shipments_by_products DEBUG] Nessun match diretto per Spedizione ID {getattr(shipment_obj, 'id', 'N/A')} ({getattr(shipment_obj, 'name', 'N/A')}). Controllo gli items.")
             try:
                 shipment_id_for_items = getattr(shipment_obj, 'id', None)
                 if shipment_id_for_items is None:
                     logger.warning(f"[search_shipments_by_products DEBUG] Impossibile ottenere ID per la spedizione: {shipment_obj}")
                     continue
 
-                logger.debug(f"[search_shipments_by_products DEBUG] Richiesta items per Spedizione ID {shipment_id_for_items}...")
+                logger.debug(f"[search_shipments_by_products DEBUG] Richiesta items per Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')})...")
                 items_response_dict = client.get_outbound_shipment_items(shipment_id=shipment_id_for_items, merchant_id=merchant_id)
                 # Assumendo che items_response_dict sia un dict come {'items': [...]}
                 items_list = items_response_dict.get('items', []) if isinstance(items_response_dict, dict) else []
-                logger.debug(f"[search_shipments_by_products DEBUG] Ricevuti {len(items_list)} items per Spedizione ID {shipment_id_for_items}.")
+                logger.debug(f"[search_shipments_by_products DEBUG] Ricevuti {len(items_list)} items per Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')}).")
 
                 item_matched = False
                 for item_idx, item_data in enumerate(items_list):
@@ -788,9 +787,9 @@ def search_shipments_by_products(request):
                     elif hasattr(item_data, 'title'): # Oggetto con attributo 'title'
                          item_name_to_check = str(item_data.title).lower()
                     
-                    logger.debug(f"[search_shipments_by_products DEBUG]  Item {item_idx+1}/{len(items_list)}: Controllo keywords in nome item '{item_name_to_check[:100]}...'")
+                    logger.debug(f"[search_shipments_by_products DEBUG]  Item {item_idx+1}/{len(items_list)} (Sped. {getattr(shipment_obj, 'name', 'N/A')}): Controllo keywords in nome item '{item_name_to_check[:100]}...'")
                     if any(kw in item_name_to_check for kw in keywords_list):
-                        logger.debug(f"[search_shipments_by_products DEBUG]  Keyword TROVATA in item! Spedizione ID {shipment_id_for_items} aggiunta.")
+                        logger.debug(f"[search_shipments_by_products DEBUG]  Keyword TROVATA in item (Nome: {item_name_to_check[:50]}) ! Spedizione ID {shipment_id_for_items} ({getattr(shipment_obj, 'name', 'N/A')}) aggiunta.")
                         found_shipments_for_celery_batch.append(shipment_obj)
                         item_matched = True
                         break # Trovato un item, basta per questa spedizione
