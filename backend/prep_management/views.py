@@ -51,6 +51,7 @@ from libs.config import (
     PREP_BUSINESS_MAX_RETRIES,
     PREP_BUSINESS_RETRY_BACKOFF
 )
+import re
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -662,9 +663,32 @@ def search_shipments_by_products(request):
             total_shipments = len(shipments)
             logger.info(f"[search_shipments_by_products] Trovate {total_shipments} spedizioni prima del filtro.")
             
+            # Filtro keyword su più campi
+            keywords = search_terms.lower().split(',')
+            def matches_any_keyword(shipment):
+                for kw in keywords:
+                    kw = kw.strip()
+                    if not kw:
+                        continue
+                    for field in ['name', 'notes', 'searchable_identifiers']:
+                        value = getattr(shipment, field, '')
+                        if value and kw in str(value).lower():
+                            return True
+                return False
+            filtered_shipments = [s for s in shipments if matches_any_keyword(s)]
+            logger.info(f"[search_shipments_by_products] Spedizioni dopo filtro keyword: {len(filtered_shipments)}")
+            if not filtered_shipments:
+                cache.set(f"{search_id}_done", True, timeout=600)
+                return JsonResponse({
+                    'status': 'no_results',
+                    'message': 'Nessuna spedizione trovata per le parole chiave.',
+                    'results': [],
+                    'search_id': search_id
+                }, status=200)
+            
             # Split shipments into batches of 10
             batch_size = 10
-            shipment_batches = [shipments[i:i + batch_size] for i in range(0, len(shipments), batch_size)]
+            shipment_batches = [filtered_shipments[i:i + batch_size] for i in range(0, len(filtered_shipments), batch_size)]
             
             # Start processing first batch
             first_batch = shipment_batches[0]
@@ -701,6 +725,16 @@ def search_shipments_by_products(request):
         return render(request, 'prep_management/search_shipments.html', {
             'results': [],
             'is_waiting': False,
+            **context
+        })
+    
+    # Se la ricerca è finita e non ci sono risultati, mostra subito no_results
+    if cache.get(f"{search_id}_done") and not SearchResultItem.objects.filter(search_id=search_id).exists():
+        return render(request, 'prep_management/search_shipments.html', {
+            'results': [],
+            'is_waiting': False,
+            'search_id': search_id,
+            'error': 'Nessun risultato trovato per le parole chiave.',
             **context
         })
     
