@@ -663,21 +663,37 @@ def search_shipments_by_products(request):
             total_shipments = len(shipments)
             logger.info(f"[search_shipments_by_products] Trovate {total_shipments} spedizioni prima del filtro.")
             
-            # Filtro keyword su più campi
-            keywords = search_terms.lower().split(',')
-            def matches_any_keyword(shipment):
-                for kw in keywords:
-                    kw = kw.strip()
-                    if not kw:
-                        continue
-                    for field in ['name', 'notes', 'searchable_identifiers']:
-                        value = getattr(shipment, field, '')
-                        if value and kw in str(value).lower():
-                            return True
-                return False
-            filtered_shipments = [s for s in shipments if matches_any_keyword(s)]
-            logger.info(f"[search_shipments_by_products] Spedizioni dopo filtro keyword: {len(filtered_shipments)}")
-            if not filtered_shipments:
+            # Prendi solo le prime 10 spedizioni della prima pagina
+            max_shipments = 10
+            shipments = shipments[:max_shipments]
+            logger.info(f"[search_shipments_by_products] Analizzo le prime {max_shipments} spedizioni")
+            found_shipments = []
+            keywords = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
+            for shipment in shipments:
+                # 1. Cerca la keyword nel nome della spedizione
+                shipment_name = getattr(shipment, 'name', '').lower()
+                if any(kw in shipment_name for kw in keywords):
+                    logger.info(f"[search_shipments_by_products] Match diretto su nome spedizione: {shipment.name}")
+                    found_shipments.append(shipment)
+                    continue
+                # 2. Se non trovata, cerca negli item
+                try:
+                    items_response = client.get_outbound_shipment_items(shipment_id=shipment.id, merchant_id=merchant_id)
+                    items = items_response.get('items', [])
+                    for item in items:
+                        item_name = ''
+                        if isinstance(item, dict):
+                            item_name = str(item.get('name') or item.get('title') or '').lower()
+                        elif hasattr(item, 'name'):
+                            item_name = str(item.name).lower()
+                        if any(kw in item_name for kw in keywords):
+                            logger.info(f"[search_shipments_by_products] Match su item di spedizione {shipment.name}: {item_name}")
+                            found_shipments.append(shipment)
+                            break
+                except Exception as e:
+                    logger.error(f"[search_shipments_by_products] Errore nel recupero item per shipment {shipment.id}: {e}")
+            logger.info(f"[search_shipments_by_products] Spedizioni trovate dopo filtro avanzato: {len(found_shipments)}")
+            if not found_shipments:
                 cache.set(f"{search_id}_done", True, timeout=600)
                 return JsonResponse({
                     'status': 'no_results',
@@ -685,31 +701,22 @@ def search_shipments_by_products(request):
                     'results': [],
                     'search_id': search_id
                 }, status=200)
-            
-            # Split shipments into batches of 10
+            # Split found shipments in batch (se vuoi batch async, altrimenti processa qui)
             batch_size = 10
-            shipment_batches = [filtered_shipments[i:i + batch_size] for i in range(0, len(filtered_shipments), batch_size)]
-            
-            # Start processing first batch
+            shipment_batches = [found_shipments[i:i + batch_size] for i in range(0, len(found_shipments), batch_size)]
             first_batch = shipment_batches[0]
-            first_batch_ids = [shipment['id'] for shipment in first_batch]
-            
-            # Start async task for first batch
+            first_batch_ids = [shipment.id for shipment in first_batch]
             process_shipment_batch.delay(search_id, first_batch_ids, merchant_id)
-            
-            # Schedule remaining batches
             for i, batch in enumerate(shipment_batches[1:], 1):
-                batch_ids = [shipment['id'] for shipment in batch]
+                batch_ids = [shipment.id for shipment in batch]
                 process_shipment_batch.apply_async(
                     args=[search_id, batch_ids, merchant_id, i + 1],
-                    countdown=i * 60  # Delay each batch by 1 minute
+                    countdown=i * 60
                 )
-            
-            # Return initial response
             return JsonResponse({
                 'status': 'processing',
                 'search_id': search_id,
-                'total_shipments': total_shipments,
+                'total_shipments': len(found_shipments),
                 'message': 'Ricerca avviata. I risultati saranno disponibili a breve.'
             })
             
