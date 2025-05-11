@@ -1,5 +1,9 @@
 from django.urls import path
 from . import views
+import logging
+
+logger = logging.getLogger('prep_management')
+logger.info('[prep_management.urls] File urls.py caricato')
 
 urlpatterns = [
     path('', views.index, name='index'),
