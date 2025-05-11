@@ -641,8 +641,13 @@ def search_shipments_by_products(request):
             client = get_client()
             shipment_status = request.POST.get('shipment_status') or request.GET.get('shipment_status', '')
             logger.info(f"[search_shipments_by_products] Filtro stato spedizione: {shipment_status}")
-            shipments_response = client.get_outbound_shipments(merchant_id=merchant_id, status=shipment_status)
-            logger.info(f"[search_shipments_by_products] Risposta da client.get_outbound_shipments: {shipments_response}") # LOG RAW RESPONSE
+            if shipment_status == 'archived':
+                logger.info("[search_shipments_by_products] Chiamo get_archived_outbound_shipments")
+                shipments_response = client.get_archived_outbound_shipments(merchant_id=merchant_id)
+            else:
+                logger.info("[search_shipments_by_products] Chiamo get_outbound_shipments")
+                shipments_response = client.get_outbound_shipments(merchant_id=merchant_id)
+            logger.info(f"[search_shipments_by_products] Risposta da client: {shipments_response}")
             
             if not shipments_response or 'shipments' not in shipments_response or not shipments_response['shipments']:
                 logger.info("[search_shipments_by_products] Nessuna spedizione trovata o risposta API non valida.")
