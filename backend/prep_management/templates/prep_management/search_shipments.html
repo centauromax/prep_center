@@ -235,10 +235,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         searchResults.innerHTML = newResultsDiv.innerHTML;
                         console.log("[POLLING] Contenuto aggiornato per search_id:", searchIdForPolling);
 
-                        const isWaitingDiv = searchResults.querySelector('.alert-info h4');
-                        const isErrorDiv = searchResults.querySelector('.alert-danger');
+                        const isWaitingDiv = searchResults.querySelector('#is_waiting');
                         
-                        // Se non c'è più il div di attesa, ferma il polling
+                        // Se non c'è più il div is_waiting, ferma il polling
                         if (!isWaitingDiv) {
                             console.log("[POLLING] Non più in attesa. Polling interrotto per search_id:", searchIdForPolling);
                             clearInterval(pollIntervalId);
