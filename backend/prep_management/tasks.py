@@ -18,7 +18,7 @@ def get_client():
         company_domain=company_domain
     )
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=3)
 def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_type='outbound'):
     logger.info(f"[CELERY_TASK] Inizio task process_shipment_batch - search_id={search_id}, shipment_ids={shipment_ids}, merchant_id={merchant_id}")
     logger.info(f"[CELERY_TASK] Task ID: {self.request.id}")
@@ -32,6 +32,13 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
         # Recupera le spedizioni dal database
         shipments = Shipment.objects.filter(id__in=shipment_ids)
         logger.info(f"[CELERY_TASK] Recuperate {len(shipments)} spedizioni dal database")
+        
+        # Se non ci sono spedizioni, termina subito
+        if not shipments.exists():
+            logger.warning("[CELERY_TASK] Nessuna spedizione trovata nel database")
+            cache.set(f"{search_id}_done", True, timeout=600)
+            logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True (nessuna spedizione trovata)")
+            return
         
         # Prepara i dati per l'API
         shipments_data = []
@@ -72,11 +79,17 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
         # In caso di errore, imposta comunque il flag a True
         cache.set(f"{search_id}_done", True, timeout=600)
         logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True dopo errore")
-        raise
+        # Ritenta il task
+        raise self.retry(exc=e, countdown=5)
     finally:
         # Verifica finale dello stato del flag
         flag_state = cache.get(f"{search_id}_done")
         logger.info(f"[CELERY_TASK] Stato finale flag {search_id}_done: {flag_state}")
+        
+        # Se per qualche motivo il flag non è stato impostato, lo impostiamo qui
+        if not flag_state:
+            logger.warning(f"[CELERY_TASK] Flag {search_id}_done non impostato, lo imposto ora")
+            cache.set(f"{search_id}_done", True, timeout=600)
 
 @shared_task
 def cleanup_old_searches():

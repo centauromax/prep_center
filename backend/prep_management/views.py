@@ -850,6 +850,18 @@ def search_shipments_by_products(request):
         shipment_ids_for_celery = [s.id for s in shipments_matching_criteria]
         logger.debug(f"[VIEW_POST] Invio {len(shipment_ids_for_celery)} ID spedizione a Celery: {shipment_ids_for_celery}")
 
+        # Se non ci sono spedizioni da processare, imposta subito il flag done
+        if not shipment_ids_for_celery:
+            logger.info("[VIEW_POST] Nessuna spedizione da processare, imposto subito il flag done")
+            cache.set(f"{search_id}_done", True, timeout=600)
+            return JsonResponse({
+                'status': 'completed',
+                'search_id': search_id,
+                'total_shipments_for_processing': 0,
+                'total_analyzed_in_view': total_for_this_search,
+                'message': 'Nessuna spedizione trovata da processare'
+            })
+
         # Chiama il task Celery per processare le spedizioni
         try:
             # Imposta il flag done a False prima di avviare il task
@@ -865,6 +877,8 @@ def search_shipments_by_products(request):
             
             if not task.id:
                 logger.error("[VIEW_POST] Task Celery non è stato inviato correttamente (task.id è None)")
+                # In caso di errore, imposta il flag done per evitare polling infinito
+                cache.set(f"{search_id}_done", True, timeout=600)
                 return JsonResponse({'error': 'Errore nell\'avvio del task di elaborazione'}, status=500)
             
             logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
