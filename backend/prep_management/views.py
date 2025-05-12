@@ -862,39 +862,82 @@ def search_shipments_by_products(request):
                 'message': 'Nessuna spedizione trovata da processare'
             })
 
-        # Chiama il task Celery per processare le spedizioni
+        # *** SOLUZIONE DRASTICA: Esegui direttamente la logica del task Celery qui nella view ***
+        logger.info(f"[VIEW_POST] SOLUZIONE DRASTICA: Elaborazione diretta spedizioni senza Celery")
+        
+        # Imposta il flag done a False all'inizio
+        cache.set(f"{search_id}_done", False, timeout=600)
+
         try:
-            # Imposta il flag done a False prima di avviare il task
-            cache.set(f"{search_id}_done", False, timeout=600)
-            logger.debug(f"[VIEW_POST] Impostato flag {search_id}_done=False prima di avviare il task")
+            # Processa ogni spedizione e salva i risultati direttamente
+            results_saved = 0
+            for shipment_id in shipment_ids_for_celery:
+                try:
+                    # Ottieni gli items della spedizione
+                    items_response = client.get_outbound_shipment_items(
+                        shipment_id=shipment_id,
+                        merchant_id=merchant_id
+                    )
+                    
+                    if not items_response or 'items' not in items_response:
+                        logger.warning(f"[VIEW_POST] Nessun item per shipment_id={shipment_id}")
+                        continue
+                    
+                    items = items_response['items']
+                    logger.info(f"[VIEW_POST] Trovati {len(items)} items per spedizione {shipment_id}")
+                    
+                    # Processa ogni item
+                    for item in items:
+                        try:
+                            product_info = extract_product_info_from_dict(item, 'outbound')
+                            if product_info:
+                                # Salva direttamente nel database
+                                SearchResultItem.objects.create(
+                                    search_id=search_id,
+                                    shipment_id=shipment_id,
+                                    title=product_info['title'],
+                                    sku=product_info['sku'],
+                                    asin=product_info['asin'],
+                                    fnsku=product_info['fnsku'],
+                                    quantity=product_info['quantity'],
+                                    processing_status='completed'
+                                )
+                                results_saved += 1
+                                logger.debug(f"[VIEW_POST] Salvato item per shipment_id={shipment_id}, title={product_info['title']}")
+                        except Exception as e_item:
+                            logger.error(f"[VIEW_POST] Errore durante l'elaborazione dell'item in spedizione {shipment_id}: {str(e_item)}")
+                            continue
+                
+                except Exception as e_shipment:
+                    logger.error(f"[VIEW_POST] Errore durante l'elaborazione della spedizione {shipment_id}: {str(e_shipment)}")
+                    continue
             
-            # Avvia il task Celery
-            task = process_shipment_batch.apply_async(
-                args=[search_id, shipment_ids_for_celery, merchant_id],
-                kwargs={'shipment_type': 'outbound'},
-                countdown=1  # Avvia dopo 1 secondo
-            )
-            
-            if not task.id:
-                logger.error("[VIEW_POST] Task Celery non è stato inviato correttamente (task.id è None)")
-                # In caso di errore, imposta il flag done per evitare polling infinito
-                cache.set(f"{search_id}_done", True, timeout=600)
-                return JsonResponse({'error': 'Errore nell\'avvio del task di elaborazione'}, status=500)
-            
-            logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
-            logger.debug(f"[VIEW_POST] Task Celery args: search_id={search_id}, shipment_ids={shipment_ids_for_celery}, merchant_id={merchant_id}")
-            
-            # Verifica che il task sia stato effettivamente inviato
-            task_state = task.state
-            logger.debug(f"[VIEW_POST] Stato iniziale task Celery: {task_state}")
+            # Imposta il flag done nella cache
+            cache.set(f"{search_id}_done", True, timeout=600)
+            logger.info(f"[VIEW_POST] Elaborazione diretta completata. Salvati {results_saved} items. Flag {search_id}_done impostato a True")
+
+            # Restituisci una risposta che indica il completamento
+            return JsonResponse({
+                'status': 'completed',
+                'search_id': search_id,
+                'total_shipments_processed': len(shipment_ids_for_celery),
+                'total_analyzed_in_view': total_for_this_search,
+                'items_saved': results_saved,
+                'message': f'Elaborazione completata direttamente. Salvati {results_saved} items da {len(shipment_ids_for_celery)} spedizioni.'
+            })
             
         except Exception as e:
-            logger.error(f"[VIEW_POST] Errore nell'avvio del task Celery: {e}")
+            logger.error(f"[VIEW_POST] Errore durante l'elaborazione diretta: {str(e)}")
             logger.error(f"[VIEW_POST] Traceback: {traceback.format_exc()}")
-            # In caso di errore, imposta comunque il flag done per evitare polling infinito
+            # In caso di errore, imposta comunque il flag done
             cache.set(f"{search_id}_done", True, timeout=600)
-            return JsonResponse({'error': f'Errore nell\'avvio del task di elaborazione: {str(e)}'}, status=500)
+            return JsonResponse({
+                'status': 'error',
+                'search_id': search_id,
+                'message': f'Errore durante l\'elaborazione: {str(e)}'
+            }, status=500)
 
+        # Questa parte non dovrebbe mai essere raggiunta
         return JsonResponse({
             'status': 'processing', 
             'search_id': search_id, 

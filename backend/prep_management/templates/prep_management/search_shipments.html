@@ -80,10 +80,10 @@
             <h3>Risultati della Ricerca</h3>
             <p>Trovate {{ results.paginator.count }} spedizioni che corrispondono ai criteri.</p>
             <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
                         <tr>
-                            <th>Spedizione ID</th>
+                            <th>Spedizione</th>
                             <th>Titolo</th>
                             <th>SKU</th>
                             <th>ASIN</th>
@@ -92,35 +92,50 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for result in results %}
+                        {% for item in results %}
                         <tr>
-                            <td>{{ result.shipment_id }}</td>
-                            <td>{{ result.title }}</td>
-                            <td>{{ result.sku }}</td>
-                            <td>{{ result.asin }}</td>
-                            <td>{{ result.fnsku }}</td>
-                            <td>{{ result.quantity }}</td>
+                            <td>{{ item.shipment_id }}</td>
+                            <td>{{ item.title }}</td>
+                            <td>{{ item.sku }}</td>
+                            <td>{{ item.asin }}</td>
+                            <td>{{ item.fnsku }}</td>
+                            <td>{{ item.quantity }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            
             {% if results.has_other_pages %}
-            <nav aria-label="Page navigation">
-                <ul class="pagination justify-content-center">
+            <nav aria-label="Navigazione paginazione">
+                <ul class="pagination">
                     {% if results.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.previous_page_number }}">Precedente</a>
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.previous_page_number }}" aria-label="Precedente">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link" aria-hidden="true">&laquo;</span>
                     </li>
                     {% endif %}
-                    {% for num in results.paginator.page_range %}
-                    <li class="page-item {% if results.number == num %}active{% endif %}">
-                        <a class="page-link" href="?search_id={{ search_id }}&page={{ num }}">{{ num }}</a>
+                    
+                    {% for i in results.paginator.page_range %}
+                    <li class="page-item {% if results.number == i %}active{% endif %}">
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ i }}">{{ i }}</a>
                     </li>
                     {% endfor %}
+                    
                     {% if results.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.next_page_number }}">Successivo</a>
+                        <a class="page-link" href="?search_id={{ search_id }}&page={{ results.next_page_number }}" aria-label="Successivo">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link" aria-hidden="true">&raquo;</span>
                     </li>
                     {% endif %}
                 </ul>
@@ -135,135 +150,178 @@
     </div>
 </div>
 
-{% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const searchForm = document.getElementById('searchForm');
+    const form = document.getElementById('searchForm');
     const searchResults = document.getElementById('searchResults');
-    let currentSearchId = null; // Variabile per tenere traccia del search_id corrente
-    let pollIntervalId = null;  // ID dell'intervallo di polling
-
-    searchForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        console.log("[FORM SUBMIT] Avvio nuova ricerca.");
-
-        // Stoppa qualsiasi polling precedente
+    let pollIntervalId = null;
+    let currentSearchId = null;
+    const pollIntervalMs = 3000; // Intervallo di polling in millisecondi
+    const maxPollRetries = 20; // Numero massimo di tentativi di polling
+    let pollRetryCount = 0;
+    
+    // Gestione invio form
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        console.log("Form inviato");
+        
+        // Interrompi polling precedente se attivo
         if (pollIntervalId) {
+            console.log("Interrompo polling precedente");
             clearInterval(pollIntervalId);
             pollIntervalId = null;
-            console.log("[FORM SUBMIT] Polling precedente stoppato.");
+            currentSearchId = null;
         }
-        currentSearchId = null; // Resetta search_id
-
-        // Show loading state
+        
+        // Mostra spinner di caricamento
         searchResults.innerHTML = `
             <div class="alert alert-info">
                 <h4>Ricerca in corso...</h4>
-                <p>Stiamo elaborando i risultati. Questa pagina si aggiornerà automaticamente.</p>
+                <p>Stiamo avviando la ricerca e l'elaborazione dei risultati...</p>
                 <div class="progress">
                     <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
                 </div>
             </div>
         `;
         
-        fetch(searchForm.action, {
+        // Raccogli dati form
+        const formData = new FormData(form);
+        
+        // Invia richiesta POST
+        fetch('{% url "search_shipments_by_products" %}', {
             method: 'POST',
-            body: new FormData(searchForm),
+            body: formData,
             headers: {
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                'X-Requested-With': 'XMLHttpRequest'
             }
         })
         .then(response => response.json())
         .then(data => {
-            if (data.search_id) {
-                currentSearchId = data.search_id; // Salva il NUOVO search_id
-                console.log("[POST RESPONSE] Ricevuto search_id:", currentSearchId, "Status:", data.status);
+            console.log("Risposta ricevuta:", data);
+            
+            if (data.status === 'error') {
+                // Errore nella ricerca
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h4>Errore</h4>
+                        <p>${data.message || 'Si è verificato un errore durante la ricerca.'}</p>
+                    </div>
+                `;
+                return;
             }
-
-            if (data.status === 'processing' && currentSearchId) {
-                console.log("[POST RESPONSE] Avvio polling per search_id:", currentSearchId);
-                pollResults(currentSearchId);
-            } else if (data.status === 'no_results') {
-                console.log("[POST RESPONSE] Nessun risultato immediato:", data.message);
-                searchResults.innerHTML = `<div class="alert alert-info"><p>${data.message || 'Nessun risultato trovato.'}</p></div>`;
-            } else if (data.error) {
-                console.error("[POST RESPONSE] Errore:", data.error);
-                searchResults.innerHTML = `<div class="alert alert-danger"><h4>Errore</h4><p>${data.error}</p></div>`;
+            else if (data.status === 'no_results') {
+                // Nessun risultato
+                searchResults.innerHTML = `
+                    <div class="alert alert-info">
+                        <p>${data.message || 'Nessun risultato trovato.'}</p>
+                        <small>(ID Ricerca: ${data.search_id})</small>
+                    </div>
+                `;
+                return;
+            }
+            else if (data.status === 'completed') {
+                // Elaborazione diretta completata
+                console.log("Elaborazione diretta completata. Avvio polling immediato per ricevere risultati.");
+                // Avvia subito il polling per recuperare i risultati
+                currentSearchId = data.search_id;
+                pollResults(currentSearchId, 0);
+                return;
+            }
+            else if (data.status === 'processing') {
+                // In lavorazione, avvia polling
+                searchResults.innerHTML = `
+                    <div class="alert alert-info">
+                        <h4>Ricerca in corso...</h4>
+                        <p>Stiamo elaborando i risultati. Questa pagina si aggiornerà automaticamente.</p>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <div id="is_waiting" style="display: none;">true</div>
+                `;
+                
+                // Avvia polling
+                currentSearchId = data.search_id;
+                pollRetryCount = 0;
+                pollIntervalId = setInterval(() => {
+                    pollResults(currentSearchId, pollRetryCount);
+                    pollRetryCount++;
+                    
+                    // Limita il numero di tentativi
+                    if (pollRetryCount >= maxPollRetries) {
+                        console.log(`Raggiunto max tentativi polling (${maxPollRetries}). Interrompo.`);
+                        clearInterval(pollIntervalId);
+                        searchResults.innerHTML = `
+                            <div class="alert alert-warning">
+                                <h4>Ricerca interrotta</h4>
+                                <p>La ricerca sta impiegando troppo tempo. Riprova più tardi o con criteri diversi.</p>
+                                <small>(ID Ricerca: ${currentSearchId})</small>
+                            </div>
+                        `;
+                        pollIntervalId = null;
+                        currentSearchId = null;
+                    }
+                }, pollIntervalMs);
             }
         })
         .catch(error => {
-            console.error('[POST RESPONSE] Errore Fetch:', error);
+            console.error("Errore:", error);
             searchResults.innerHTML = `
                 <div class="alert alert-danger">
                     <h4>Errore</h4>
-                    <p>Si è verificato un errore durante la richiesta iniziale: ${error}</p>
+                    <p>Si è verificato un errore durante la richiesta: ${error.message}</p>
                 </div>
             `;
         });
     });
-
-    function pollResults(searchIdForPolling) {
-        if (pollIntervalId) {
-            clearInterval(pollIntervalId);
-            console.log("[POLL_RESULTS] Stoppato un intervallo di polling esistente prima di avviarne uno nuovo per search_id:", searchIdForPolling);
-        }
+    
+    // Funzione per eseguire il polling dei risultati
+    function pollResults(searchIdForPolling, retryCount) {
+        console.log(`[POLLING] Esecuzione polling ${retryCount+1}/${maxPollRetries} per search_id: ${searchIdForPolling}`);
         
-        console.log("[POLL_RESULTS] Funzione pollResults chiamata. Avvio polling per search_id:", searchIdForPolling);
-
-        pollIntervalId = setInterval(() => {
-            if (!currentSearchId || searchIdForPolling !== currentSearchId) {
-                console.warn("[POLLING] searchIdForPolling (" + searchIdForPolling + ") è diverso da currentSearchId (" + currentSearchId + ") o currentSearchId è nullo. Polling interrotto.");
-                clearInterval(pollIntervalId);
-                pollIntervalId = null;
-                return;
+        fetch(`{% url "search_shipments_by_products" %}?search_id=${searchIdForPolling}`, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
-
-            console.log("[POLLING] Eseguo fetch per search_id:", searchIdForPolling);
-            fetch(`/prep_management/search-shipments/?search_id=${searchIdForPolling}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Errore HTTP ${response.status} durante il polling.`);
-                    }
-                    return response.text();
-                })
-                .then(html => {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(html, 'text/html');
-                    const newResultsDiv = doc.getElementById('searchResults');
-                    
-                    if (newResultsDiv) {
-                        searchResults.innerHTML = newResultsDiv.innerHTML;
-                        console.log("[POLLING] Contenuto aggiornato per search_id:", searchIdForPolling);
-
-                        const isWaitingDiv = searchResults.querySelector('#is_waiting');
-                        
-                        // Se non c'è più il div is_waiting, ferma il polling
-                        if (!isWaitingDiv) {
-                            console.log("[POLLING] Non più in attesa. Polling interrotto per search_id:", searchIdForPolling);
-                            clearInterval(pollIntervalId);
-                            pollIntervalId = null;
-                            currentSearchId = null;
-                        } else {
-                            console.log("[POLLING] Ancora in attesa. Continuo polling per search_id:", searchIdForPolling);
-                        }
-                    } else {
-                         console.warn("[POLLING] Elemento #searchResults non trovato nella risposta HTML del polling. Polling interrotto.");
-                         clearInterval(pollIntervalId);
-                         pollIntervalId = null;
-                         currentSearchId = null;
-                    }
-                })
-                .catch(error => {
-                    console.error('[POLLING] Errore durante il fetch del polling:', error);
-                    searchResults.innerHTML = `<div class="alert alert-danger"><p>Errore durante l'aggiornamento dei risultati: ${error.message}</p></div>`;
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Errore HTTP: ${response.status}`);
+            }
+            return response.text();
+        })
+        .then(html => {
+            // Crea un DOM temporaneo per analizzare la risposta HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const newResultsDiv = doc.getElementById('searchResults');
+            
+            if (newResultsDiv) {
+                // Aggiorna il div dei risultati con il nuovo HTML
+                searchResults.innerHTML = newResultsDiv.innerHTML;
+                
+                // Verifica se siamo ancora in attesa
+                const isWaitingDiv = searchResults.querySelector('#is_waiting');
+                
+                // Se non c'è più il div is_waiting, ferma il polling
+                if (!isWaitingDiv) {
+                    console.log("[POLLING] Non più in attesa. Polling interrotto per search_id:", searchIdForPolling);
                     clearInterval(pollIntervalId);
                     pollIntervalId = null;
                     currentSearchId = null;
-                });
-        }, 5000); // Poll every 5 seconds
+                } else {
+                    console.log("[POLLING] Ancora in attesa. Continuo polling per search_id:", searchIdForPolling);
+                }
+            } else {
+                console.error("[POLLING] div #searchResults non trovato nella risposta HTML");
+            }
+        })
+        .catch(error => {
+            console.error("[POLLING] Errore durante il polling:", error);
+            // Non interrompiamo il polling per errori temporanei, a meno che non raggiungiamo il massimo di tentativi
+        });
     }
 });
 </script>
-{% endblock %}
-
 {% endblock %} 
