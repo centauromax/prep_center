@@ -733,7 +733,12 @@ def search_shipments_by_products(request):
         
         # Lista delle spedizioni che effettivamente analizzeremo (fino al max richiesto)
         shipments_to_actually_analyze = shipments_collected_from_api[:max_shipments_to_analyze]
-        logger.debug(f"[VIEW_POST] Lista finale di spedizioni da analizzare effettivamente (max {max_shipments_to_analyze}): {len(shipments_to_actually_analyze)}")
+        logger.debug(f"[VIEW_POST] Lista finale di spedizioni da analizzare (max {max_shipments_to_analyze}): {len(shipments_to_actually_analyze)}")
+
+        # Salva il totale che verrà analizzato per questo search_id
+        total_for_this_search = len(shipments_to_actually_analyze)
+        cache.set(f"search_{search_id}_total_to_analyze", total_for_this_search, timeout=3600)
+        logger.debug(f"[VIEW_POST] Salvato in cache 'search_{search_id}_total_to_analyze' = {total_for_this_search}")
 
         shipments_matching_criteria = [] # Qui mettiamo gli OGGETTI Spedizione che matchano
         keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
@@ -742,7 +747,13 @@ def search_shipments_by_products(request):
         if not shipments_to_actually_analyze:
             logger.info(f"[VIEW_POST] Nessuna spedizione da analizzare recuperata dall'API.")
             cache.set(f"{search_id}_done", True, timeout=600)
-            return JsonResponse({'status': 'no_results', 'message': 'Nessuna spedizione disponibile.', 'search_id': search_id}, status=200)
+            return JsonResponse({
+                'status': 'no_results', 
+                'message': f'Nessuna spedizione trovata dopo aver analizzato {total_for_this_search} spedizioni.', 
+                'search_id': search_id,
+                'total_to_analyze': total_for_this_search,
+                'matched_count': 0
+            }, status=200)
 
         for idx, shipment_obj in enumerate(shipments_to_actually_analyze):
             current_shipment_id = getattr(shipment_obj, 'id', 'N/A')
@@ -793,7 +804,13 @@ def search_shipments_by_products(request):
         if not shipments_matching_criteria:
             logger.info("[VIEW_POST] Nessuna spedizione ha soddisfatto i criteri dopo analisi completa.")
             cache.set(f"{search_id}_done", True, timeout=600)
-            return JsonResponse({'status': 'no_results', 'message': 'Nessuna spedizione trovata.', 'search_id': search_id}, status=200)
+            return JsonResponse({
+                'status': 'no_results', 
+                'message': f'Nessuna spedizione trovata dopo aver analizzato {total_for_this_search} spedizioni.', 
+                'search_id': search_id,
+                'total_to_analyze': total_for_this_search,
+                'matched_count': 0
+            }, status=200)
 
         # Prepara ID per Celery
         shipment_ids_for_celery = [s.id for s in shipments_matching_criteria]
@@ -805,7 +822,8 @@ def search_shipments_by_products(request):
             'status': 'processing', 
             'search_id': search_id, 
             'total_shipments_for_processing': len(shipment_ids_for_celery),
-            'message': 'Ricerca e processamento avviati.'
+            'total_analyzed_in_view': total_for_this_search,
+            'message': 'Ricerca e processamento avviati...'
         })
 
     # Ritorno per GET non gestito esplicitamente sopra (dovrebbe essere coperto dalla logica GET iniziale)
