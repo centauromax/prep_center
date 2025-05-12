@@ -852,21 +852,33 @@ def search_shipments_by_products(request):
 
         # Chiama il task Celery per processare le spedizioni
         try:
-            task = process_shipment_batch.delay(
-                search_id=search_id,
-                shipment_ids=shipment_ids_for_celery,
-                merchant_id=merchant_id,
-                shipment_type='outbound'
-            )
-            logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
+            # Imposta il flag done a False prima di avviare il task
+            cache.set(f"{search_id}_done", False, timeout=600)
+            logger.debug(f"[VIEW_POST] Impostato flag {search_id}_done=False prima di avviare il task")
             
-            # Verifica che il task sia stato effettivamente inviato
+            # Avvia il task Celery
+            task = process_shipment_batch.apply_async(
+                args=[search_id, shipment_ids_for_celery, merchant_id],
+                kwargs={'shipment_type': 'outbound'},
+                countdown=1  # Avvia dopo 1 secondo
+            )
+            
             if not task.id:
                 logger.error("[VIEW_POST] Task Celery non è stato inviato correttamente (task.id è None)")
                 return JsonResponse({'error': 'Errore nell\'avvio del task di elaborazione'}, status=500)
-                
+            
+            logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
+            logger.debug(f"[VIEW_POST] Task Celery args: search_id={search_id}, shipment_ids={shipment_ids_for_celery}, merchant_id={merchant_id}")
+            
+            # Verifica che il task sia stato effettivamente inviato
+            task_state = task.state
+            logger.debug(f"[VIEW_POST] Stato iniziale task Celery: {task_state}")
+            
         except Exception as e:
             logger.error(f"[VIEW_POST] Errore nell'avvio del task Celery: {e}")
+            logger.error(f"[VIEW_POST] Traceback: {traceback.format_exc()}")
+            # In caso di errore, imposta comunque il flag done per evitare polling infinito
+            cache.set(f"{search_id}_done", True, timeout=600)
             return JsonResponse({'error': f'Errore nell\'avvio del task di elaborazione: {str(e)}'}, status=500)
 
         return JsonResponse({
