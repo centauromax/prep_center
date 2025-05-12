@@ -929,13 +929,15 @@ def search_shipments_by_products(request):
                 # Crea un record nel database
                 SearchResultItem.objects.create(
                     search_id=search_id,
-                    shipment_id=shipment_id,
-                    title=f"Spedizione {shipment_name}",
-                    sku=f"DIRECT_{shipment_id}",
-                    asin="AUTO_CREATED",
-                    fnsku="AUTO_CREATED",
-                    quantity=1,
-                    processing_status='completed'
+                    shipment_id_api=shipment_id,
+                    shipment_name=shipment_name,
+                    shipment_type="outbound",
+                    product_title=f"Spedizione {shipment_name}",
+                    product_sku=f"DIRECT_{shipment_id}",
+                    product_asin="AUTO_CREATED",
+                    product_fnsku="AUTO_CREATED",
+                    product_quantity=1,
+                    processing_status='complete'
                 )
                 records_created += 1
                 logger.info(f"[VIEW_POST] Record creato con successo per spedizione {shipment_id}")
