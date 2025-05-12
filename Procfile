@@ -1,1 +1,2 @@
-web: gunicorn --worker-class gevent --workers 4 --timeout 300 --keep-alive 65 --max-requests 1000 --max-requests-jitter 50 --log-level info prep_management.wsgi:application 
+web: cd backend && python manage.py runserver 0.0.0.0:$PORT
+worker: cd backend && celery -A prep_center worker -l info 
