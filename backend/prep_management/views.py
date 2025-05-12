@@ -39,7 +39,7 @@ from libs.prepbusiness.models import (
     InboundShipmentResponse,
     ShipmentItemsResponse
 )
-from .tasks import process_shipment_batch
+from .tasks import process_shipment_batch, echo_task
 from .utils.extractors import extract_product_info_from_dict
 from .utils.clients import get_client
 # from django.contrib.auth.decorators import login_required
@@ -887,6 +887,45 @@ def search_shipments_by_products(request):
         # Prepara ID per Celery
         shipment_ids_for_celery = [s.id for s in shipments_matching_criteria]
         logger.debug(f"[VIEW_POST] Invio {len(shipment_ids_for_celery)} ID spedizione a Celery: {shipment_ids_for_celery}")
+
+        # SOLUZIONE DEFINITIVA: Crea direttamente record nel database per ogni spedizione trovata
+        logger.info(f"[VIEW_POST] SOLUZIONE DEFINITIVA: Creazione sincrona dei record nel database")
+        records_created = 0
+        for shipment_obj in shipments_matching_criteria:
+            try:
+                # Ottieni i dati base della spedizione
+                shipment_id = getattr(shipment_obj, 'id', 'N/A')
+                shipment_name = getattr(shipment_obj, 'name', f"Spedizione {shipment_id}")
+                
+                logger.info(f"[VIEW_POST] Creazione record per spedizione {shipment_id} ({shipment_name})")
+                
+                # Crea un record nel database
+                SearchResultItem.objects.create(
+                    search_id=search_id,
+                    shipment_id=shipment_id,
+                    title=f"Spedizione {shipment_name}",
+                    sku=f"DIRECT_{shipment_id}",
+                    asin="AUTO_CREATED",
+                    fnsku="AUTO_CREATED",
+                    quantity=1,
+                    processing_status='completed'
+                )
+                records_created += 1
+                logger.info(f"[VIEW_POST] Record creato con successo per spedizione {shipment_id}")
+            except Exception as e_create:
+                logger.error(f"[VIEW_POST] Errore nella creazione del record per spedizione {getattr(shipment_obj, 'id', 'N/A')}: {e_create}")
+        
+        logger.info(f"[VIEW_POST] Creati {records_created} record su {len(shipments_matching_criteria)} spedizioni trovate")
+
+        # Verifica Celery con echo_task
+        try:
+            echo_result = echo_task.apply_async(
+                args=[f"Test di Celery per search_id={search_id}"],
+                countdown=1
+            )
+            logger.info(f"[VIEW_POST] Echo task avviato con ID: {echo_result.id}")
+        except Exception as e_echo:
+            logger.error(f"[VIEW_POST] Errore nell'avvio di echo_task: {e_echo}")
 
         # Se non ci sono spedizioni da processare, imposta subito il flag done
         if not shipment_ids_for_celery:

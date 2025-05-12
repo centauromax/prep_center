@@ -8,6 +8,8 @@ from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 from .utils.clients import get_client
 import traceback
+from django.utils import timezone
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -218,8 +220,16 @@ def cleanup_old_searches():
     """
     Clean up old search results (older than 24 hours)
     """
-    from django.utils import timezone
-    from datetime import timedelta
-    
     cutoff_time = timezone.now() - timedelta(hours=24)
-    SearchResultItem.objects.filter(created_at__lt=cutoff_time).delete() 
+    SearchResultItem.objects.filter(created_at__lt=cutoff_time).delete()
+
+@shared_task
+def echo_task(message):
+    """
+    Un task di test semplicissimo per verificare che Celery funziona.
+    """
+    logger.info(f"[CELERY_ECHO] ========================= ECHO TASK ========================")
+    logger.info(f"[CELERY_ECHO] Messaggio ricevuto: {message}")
+    logger.info(f"[CELERY_ECHO] Timestamp: {timezone.now()}")
+    logger.info(f"[CELERY_ECHO] ========================= FINE ECHO ========================")
+    return {"status": "echo_success", "message": message, "timestamp": str(timezone.now())} 
