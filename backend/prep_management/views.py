@@ -729,15 +729,25 @@ def search_shipments_by_products(request):
             return JsonResponse({'error': 'Nessun termine di ricerca fornito'}, status=400)
         
         merchant_id = request.POST.get('merchant_id')
-        if not merchant_id: # Tolto or request.GET.get('merchant_id') perchè il POST dovrebbe averlo
-            logger.info("[search_shipments_by_products] Merchant ID non trovato nel POST")
-            return JsonResponse({'error': 'Merchant ID non trovato'}, status=400)
+        if not merchant_id:
+            logger.info("[search_shipments_by_products] Merchant ID non fornito o vuoto. Cercherò in tutte le spedizioni.")
+            # Continuiamo senza merchant_id, per cercare in tutte le spedizioni
         
-        logger.info(f"[VIEW_POST] Parametri validi: merchant_id={merchant_id}, search_terms={search_terms}")
+        logger.info(f"[VIEW_POST] Parametri validi: merchant_id={merchant_id or 'TUTTI'}, search_terms={search_terms}")
         search_id = str(uuid.uuid4())
         cache.delete(f"{search_id}_done")
         logger.debug(f"[VIEW_POST] Generato search_id: {search_id}")
 
+        # Se non è stato specificato un merchant_id, otteniamo tutti i merchant attivi
+        all_merchants = []
+        if not merchant_id:
+            try:
+                all_merchants = get_merchants()
+                logger.info(f"[VIEW_POST] Recuperati {len(all_merchants)} merchants per ricerca su tutti")
+            except Exception as e_merchants:
+                logger.error(f"[VIEW_POST] Errore nel recupero dei merchants: {e_merchants}")
+                all_merchants = []
+        
         shipment_status = request.POST.get('shipment_status', '')
         logger.info(f"[VIEW_POST] Filtro stato spedizione richiesto: '{shipment_status}'")
         max_shipments_to_analyze = int(request.POST.get('max_shipments', 20))
@@ -749,39 +759,56 @@ def search_shipments_by_products(request):
 
         logger.debug(f"[VIEW_POST] Inizio loop recupero API. Target spedizioni da analizzare: {max_shipments_to_analyze}")
         
-        while True: # Loop potenzialmente infinito, interrotto da condizioni interne
+        # Se non è stato specificato un merchant_id, cerca in tutti i merchant
+        merchants_to_search = []
+        if merchant_id:
+            merchants_to_search = [merchant_id]
+        else:
+            # Limita a 5 merchant per evitare troppe chiamate API
+            merchants_to_search = [m['id'] for m in all_merchants[:5] if m.get('id')]
+            logger.info(f"[VIEW_POST] Cercherò in {len(merchants_to_search)} merchants: {merchants_to_search}")
+        
+        for current_merchant_id in merchants_to_search:
             if len(shipments_collected_from_api) >= max_shipments_to_analyze:
                 logger.debug(f"[VIEW_POST] RAGGIUNTO/SUPERATO target ({max_shipments_to_analyze} spedizioni) con {len(shipments_collected_from_api)} raccolte. Interrompo recupero API.")
                 break
 
-            logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page}. Spedizioni raccolte finora: {len(shipments_collected_from_api)}")
+            logger.debug(f"[VIEW_POST] Ricerca per merchant_id {current_merchant_id}")
+            current_api_page = 1
             
-            shipments_page_response = None
-            try:
-                if shipment_status == 'archived':
-                    logger.debug(f"[VIEW_POST] Chiamo client.get_archived_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
-                    shipments_page_response = client.get_archived_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
-                else: 
-                    logger.debug(f"[VIEW_POST] Chiamo client.get_outbound_shipments(merchant_id={merchant_id}, page={current_api_page}, per_page=20)")
-                    shipments_page_response = client.get_outbound_shipments(merchant_id=merchant_id, page=current_api_page, per_page=20)
-                logger.debug(f"[VIEW_POST] Risposta API pagina {current_api_page}: {shipments_page_response}")
-            except Exception as e_api_call:
-                logger.error(f"[VIEW_POST] Errore chiamata API per pagina {current_api_page}: {e_api_call}")
-                break # Esce dal loop while se c'è un errore API
+            while True: # Loop potenzialmente infinito, interrotto da condizioni interne
+                if len(shipments_collected_from_api) >= max_shipments_to_analyze:
+                    logger.debug(f"[VIEW_POST] RAGGIUNTO/SUPERATO target ({max_shipments_to_analyze} spedizioni) con {len(shipments_collected_from_api)} raccolte. Interrompo recupero API.")
+                    break
 
-            if not shipments_page_response or not shipments_page_response.data:
-                logger.debug(f"[VIEW_POST] API: Nessun dato per pagina {current_api_page} o fine pagine (no data). Interrompo.")
-                break 
-            
-            shipments_from_current_page = shipments_page_response.data
-            shipments_collected_from_api.extend(shipments_from_current_page)
-            logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da pagina {current_api_page}. Totale raccolte ora: {len(shipments_collected_from_api)}")
+                logger.debug(f"[VIEW_POST] Richiesta API pagina {current_api_page} per merchant {current_merchant_id}. Spedizioni raccolte finora: {len(shipments_collected_from_api)}")
+                
+                shipments_page_response = None
+                try:
+                    if shipment_status == 'archived':
+                        logger.debug(f"[VIEW_POST] Chiamo client.get_archived_outbound_shipments(merchant_id={current_merchant_id}, page={current_api_page}, per_page=20)")
+                        shipments_page_response = client.get_archived_outbound_shipments(merchant_id=current_merchant_id, page=current_api_page, per_page=20)
+                    else: 
+                        logger.debug(f"[VIEW_POST] Chiamo client.get_outbound_shipments(merchant_id={current_merchant_id}, page={current_api_page}, per_page=20)")
+                        shipments_page_response = client.get_outbound_shipments(merchant_id=current_merchant_id, page=current_api_page, per_page=20)
+                    logger.debug(f"[VIEW_POST] Risposta API pagina {current_api_page}: {shipments_page_response}")
+                except Exception as e_api_call:
+                    logger.error(f"[VIEW_POST] Errore chiamata API per merchant {current_merchant_id}, pagina {current_api_page}: {e_api_call}")
+                    break # Esce dal loop while se c'è un errore API per questo merchant
+                
+                if not shipments_page_response or not shipments_page_response.data:
+                    logger.debug(f"[VIEW_POST] API: Nessun dato per merchant {current_merchant_id}, pagina {current_api_page} o fine pagine (no data). Interrompo.")
+                    break 
+                
+                shipments_from_current_page = shipments_page_response.data
+                shipments_collected_from_api.extend(shipments_from_current_page)
+                logger.debug(f"[VIEW_POST] API: Ricevute {len(shipments_from_current_page)} spedizioni da merchant {current_merchant_id}, pagina {current_api_page}. Totale raccolte ora: {len(shipments_collected_from_api)}")
 
-            if not shipments_page_response.next_page_url:
-                logger.debug(f"[VIEW_POST] API: Ultima pagina raggiunta (next_page_url è vuoto/None). Interrompo.")
-                break
-            
-            current_api_page += 1
+                if not shipments_page_response.next_page_url:
+                    logger.debug(f"[VIEW_POST] API: Ultima pagina raggiunta per merchant {current_merchant_id} (next_page_url è vuoto/None). Interrompo.")
+                    break
+                
+                current_api_page += 1
         
         logger.debug(f"[VIEW_POST] Loop API terminato. Totale spedizioni grezze raccolte: {len(shipments_collected_from_api)}")
         
@@ -833,7 +860,7 @@ def search_shipments_by_products(request):
             # 2. Se non trovata nel nome, cerca negli ITEMS
             logger.debug(f"[VIEW_POST] Nessun match su nome per Spedizione ID {current_shipment_id} ({current_shipment_name}). Controllo ITEMS.")
             try:
-                items_response = client.get_outbound_shipment_items(shipment_id=current_shipment_id, merchant_id=merchant_id)
+                items_response = client.get_outbound_shipment_items(shipment_id=current_shipment_id, merchant_id=current_merchant_id)
                 items_list = items_response.get('items', []) if isinstance(items_response, dict) else [] # API response è un dict
                 logger.debug(f"[VIEW_POST] Ricevuti {len(items_list)} items per Spedizione ID {current_shipment_id} ({current_shipment_name}).")
                 
