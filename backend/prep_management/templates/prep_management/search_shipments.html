@@ -133,10 +133,21 @@
 document.addEventListener('DOMContentLoaded', function() {
     const searchForm = document.getElementById('searchForm');
     const searchResults = document.getElementById('searchResults');
-    
+    let currentSearchId = null; // Variabile per tenere traccia del search_id corrente
+    let pollIntervalId = null;  // ID dell'intervallo di polling
+
     searchForm.addEventListener('submit', function(e) {
         e.preventDefault();
-        
+        console.log("[FORM SUBMIT] Avvio nuova ricerca.");
+
+        // Stoppa qualsiasi polling precedente
+        if (pollIntervalId) {
+            clearInterval(pollIntervalId);
+            pollIntervalId = null;
+            console.log("[FORM SUBMIT] Polling precedente stoppato.");
+        }
+        currentSearchId = null; // Resetta search_id
+
         // Show loading state
         searchResults.innerHTML = `
             <div class="alert alert-info">
@@ -148,8 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
         
-        // Submit form via AJAX
-        fetch('/prep_management/search-shipments/', {
+        fetch(searchForm.action, {
             method: 'POST',
             body: new FormData(searchForm),
             headers: {
@@ -158,54 +168,91 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'processing') {
-                // Start polling for results
-                pollResults(data.search_id);
+            if (data.search_id) {
+                currentSearchId = data.search_id; // Salva il NUOVO search_id
+                console.log("[POST RESPONSE] Ricevuto search_id:", currentSearchId, "Status:", data.status);
+            }
+
+            if (data.status === 'processing' && currentSearchId) {
+                console.log("[POST RESPONSE] Avvio polling per search_id:", currentSearchId);
+                pollResults(currentSearchId);
             } else if (data.status === 'no_results') {
-                searchResults.innerHTML = `
-                    <div class="alert alert-info">
-                        <p>Nessun risultato trovato.</p>
-                    </div>
-                `;
+                console.log("[POST RESPONSE] Nessun risultato immediato:", data.message);
+                searchResults.innerHTML = `<div class="alert alert-info"><p>${data.message || 'Nessun risultato trovato.'}</p></div>`;
             } else if (data.error) {
-                searchResults.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h4>Errore</h4>
-                        <p>${data.error}</p>
-                    </div>
-                `;
+                console.error("[POST RESPONSE] Errore:", data.error);
+                searchResults.innerHTML = `<div class="alert alert-danger"><h4>Errore</h4><p>${data.error}</p></div>`;
             }
         })
         .catch(error => {
+            console.error('[POST RESPONSE] Errore Fetch:', error);
             searchResults.innerHTML = `
                 <div class="alert alert-danger">
                     <h4>Errore</h4>
-                    <p>Si è verificato un errore durante la ricerca: ${error}</p>
+                    <p>Si è verificato un errore durante la richiesta iniziale: ${error}</p>
                 </div>
             `;
         });
     });
-    
-    function pollResults(searchId) {
-        const pollInterval = setInterval(() => {
-            fetch(`/prep_management/search-shipments/?search_id=${searchId}`)
-                .then(response => response.text())
+
+    function pollResults(searchIdForPolling) {
+        if (pollIntervalId) {
+            clearInterval(pollIntervalId);
+            console.log("[POLL_RESULTS] Stoppato un intervallo di polling esistente prima di avviarne uno nuovo per search_id:", searchIdForPolling);
+        }
+        
+        console.log("[POLL_RESULTS] Funzione pollResults chiamata. Avvio polling per search_id:", searchIdForPolling);
+
+        pollIntervalId = setInterval(() => {
+            if (!currentSearchId || searchIdForPolling !== currentSearchId) {
+                console.warn("[POLLING] searchIdForPolling (" + searchIdForPolling + ") è diverso da currentSearchId (" + currentSearchId + ") o currentSearchId è nullo. Polling interrotto.");
+                clearInterval(pollIntervalId);
+                pollIntervalId = null;
+                return;
+            }
+
+            console.log("[POLLING] Eseguo fetch per search_id:", searchIdForPolling);
+            fetch(`/prep_management/search-shipments/?search_id=${searchIdForPolling}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Errore HTTP ${response.status} durante il polling.`);
+                    }
+                    return response.text();
+                })
                 .then(html => {
                     const parser = new DOMParser();
                     const doc = parser.parseFromString(html, 'text/html');
-                    const newResults = doc.getElementById('searchResults');
+                    const newResultsDiv = doc.getElementById('searchResults');
                     
-                    if (newResults) {
-                        searchResults.innerHTML = newResults.innerHTML;
+                    if (newResultsDiv) {
+                        searchResults.innerHTML = newResultsDiv.innerHTML;
+                        console.log("[POLLING] Contenuto aggiornato per search_id:", searchIdForPolling);
+
+                        const isWaitingDiv = searchResults.querySelector('.alert-info h4');
+                        const isErrorDiv = searchResults.querySelector('.alert-danger');
+                        const noResultsMessage = searchResults.innerText.includes("Nessun risultato trovato"); // Controlla il testo effettivo
                         
-                        // If we have results and we're not waiting anymore, stop polling
-                        if (!newResults.querySelector('.alert-info')) {
-                            clearInterval(pollInterval);
+                        if (isErrorDiv || (noResultsMessage && !isWaitingDiv) || (!isWaitingDiv && !searchResults.querySelector('table'))) { // Se non c'è tabella e non è in attesa
+                            console.log("[POLLING] Condizione di stop rilevata. Dettagli: isErrorDiv=",isErrorDiv, "noResultsMessage=", noResultsMessage, "!isWaitingDiv=",!isWaitingDiv, "!searchResults.querySelector('table')=",!searchResults.querySelector('table'),". Polling interrotto per search_id:", searchIdForPolling);
+                            clearInterval(pollIntervalId);
+                            pollIntervalId = null;
+                            currentSearchId = null; 
+                        } else {
+                            console.log("[POLLING] Ancora in attesa o risultati parziali. Continuo polling per search_id:", searchIdForPolling);
                         }
+                    } else {
+                         console.warn("[POLLING] Elemento #searchResults non trovato nella risposta HTML del polling. Polling interrotto.");
+                         clearInterval(pollIntervalId);
+                         pollIntervalId = null;
+                         currentSearchId = null;
                     }
                 })
                 .catch(error => {
-                    console.error('Error polling results:', error);
+                    console.error('[POLLING] Errore durante il fetch del polling:', error);
+                    searchResults.innerHTML = `<div class="alert alert-danger"><p>Errore durante l'aggiornamento dei risultati: ${error.message}</p></div>`;
+                    clearInterval(pollIntervalId);
+                    pollIntervalId = null;
+                    currentSearchId = null;
                 });
         }, 5000); // Poll every 5 seconds
     }
