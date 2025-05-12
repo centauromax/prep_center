@@ -23,6 +23,11 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
     Process a batch of shipments asynchronously
     """
     logger.info(f"[Celery][process_shipment_batch] INIZIO - search_id={search_id}, shipment_ids={shipment_ids}, merchant_id={merchant_id}, page={page}, shipment_type={shipment_type}")
+    
+    # Verifica stato iniziale della cache
+    cache_done_before = cache.get(f"{search_id}_done")
+    logger.debug(f"[Celery][process_shipment_batch] Stato iniziale cache per {search_id}: done={cache_done_before}")
+    
     try:
         client = get_client()
         results = []
@@ -75,7 +80,9 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
         
         # Imposta il flag done nella cache quando il task ha finito
         cache.set(f"{search_id}_done", True, timeout=600)  # 10 minuti di timeout
+        cache_done_after = cache.get(f"{search_id}_done")
         logger.info(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nella cache")
+        logger.debug(f"[Celery][process_shipment_batch] Verifica cache dopo impostazione: done={cache_done_after}")
         
         return {
             'status': 'success',
@@ -87,7 +94,9 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
         logger.error(f"[Celery][process_shipment_batch] ERRORE: {exc}")
         # In caso di errore, imposta comunque il flag done per evitare polling infinito
         cache.set(f"{search_id}_done", True, timeout=600)
+        cache_done_after_error = cache.get(f"{search_id}_done")
         logger.error(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nella cache dopo errore")
+        logger.debug(f"[Celery][process_shipment_batch] Verifica cache dopo errore: done={cache_done_after_error}")
         raise self.retry(exc=exc)
 
 @shared_task

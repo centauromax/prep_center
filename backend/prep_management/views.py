@@ -646,13 +646,28 @@ def search_shipments_by_products(request):
         # (La logica di paginazione esistente dovrebbe andare qui)
         try:
             results_from_db = SearchResultItem.objects.filter(search_id=search_id_get).order_by('-created_at')
+            
+            # Log dettagliato dello stato
+            cache_done = cache.get(f"{search_id_get}_done")
+            results_exist = results_from_db.exists()
+            logger.debug(f"[search_shipments_by_products DEBUG] Stato polling per search_id {search_id_get}:")
+            logger.debug(f"[search_shipments_by_products DEBUG] - cache_done = {cache_done}")
+            logger.debug(f"[search_shipments_by_products DEBUG] - results_exist = {results_exist}")
+            logger.debug(f"[search_shipments_by_products DEBUG] - results_count = {results_from_db.count()}")
+            
             # Modifica: is_still_processing è True solo se il task non è finito E non ci sono risultati
-            is_still_processing = not cache.get(f"{search_id_get}_done") and not results_from_db.exists()
+            is_still_processing = not cache_done and not results_exist
             
             # Se il task è finito ma non ci sono risultati, imposta is_still_processing a False
-            if cache.get(f"{search_id_get}_done") and not results_from_db.exists():
+            if cache_done and not results_exist:
                 is_still_processing = False
                 logger.debug(f"[search_shipments_by_products DEBUG] Task finito ma nessun risultato trovato. is_still_processing=False")
+            
+            # Log finale dello stato
+            logger.debug(f"[search_shipments_by_products DEBUG] Stato finale:")
+            logger.debug(f"[search_shipments_by_products DEBUG] - is_still_processing = {is_still_processing}")
+            logger.debug(f"[search_shipments_by_products DEBUG] - total_to_analyze = {cache.get(f'search_{search_id_get}_total_to_analyze', 0)}")
+            logger.debug(f"[search_shipments_by_products DEBUG] - matched_count = {results_from_db.count()}")
             
             paginator = Paginator(results_from_db, 10)
             page_number = request.GET.get('page', 1)
