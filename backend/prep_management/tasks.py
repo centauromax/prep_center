@@ -28,6 +28,10 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
     cache_done_before = cache.get(f"{search_id}_done")
     logger.debug(f"[Celery][process_shipment_batch] Stato iniziale cache per {search_id}: done={cache_done_before}")
     
+    # Imposta il flag done a False all'inizio
+    cache.set(f"{search_id}_done", False, timeout=600)
+    logger.debug(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=False all'inizio")
+    
     try:
         client = get_client()
         results = []
@@ -98,6 +102,11 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
         logger.error(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nella cache dopo errore")
         logger.debug(f"[Celery][process_shipment_batch] Verifica cache dopo errore: done={cache_done_after_error}")
         raise self.retry(exc=exc)
+    finally:
+        # Assicurati che il flag sia impostato anche se c'è un'eccezione non gestita
+        if not cache.get(f"{search_id}_done"):
+            cache.set(f"{search_id}_done", True, timeout=600)
+            logger.warning(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nel blocco finally")
 
 @shared_task
 def cleanup_old_searches():

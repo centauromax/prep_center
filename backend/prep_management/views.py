@@ -851,13 +851,23 @@ def search_shipments_by_products(request):
         logger.debug(f"[VIEW_POST] Invio {len(shipment_ids_for_celery)} ID spedizione a Celery: {shipment_ids_for_celery}")
 
         # Chiama il task Celery per processare le spedizioni
-        task = process_shipment_batch.delay(
-            search_id=search_id,
-            shipment_ids=shipment_ids_for_celery,
-            merchant_id=merchant_id,
-            shipment_type='outbound'
-        )
-        logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
+        try:
+            task = process_shipment_batch.delay(
+                search_id=search_id,
+                shipment_ids=shipment_ids_for_celery,
+                merchant_id=merchant_id,
+                shipment_type='outbound'
+            )
+            logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
+            
+            # Verifica che il task sia stato effettivamente inviato
+            if not task.id:
+                logger.error("[VIEW_POST] Task Celery non è stato inviato correttamente (task.id è None)")
+                return JsonResponse({'error': 'Errore nell\'avvio del task di elaborazione'}, status=500)
+                
+        except Exception as e:
+            logger.error(f"[VIEW_POST] Errore nell'avvio del task Celery: {e}")
+            return JsonResponse({'error': f'Errore nell\'avvio del task di elaborazione: {str(e)}'}, status=500)
 
         return JsonResponse({
             'status': 'processing', 
