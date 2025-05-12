@@ -1,6 +1,7 @@
 import logging
 from celery import shared_task
 from django.db import transaction
+from django.core.cache import cache
 from .models import SearchResultItem
 from .utils.extractors import extract_product_info_from_dict
 from libs.prepbusiness.client import PrepBusinessClient
@@ -72,6 +73,10 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
                     processing_status='completed'
                 )
         
+        # Imposta il flag done nella cache quando il task ha finito
+        cache.set(f"{search_id}_done", True, timeout=600)  # 10 minuti di timeout
+        logger.info(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nella cache")
+        
         return {
             'status': 'success',
             'processed_shipments': len(shipment_ids),
@@ -80,6 +85,9 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, page=1, s
         
     except Exception as exc:
         logger.error(f"[Celery][process_shipment_batch] ERRORE: {exc}")
+        # In caso di errore, imposta comunque il flag done per evitare polling infinito
+        cache.set(f"{search_id}_done", True, timeout=600)
+        logger.error(f"[Celery][process_shipment_batch] Impostato flag {search_id}_done=True nella cache dopo errore")
         raise self.retry(exc=exc)
 
 @shared_task
