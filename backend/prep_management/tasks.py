@@ -20,67 +20,115 @@ def get_client():
 
 @shared_task(bind=True, max_retries=3)
 def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_type='outbound'):
-    logger.info(f"[CELERY_TASK] Inizio task process_shipment_batch - search_id={search_id}, shipment_ids={shipment_ids}, merchant_id={merchant_id}")
+    logger.info(f"[CELERY_TASK] ==============> INIZIO task process_shipment_batch <==============")
+    logger.info(f"[CELERY_TASK] search_id={search_id}, shipment_ids={shipment_ids}, merchant_id={merchant_id}")
     logger.info(f"[CELERY_TASK] Task ID: {self.request.id}")
     logger.info(f"[CELERY_TASK] Stato task: {self.request.state}")
     
     try:
-        # Imposta il flag a False all'inizio
-        cache.set(f"{search_id}_done", False, timeout=600)
-        logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=False all'inizio del task")
+        # Verifica lo stato iniziale della cache
+        cache_done_before = cache.get(f"{search_id}_done")
+        logger.info(f"[CELERY_TASK] Stato iniziale flag {search_id}_done: {cache_done_before}")
         
-        # Recupera le spedizioni dal database
-        shipments = Shipment.objects.filter(id__in=shipment_ids)
-        logger.info(f"[CELERY_TASK] Recuperate {len(shipments)} spedizioni dal database")
+        # Se il flag è già True, significa che il timer ha già imposto il timeout
+        if cache_done_before is True:
+            logger.warning(f"[CELERY_TASK] Flag {search_id}_done è già True, probabilmente scattato il timeout. Termino il task.")
+            return {
+                'status': 'cancelled',
+                'reason': 'Flag already set to done',
+                'search_id': search_id
+            }
         
-        # Se non ci sono spedizioni, termina subito
-        if not shipments.exists():
-            logger.warning("[CELERY_TASK] Nessuna spedizione trovata nel database")
-            cache.set(f"{search_id}_done", True, timeout=600)
-            logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True (nessuna spedizione trovata)")
-            return
+        client = get_client()
+        results = []
         
-        # Prepara i dati per l'API
-        shipments_data = []
-        for shipment in shipments:
+        logger.info(f"[CELERY_TASK] Inizio elaborazione {len(shipment_ids)} spedizioni")
+        for idx, shipment_id in enumerate(shipment_ids):
             try:
-                shipment_data = prepare_shipment_data(shipment, merchant_id)
-                if shipment_data:
-                    shipments_data.append(shipment_data)
-                    logger.debug(f"[CELERY_TASK] Preparati dati per spedizione {shipment.id}")
+                logger.info(f"[CELERY_TASK] Elaborazione spedizione {idx+1}/{len(shipment_ids)}: ID {shipment_id}")
+                
+                # Get shipment items
+                items_response = client.get_outbound_shipment_items(
+                    ship_id=shipment_id,
+                    merchant_id=merchant_id
+                )
+                
+                if not items_response or 'items' not in items_response:
+                    logger.warning(f"[CELERY_TASK] Nessun item trovato per shipment_id={shipment_id}")
+                    continue
+                
+                items = items_response['items']
+                logger.info(f"[CELERY_TASK] Trovati {len(items)} items per spedizione {shipment_id}")
+                
+                # Process each item
+                for item_idx, item in enumerate(items):
+                    try:
+                        logger.debug(f"[CELERY_TASK] Elaborazione item {item_idx+1}/{len(items)} di spedizione {shipment_id}")
+                        product_info = extract_product_info_from_dict(item, shipment_type)
+                        if product_info:
+                            results.append({
+                                'shipment_id': shipment_id,
+                                'product_info': product_info
+                            })
+                            logger.debug(f"[CELERY_TASK] Item aggiunto ai risultati: {product_info['title']}")
+                        else:
+                            logger.debug(f"[CELERY_TASK] Item scartato, nessuna info prodotto estratta")
+                    except Exception as e:
+                        logger.error(f"[CELERY_TASK] Errore processing item in spedizione {shipment_id}: {str(e)}")
+                        continue
+                
             except Exception as e:
-                logger.error(f"[CELERY_TASK] Errore nella preparazione dati spedizione {shipment.id}: {e}")
+                logger.error(f"[CELERY_TASK] Errore durante l'elaborazione di shipment_id={shipment_id}: {e}")
                 continue
         
-        logger.info(f"[CELERY_TASK] Preparati {len(shipments_data)} spedizioni per l'API")
+        logger.info(f"[CELERY_TASK] Elaborazione completata. Salvando {len(results)} items nel database...")
         
-        if not shipments_data:
-            logger.warning("[CELERY_TASK] Nessuna spedizione valida da processare")
-            cache.set(f"{search_id}_done", True, timeout=600)
-            logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True (nessuna spedizione valida)")
-            return
+        # Save results to database
+        saved_count = 0
+        with transaction.atomic():
+            for result in results:
+                try:
+                    SearchResultItem.objects.create(
+                        search_id=search_id,
+                        shipment_id=result['shipment_id'],
+                        title=result['product_info']['title'],
+                        sku=result['product_info']['sku'],
+                        asin=result['product_info']['asin'],
+                        fnsku=result['product_info']['fnsku'],
+                        quantity=result['product_info']['quantity'],
+                        processing_status='completed'
+                    )
+                    saved_count += 1
+                except Exception as e:
+                    logger.error(f"[CELERY_TASK] Errore nel salvare l'item in DB: {e}")
+                    continue
         
-        # Invia i dati all'API
-        try:
-            logger.info("[CELERY_TASK] Invio dati all'API Prep Business")
-            response = send_shipments_to_prep_business(shipments_data, merchant_id)
-            logger.info(f"[CELERY_TASK] Risposta API: {response}")
-        except Exception as e:
-            logger.error(f"[CELERY_TASK] Errore nell'invio dati all'API: {e}")
-            raise
+        logger.info(f"[CELERY_TASK] Salvati {saved_count} items nel DB su {len(results)} elaborati")
         
-        # Imposta il flag a True alla fine
+        # Verifica che items siano stati salvati
+        db_count = SearchResultItem.objects.filter(search_id=search_id).count()
+        logger.info(f"[CELERY_TASK] Verifica DB: {db_count} items trovati per search_id={search_id}")
+        
+        # Imposta il flag done nella cache quando il task ha finito
         cache.set(f"{search_id}_done", True, timeout=600)
-        logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True alla fine del task")
+        logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True")
+        logger.info(f"[CELERY_TASK] ==============> FINE task process_shipment_batch <==============")
         
-    except Exception as e:
-        logger.error(f"[CELERY_TASK] Errore nel task: {e}")
+        return {
+            'status': 'success',
+            'processed_shipments': len(shipment_ids),
+            'results_count': len(results),
+            'saved_count': saved_count,
+            'db_count': db_count
+        }
+        
+    except Exception as exc:
+        logger.error(f"[CELERY_TASK] ERRORE generale: {exc}")
         logger.error(f"[CELERY_TASK] Traceback: {traceback.format_exc()}")
-        # In caso di errore, imposta comunque il flag a True
+        # In caso di errore, imposta comunque il flag done per evitare polling infinito
         cache.set(f"{search_id}_done", True, timeout=600)
-        logger.info(f"[CELERY_TASK] Impostato flag {search_id}_done=True dopo errore")
-        # Ritenta il task
-        raise self.retry(exc=e, countdown=5)
+        logger.error(f"[CELERY_TASK] Impostato flag {search_id}_done=True dopo errore")
+        raise self.retry(exc=exc, countdown=5)
     finally:
         # Verifica finale dello stato del flag
         flag_state = cache.get(f"{search_id}_done")

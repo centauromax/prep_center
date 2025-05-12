@@ -645,15 +645,26 @@ def search_shipments_by_products(request):
         # Qui gestisci il rendering dei risultati parziali o finali se search_id è presente
         # (La logica di paginazione esistente dovrebbe andare qui)
         try:
+            # Log dettagliato prima di cercare i risultati nel DB
+            logger.info(f"[VIEW_GET] Cerco risultati per search_id={search_id_get} nel database")
+            
             results_from_db = SearchResultItem.objects.filter(search_id=search_id_get).order_by('-created_at')
+            result_count = results_from_db.count()
+            logger.info(f"[VIEW_GET] Trovati {result_count} risultati nel database per search_id={search_id_get}")
+            
+            # Log di alcuni risultati se presenti
+            if result_count > 0:
+                sample_results = results_from_db[:3]
+                for idx, item in enumerate(sample_results):
+                    logger.info(f"[VIEW_GET] Risultato {idx+1}: shipment_id={item.shipment_id}, title='{item.title}', sku={item.sku}")
             
             # Log dettagliato dello stato
             cache_done = cache.get(f"{search_id_get}_done")
             results_exist = results_from_db.exists()
-            logger.debug(f"[search_shipments_by_products DEBUG] Stato polling per search_id {search_id_get}:")
-            logger.debug(f"[search_shipments_by_products DEBUG] - cache_done = {cache_done}")
-            logger.debug(f"[search_shipments_by_products DEBUG] - results_exist = {results_exist}")
-            logger.debug(f"[search_shipments_by_products DEBUG] - results_count = {results_from_db.count()}")
+            logger.info(f"[VIEW_GET] *** STATO COMPLETO search_id={search_id_get} ***")
+            logger.info(f"[VIEW_GET] cache_done = {cache_done}")
+            logger.info(f"[VIEW_GET] results_exist = {results_exist}")
+            logger.info(f"[VIEW_GET] results_count = {result_count}")
             
             # Modifica: is_still_processing è True solo se il task non è finito E non ci sono risultati
             is_still_processing = not cache_done and not results_exist
@@ -661,20 +672,22 @@ def search_shipments_by_products(request):
             # Se il task è finito ma non ci sono risultati, imposta is_still_processing a False
             if cache_done and not results_exist:
                 is_still_processing = False
-                logger.debug(f"[search_shipments_by_products DEBUG] Task finito ma nessun risultato trovato. is_still_processing=False")
+                logger.info(f"[VIEW_GET] Task finito ma nessun risultato trovato. is_still_processing=False")
             
             # Log finale dello stato
-            logger.debug(f"[search_shipments_by_products DEBUG] Stato finale:")
-            logger.debug(f"[search_shipments_by_products DEBUG] - is_still_processing = {is_still_processing}")
-            logger.debug(f"[search_shipments_by_products DEBUG] - total_to_analyze = {cache.get(f'search_{search_id_get}_total_to_analyze', 0)}")
-            logger.debug(f"[search_shipments_by_products DEBUG] - matched_count = {results_from_db.count()}")
-            
+            logger.info(f"[VIEW_GET] - is_still_processing = {is_still_processing}")
+            logger.info(f"[VIEW_GET] - total_to_analyze = {cache.get(f'search_{search_id_get}_total_to_analyze', 0)}")
+            logger.info(f"[VIEW_GET] - matched_count = {result_count}")
+
+            # --- AGGIUNTA: Verifica che i risultati vengano passati correttamente al template ---
             paginator = Paginator(results_from_db, 10)
             page_number = request.GET.get('page', 1)
             try:
                 page_obj = paginator.page(page_number)
+                logger.info(f"[VIEW_GET] Paginazione: pagina {page_number} di {paginator.num_pages}, oggetti in pagina: {len(page_obj.object_list)}")
             except (PageNotAnInteger, EmptyPage):
                 page_obj = paginator.page(1)
+                logger.info(f"[VIEW_GET] Fallback alla pagina 1. Oggetti in pagina: {len(page_obj.object_list)}")
 
             # --- AGGIUNTA: calcolo avanzamento ---
             total_to_analyze = cache.get(f"search_{search_id_get}_total_to_analyze", 0)
@@ -682,10 +695,12 @@ def search_shipments_by_products(request):
             polling_message = None
             if is_still_processing and total_to_analyze > 0:
                 polling_message = f"Trovate {matched_count_from_db} spedizioni su {total_to_analyze} analizzate finora."
-                logger.debug(f"[search_shipments_by_products DEBUG] polling_message calcolato: {polling_message}")
+                logger.info(f"[VIEW_GET] polling_message calcolato: {polling_message}")
 
-            logger.debug(f"[search_shipments_by_products DEBUG] GET: Rendering risultati per search_id {search_id_get}, pagina {page_number}. In attesa: {is_still_processing}")
-            return render(request, 'prep_management/search_shipments.html', {
+            logger.info(f"[VIEW_GET] Rendering risultati per search_id {search_id_get}, pagina {page_number}. In attesa: {is_still_processing}")
+            
+            # Creazione del contesto per il template
+            template_context = {
                 'results': page_obj, 
                 'is_waiting': is_still_processing, 
                 'search_id': search_id_get,
@@ -693,7 +708,12 @@ def search_shipments_by_products(request):
                 'total_to_analyze': total_to_analyze,
                 'matched_count': matched_count_from_db,
                 **context
-            })
+            }
+            
+            # Log del contesto passato al template
+            logger.info(f"[VIEW_GET] Contesto template: results={len(page_obj.object_list) if hasattr(page_obj, 'object_list') else 'None'}, is_waiting={is_still_processing}")
+            
+            return render(request, 'prep_management/search_shipments.html', template_context)
         except Exception as e_get_render:
             logger.error(f"[search_shipments_by_products DEBUG] GET: Errore rendering risultati: {e_get_render}")
             return render(request, 'prep_management/search_shipments.html', {
@@ -774,6 +794,7 @@ def search_shipments_by_products(request):
         cache.set(f"search_{search_id}_total_to_analyze", total_for_this_search, timeout=3600)
         logger.debug(f"[VIEW_POST] Salvato in cache 'search_{search_id}_total_to_analyze' = {total_for_this_search}")
 
+        # Filtra le spedizioni che contengono le keyword nel nome o negli items
         shipments_matching_criteria = [] # Qui mettiamo gli OGGETTI Spedizione che matchano
         keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
         logger.debug(f"[VIEW_POST] Keywords da cercare: {keywords_list}")
@@ -797,7 +818,14 @@ def search_shipments_by_products(request):
             # 1. Cerca keyword nel NOME della spedizione
             shipment_name_lower = str(current_shipment_name).lower()
             logger.debug(f"[VIEW_POST] Controllo keywords {keywords_list} in NOME spedizione: '{shipment_name_lower[:100]}...'")
-            if any(kw in shipment_name_lower for kw in keywords_list):
+            found_match_in_name = False
+            for kw in keywords_list:
+                if kw in shipment_name_lower:
+                    found_match_in_name = True
+                    logger.debug(f"[VIEW_POST] Trovata keyword '{kw}' in nome spedizione '{shipment_name_lower}'")
+                    break
+            
+            if found_match_in_name:
                 logger.info(f"[VIEW_POST] MATCH DIRETTO SU NOME! Spedizione ID {current_shipment_id} ({current_shipment_name}) selezionata.")
                 shipments_matching_criteria.append(shipment_obj)
                 continue # Spedizione trovata, passa alla successiva da analizzare
@@ -822,7 +850,14 @@ def search_shipments_by_products(request):
                     # Aggiungi altri hasattr se necessario per oggetti Pydantic item_data
 
                     logger.debug(f"[VIEW_POST]  Item {item_idx + 1}/{len(items_list)} (Sped. {current_shipment_name}): Controllo keywords in TITOLO '{item_title[:100]}...'")
-                    if any(kw in item_title for kw in keywords_list):
+                    found_match_in_item = False
+                    for kw in keywords_list:
+                        if kw in item_title:
+                            found_match_in_item = True
+                            logger.debug(f"[VIEW_POST] Trovata keyword '{kw}' in titolo item '{item_title}'")
+                            break
+                    
+                    if found_match_in_item:
                         logger.info(f"[VIEW_POST] MATCH SU ITEM! Titolo: '{item_title[:50]}'. Spedizione ID {current_shipment_id} ({current_shipment_name}) selezionata.")
                         shipments_matching_criteria.append(shipment_obj)
                         item_found_matching = True
@@ -834,6 +869,9 @@ def search_shipments_by_products(request):
                 logger.error(f"[VIEW_POST] Errore loop items per Spedizione ID {current_shipment_id} ({current_shipment_name}): {e_items_loop}")
 
         logger.debug(f"[VIEW_POST] Analisi keyword completata. Spedizioni totali che soddisfano i criteri: {len(shipments_matching_criteria)}")
+        if len(shipments_matching_criteria) > 0:
+            logger.info(f"[VIEW_POST] Spedizioni selezionate: {[getattr(s, 'id', 'N/A') for s in shipments_matching_criteria]}")
+            logger.info(f"[VIEW_POST] Nomi spedizioni selezionate: {[getattr(s, 'name', 'N/A') for s in shipments_matching_criteria]}")
 
         if not shipments_matching_criteria:
             logger.info("[VIEW_POST] Nessuna spedizione ha soddisfatto i criteri dopo analisi completa.")
