@@ -916,8 +916,16 @@ def search_shipments_by_products(request):
                 logger.error(f"[VIEW_POST] Errore nella creazione del record per spedizione {getattr(shipment_obj, 'id', 'N/A')}: {e_create}")
         
         logger.info(f"[VIEW_POST] Creati {records_created} record su {len(shipments_matching_criteria)} spedizioni trovate")
+        
+        # SOLUZIONE FINALE: Imposta il flag done=True immediatamente dopo aver creato i record
+        cache.set(f"{search_id}_done", True, timeout=600)
+        logger.info(f"[VIEW_POST] Impostato flag {search_id}_done=True dopo creazione sincrona")
 
-        # Verifica Celery con echo_task
+        # Verifica se ci sono record nel database
+        db_count = SearchResultItem.objects.filter(search_id=search_id).count()
+        logger.info(f"[VIEW_POST] Verifica finale: {db_count} record in database per search_id={search_id}")
+
+        # Verifica Celery con echo_task (opzionale)
         try:
             echo_result = echo_task.apply_async(
                 args=[f"Test di Celery per search_id={search_id}"],
@@ -926,6 +934,18 @@ def search_shipments_by_products(request):
             logger.info(f"[VIEW_POST] Echo task avviato con ID: {echo_result.id}")
         except Exception as e_echo:
             logger.error(f"[VIEW_POST] Errore nell'avvio di echo_task: {e_echo}")
+
+        # Se ci sono spedizioni trovate e record creati, restituisci completed
+        if records_created > 0:
+            logger.info(f"[VIEW_POST] Ritorno status=completed con {records_created} record creati")
+            return JsonResponse({
+                'status': 'completed',
+                'search_id': search_id,
+                'total_shipments_found': len(shipments_matching_criteria),
+                'records_created': records_created,
+                'total_analyzed': total_for_this_search,
+                'message': f'Trovate {records_created} spedizioni su {total_for_this_search} analizzate.'
+            })
 
         # Se non ci sono spedizioni da processare, imposta subito il flag done
         if not shipment_ids_for_celery:
@@ -938,62 +958,6 @@ def search_shipments_by_products(request):
                 'total_analyzed_in_view': total_for_this_search,
                 'message': 'Nessuna spedizione trovata da processare'
             })
-
-        # Chiama il task Celery per processare le spedizioni
-        try:
-            # Imposta il flag done a False prima di avviare il task
-            cache.set(f"{search_id}_done", False, timeout=600)
-            logger.debug(f"[VIEW_POST] Impostato flag {search_id}_done=False prima di avviare il task")
-            
-            # SOLUZIONE: Imposta un timeout forzato dopo 60 secondi
-            # Dopo 60 secondi, il flag done verrà impostato a True anche se il task è ancora in esecuzione
-            import threading
-            def force_done_flag():
-                logger.warning(f"[VIEW_POST] TIMEOUT FORZATO: Imposto flag {search_id}_done=True dopo 60 secondi")
-                cache.set(f"{search_id}_done", True, timeout=600)
-            
-            # Avvia il timer che imposterà il flag dopo 60 secondi
-            timer = threading.Timer(60.0, force_done_flag)
-            timer.daemon = True  # Per evitare che il thread blocchi l'arresto dell'applicazione
-            timer.start()
-            logger.debug(f"[VIEW_POST] Impostato timer di 60 secondi per timeout forzato del flag done")
-            
-            # Avvia il task Celery
-            task = process_shipment_batch.apply_async(
-                args=[search_id, shipment_ids_for_celery, merchant_id],
-                kwargs={'shipment_type': 'outbound'},
-                countdown=1  # Avvia dopo 1 secondo
-            )
-            
-            if not task.id:
-                logger.error("[VIEW_POST] Task Celery non è stato inviato correttamente (task.id è None)")
-                # In caso di errore, imposta il flag done per evitare polling infinito
-                cache.set(f"{search_id}_done", True, timeout=600)
-                timer.cancel()  # Cancella il timer se il task fallisce subito
-                return JsonResponse({'error': 'Errore nell\'avvio del task di elaborazione'}, status=500)
-            
-            logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
-            logger.debug(f"[VIEW_POST] Task Celery args: search_id={search_id}, shipment_ids={shipment_ids_for_celery}, merchant_id={merchant_id}")
-            
-            # Verifica che il task sia stato effettivamente inviato
-            task_state = task.state
-            logger.debug(f"[VIEW_POST] Stato iniziale task Celery: {task_state}")
-            
-        except Exception as e:
-            logger.error(f"[VIEW_POST] Errore nell'avvio del task Celery: {e}")
-            logger.error(f"[VIEW_POST] Traceback: {traceback.format_exc()}")
-            # In caso di errore, imposta comunque il flag done per evitare polling infinito
-            cache.set(f"{search_id}_done", True, timeout=600)
-            return JsonResponse({'error': f'Errore nell\'avvio del task di elaborazione: {str(e)}'}, status=500)
-
-        return JsonResponse({
-            'status': 'processing', 
-            'search_id': search_id, 
-            'total_shipments_for_processing': len(shipment_ids_for_celery),
-            'total_analyzed_in_view': total_for_this_search,
-            'message': 'Ricerca e processamento avviati...',
-            'timeout_seconds': 60  # Informa il client del timeout
-        })
 
     # Ritorno per GET non gestito esplicitamente sopra (dovrebbe essere coperto dalla logica GET iniziale)
     logger.debug(f"[search_shipments_by_products DEBUG] Richiesta GET non POST, rendering form base o risultati esistenti.")
