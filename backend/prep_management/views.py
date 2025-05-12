@@ -655,10 +655,23 @@ def search_shipments_by_products(request):
             except (PageNotAnInteger, EmptyPage):
                 page_obj = paginator.page(1)
 
+            # --- AGGIUNTA: calcolo avanzamento ---
+            total_to_analyze = cache.get(f"search_{search_id_get}_total_to_analyze", 0)
+            matched_count_from_db = results_from_db.count()
+            polling_message = None
+            if is_still_processing and total_to_analyze > 0:
+                polling_message = f"Trovate {matched_count_from_db} spedizioni su {total_to_analyze} analizzate finora."
+                logger.debug(f"[search_shipments_by_products DEBUG] polling_message calcolato: {polling_message}")
+
             logger.debug(f"[search_shipments_by_products DEBUG] GET: Rendering risultati per search_id {search_id_get}, pagina {page_number}. In attesa: {is_still_processing}")
             return render(request, 'prep_management/search_shipments.html', {
-                'results': page_obj, 'is_waiting': is_still_processing, 
-                'search_id': search_id_get, **context
+                'results': page_obj, 
+                'is_waiting': is_still_processing, 
+                'search_id': search_id_get,
+                'polling_message': polling_message,
+                'total_to_analyze': total_to_analyze,
+                'matched_count': matched_count_from_db,
+                **context
             })
         except Exception as e_get_render:
             logger.error(f"[search_shipments_by_products DEBUG] GET: Errore rendering risultati: {e_get_render}")
