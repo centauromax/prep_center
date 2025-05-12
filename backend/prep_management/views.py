@@ -829,8 +829,15 @@ def search_shipments_by_products(request):
         shipment_ids_for_celery = [s.id for s in shipments_matching_criteria]
         logger.debug(f"[VIEW_POST] Invio {len(shipment_ids_for_celery)} ID spedizione a Celery: {shipment_ids_for_celery}")
 
-        # ... (logica batching e chiamata Celery esistente usando shipment_ids_for_celery) ...
-        # Assicurati che il batching usi shipment_ids_for_celery, non shipments_to_actually_analyze
+        # Chiama il task Celery per processare le spedizioni
+        task = process_shipment_batch.delay(
+            search_id=search_id,
+            shipment_ids=shipment_ids_for_celery,
+            merchant_id=merchant_id,
+            shipment_type='outbound'
+        )
+        logger.info(f"[VIEW_POST] Task Celery avviato con ID: {task.id}")
+
         return JsonResponse({
             'status': 'processing', 
             'search_id': search_id, 

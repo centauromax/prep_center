@@ -70,6 +70,7 @@
                     <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
                 </div>
             </div>
+            <div id="is_waiting" style="display: none;">true</div>
         {% elif error %}
             <div class="alert alert-danger">
                 <h4>Errore</h4>
@@ -236,15 +237,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         const isWaitingDiv = searchResults.querySelector('.alert-info h4');
                         const isErrorDiv = searchResults.querySelector('.alert-danger');
-                        const noResultsMessage = searchResults.innerText.includes("Nessun risultato trovato"); // Controlla il testo effettivo
                         
-                        if (isErrorDiv || (noResultsMessage && !isWaitingDiv) || (!isWaitingDiv && !searchResults.querySelector('table'))) { // Se non c'è tabella e non è in attesa
-                            console.log("[POLLING] Condizione di stop rilevata. Dettagli: isErrorDiv=",isErrorDiv, "noResultsMessage=", noResultsMessage, "!isWaitingDiv=",!isWaitingDiv, "!searchResults.querySelector('table')=",!searchResults.querySelector('table'),". Polling interrotto per search_id:", searchIdForPolling);
+                        // Se non c'è più il div di attesa, ferma il polling
+                        if (!isWaitingDiv) {
+                            console.log("[POLLING] Non più in attesa. Polling interrotto per search_id:", searchIdForPolling);
                             clearInterval(pollIntervalId);
                             pollIntervalId = null;
-                            currentSearchId = null; 
+                            currentSearchId = null;
                         } else {
-                            console.log("[POLLING] Ancora in attesa o risultati parziali. Continuo polling per search_id:", searchIdForPolling);
+                            console.log("[POLLING] Ancora in attesa. Continuo polling per search_id:", searchIdForPolling);
                         }
                     } else {
                          console.warn("[POLLING] Elemento #searchResults non trovato nella risposta HTML del polling. Polling interrotto.");
