@@ -646,9 +646,15 @@ def search_shipments_by_products(request):
         # (La logica di paginazione esistente dovrebbe andare qui)
         try:
             results_from_db = SearchResultItem.objects.filter(search_id=search_id_get).order_by('-created_at')
+            # Modifica: is_still_processing è True solo se il task non è finito E non ci sono risultati
             is_still_processing = not cache.get(f"{search_id_get}_done") and not results_from_db.exists()
             
-            paginator = Paginator(results_from_db, 10) # o context['max_shipments']
+            # Se il task è finito ma non ci sono risultati, imposta is_still_processing a False
+            if cache.get(f"{search_id_get}_done") and not results_from_db.exists():
+                is_still_processing = False
+                logger.debug(f"[search_shipments_by_products DEBUG] Task finito ma nessun risultato trovato. is_still_processing=False")
+            
+            paginator = Paginator(results_from_db, 10)
             page_number = request.GET.get('page', 1)
             try:
                 page_obj = paginator.page(page_number)
