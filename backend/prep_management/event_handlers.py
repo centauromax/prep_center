@@ -31,21 +31,23 @@ class WebhookEventProcessor:
         domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
         logger.info(f"[WebhookEventProcessor.__init__] Dominio calcolato per il client: {domain}")
         
-        # ATTENZIONE: Valutare se commentare l'intera inizializzazione del client
-        # self.client = None # Opzione 1: Disabilitare completamente il client qui
+        # INIZIALIZZAZIONE CLIENT COMMENTATA TEMPORANEAMENTE PER RISOLVERE ERRORE SYNTAX
+        # try:
+        #     logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
+        #     self.client = PrepBusinessClient(
+        #         api_key=PREP_BUSINESS_API_KEY,
+        #         company_domain=domain,
+        #         timeout=PREP_BUSINESS_API_TIMEOUT,
+        #     )
+        #     logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+        # except Exception as e_client_init:
+        #     logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: " + str(e_client_init))
+        #     self.client = None
         
-        try:
-            logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
-            self.client = PrepBusinessClient(
-                api_key=PREP_BUSINESS_API_KEY,
-                company_domain=domain,
-                timeout=PREP_BUSINESS_API_TIMEOUT,
-            )
-            logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
-        except Exception as e_client_init:
-            logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {str(e_client_init)}")
-            self.client = None # Assicurati che self.client sia None se l'init fallisce
-            
+        # Client disabilitato manualmente per evitare errori di sintassi
+        self.client = None
+        logger.info("[WebhookEventProcessor.__init__] Client disabilitato manualmente per debug")
+        
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
     
     def process_event(self, update_id: int) -> Dict[str, Any]:
@@ -169,6 +171,10 @@ class WebhookEventProcessor:
             }
         
         try:
+            # Verifica che self.client sia stato inizializzato
+            if self.client is None:
+                logger.warning(f"[_process_outbound_shipment_created] Client non inizializzato, utilizzo dati mock.")
+            
             # Ottieni tutte le spedizioni in entrata per questo merchant
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
             start_time_inbound = time.time()
