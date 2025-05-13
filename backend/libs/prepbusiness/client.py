@@ -2163,7 +2163,7 @@ class PrepBusinessClient:
             f"/merchants/{merchant_id}/webhooks/{webhook_id}"
         )
         
-        return DeleteWebhookResponse.model_validate(response)
+        return DeleteWebhookResponse.model_validate(response) 
 
     def get_shipment_items(
         self,

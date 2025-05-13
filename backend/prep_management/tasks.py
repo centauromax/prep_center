@@ -92,6 +92,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                         if product_info:
                             results.append({
                                 'shipment_id': shipment_id,
+                                'shipment_name': shipment_name,
                                 'product_info': product_info
                             })
                             added_any_item = True
@@ -114,6 +115,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                     }
                     results.append({
                         'shipment_id': shipment_id,
+                        'shipment_name': shipment_name if 'shipment_name' in locals() else f"Spedizione {shipment_id}",
                         'product_info': placeholder_info
                     })
                     logger.info(f"[CELERY_TASK] Aggiunto item placeholder per shipment_id={shipment_id}")
@@ -132,6 +134,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                 }
                 results.append({
                     'shipment_id': shipment_id,
+                    'shipment_name': shipment_name if 'shipment_name' in locals() else f"Spedizione {shipment_id}",
                     'product_info': placeholder_info
                 })
                 logger.info(f"[CELERY_TASK] Aggiunto item placeholder per errore shipment_id={shipment_id}")
@@ -146,13 +149,15 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                 try:
                     SearchResultItem.objects.create(
                         search_id=search_id,
-                        shipment_id=result['shipment_id'],
-                        title=result['product_info']['title'],
-                        sku=result['product_info']['sku'],
-                        asin=result['product_info']['asin'],
-                        fnsku=result['product_info']['fnsku'],
-                        quantity=result['product_info']['quantity'],
-                        processing_status='completed'
+                        shipment_id_api=result['shipment_id'],
+                        shipment_name=result.get('shipment_name', f"Spedizione {result['shipment_id']}")[:255],
+                        shipment_type=shipment_type,
+                        product_title=result['product_info']['title'][:255],
+                        product_sku=result['product_info']['sku'][:255],
+                        product_asin=result['product_info']['asin'][:255],
+                        product_fnsku=result['product_info']['fnsku'][:255],
+                        product_quantity=result['product_info']['quantity'],
+                        processing_status='complete'
                     )
                     saved_count += 1
                 except Exception as e:
@@ -168,13 +173,15 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
             try:
                 SearchResultItem.objects.create(
                     search_id=search_id,
-                    shipment_id=shipment_ids[0],
-                    title=f"RISULTATO FORZATO - Ricerca {search_id}",
-                    sku="FORCED_RESULT",
-                    asin="FORCED_RESULT",
-                    fnsku="FORCED_RESULT",
-                    quantity=1,
-                    processing_status='completed'
+                    shipment_id_api=shipment_ids[0],
+                    shipment_name=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
+                    shipment_type=shipment_type,
+                    product_title=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
+                    product_sku="FORCED_RESULT",
+                    product_asin="FORCED_RESULT",
+                    product_fnsku="FORCED_RESULT",
+                    product_quantity=1,
+                    processing_status='complete'
                 )
                 saved_count = 1
                 logger.info(f"[CELERY_TASK] Aggiunto item forzato per la ricerca {search_id}")

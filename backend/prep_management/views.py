@@ -656,7 +656,7 @@ def search_shipments_by_products(request):
             if result_count > 0:
                 sample_results = results_from_db[:3]
                 for idx, item in enumerate(sample_results):
-                    logger.info(f"[VIEW_GET] Risultato {idx+1}: shipment_id={item.shipment_id}, title='{item.title}', sku={item.sku}")
+                    logger.info(f"[VIEW_GET] Risultato {idx+1}: shipment_id={item.shipment_id_api}, title='{item.product_title}', sku={item.product_sku}")
             
             # Log dettagliato dello stato
             cache_done = cache.get(f"{search_id_get}_done")

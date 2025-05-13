@@ -94,12 +94,12 @@
                     <tbody>
                         {% for item in results %}
                         <tr>
-                            <td>{{ item.shipment_id }}</td>
-                            <td>{{ item.title }}</td>
-                            <td>{{ item.sku }}</td>
-                            <td>{{ item.asin }}</td>
-                            <td>{{ item.fnsku }}</td>
-                            <td>{{ item.quantity }}</td>
+                            <td>{{ item.shipment_id_api }}</td>
+                            <td>{{ item.product_title }}</td>
+                            <td>{{ item.product_sku }}</td>
+                            <td>{{ item.product_asin }}</td>
+                            <td>{{ item.product_fnsku }}</td>
+                            <td>{{ item.product_quantity }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

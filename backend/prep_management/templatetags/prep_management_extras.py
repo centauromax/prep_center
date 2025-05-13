@@ -30,7 +30,7 @@ def pprint_json(value):
     try:
         return json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True)
     except (TypeError, ValueError):
-        return str(value)
+        return str(value) 
 
 @register.filter
 def get_range(value):
