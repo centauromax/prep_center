@@ -50,7 +50,7 @@ class WebhookEventProcessor:
         
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
     
-    def process_event(self, update_id: int) -> Dict[str, Any]:
+    def process_event(self, update_id: int) -> Dict[str, Any]: 
         """
         Elabora un evento webhook in base al suo tipo.
         
