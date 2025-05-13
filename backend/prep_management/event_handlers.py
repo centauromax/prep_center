@@ -36,11 +36,11 @@ class WebhookEventProcessor:
         
         try:
             logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
-        self.client = PrepBusinessClient(
-            api_key=PREP_BUSINESS_API_KEY,
-            company_domain=domain,
-            timeout=PREP_BUSINESS_API_TIMEOUT,
-        )
+            self.client = PrepBusinessClient(
+                api_key=PREP_BUSINESS_API_KEY,
+                company_domain=domain,
+                timeout=PREP_BUSINESS_API_TIMEOUT,
+            )
             logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
         except Exception as e_client_init:
             logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {str(e_client_init)}")
