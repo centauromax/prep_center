@@ -613,6 +613,12 @@ def get_shipment_items(client: PrepBusinessClient, shipment_id: int, shipment_ty
 def search_shipments_by_products(request):
     # Assicurati che il logger sia a livello DEBUG per vedere questi messaggi
     logger.debug(f"[search_shipments_by_products DEBUG] --- INIZIO RICHIESTA ---")
+    # Registra il tempo di inizio per evitare timeout
+    import time
+    start_time = time.time()
+    # Imposta una soglia di sicurezza (30 secondi) per evitare il timeout di 60 secondi
+    MAX_EXECUTION_TIME = 30
+    
     logger.info(f"[search_shipments_by_products] INIZIO - method={request.method}, POST={request.POST.dict()}, GET={request.GET.dict()}")
     
     merchants = get_merchants()
@@ -829,6 +835,9 @@ def search_shipments_by_products(request):
         if not shipments_to_actually_analyze:
             logger.info(f"[VIEW_POST] Nessuna spedizione da analizzare recuperata dall'API.")
             cache.set(f"{search_id}_done", True, timeout=600)
+            # Log tempo totale di esecuzione
+            total_execution_time = time.time() - start_time
+            logger.info(f"[VIEW_POST] Tempo totale di esecuzione della ricerca (nessun risultato): {total_execution_time:.2f} secondi")
             return JsonResponse({
                 'status': 'no_results', 
                 'message': f'Nessuna spedizione trovata dopo aver analizzato {total_for_this_search} spedizioni.', 
@@ -838,6 +847,24 @@ def search_shipments_by_products(request):
             }, status=200)
 
         for idx, shipment_obj in enumerate(shipments_to_actually_analyze):
+            # Verifica il tempo trascorso ogni 5 spedizioni o se abbiamo superato un terzo del set
+            if idx > 0 and (idx % 5 == 0 or idx > len(shipments_to_actually_analyze) // 3):
+                # Controlla tempo di esecuzione
+                execution_time = time.time() - start_time
+                if execution_time > MAX_EXECUTION_TIME:
+                    logger.warning(f"[VIEW_POST] ATTENZIONE: tempo di esecuzione ({execution_time:.2f}s) vicino al timeout. Interrompo l'analisi al {idx}/{len(shipments_to_actually_analyze)}.")
+                    # Interrompi anche se non abbiamo risultati, per evitare il timeout
+                    break
+            
+            # Verifica se ci sono già risultati
+            if len(shipments_matching_criteria) > 0:
+                logger.info(f"[VIEW_POST] Controllo preventivo anti-timeout. Già analizzate {idx}/{len(shipments_to_actually_analyze)} spedizioni, trovate {len(shipments_matching_criteria)} corrispondenze.")
+                
+                # Se abbiamo già risultati sufficienti (almeno 5), possiamo interrompere per evitare timeout
+                if len(shipments_matching_criteria) >= 5:
+                    logger.info(f"[VIEW_POST] Interrompo l'analisi al {idx}/{len(shipments_to_actually_analyze)} per evitare timeout. Già trovate {len(shipments_matching_criteria)} spedizioni corrispondenti.")
+                    break
+            
             current_shipment_id = getattr(shipment_obj, 'id', 'N/A')
             current_shipment_name = getattr(shipment_obj, 'name', 'N/A')
             logger.debug(f"[VIEW_POST] --- Analisi Spedizione {idx + 1}/{len(shipments_to_actually_analyze)}: ID {current_shipment_id} ({current_shipment_name}) ---")
@@ -860,6 +887,7 @@ def search_shipments_by_products(request):
             # 2. Se non trovata nel nome, cerca negli ITEMS
             logger.debug(f"[VIEW_POST] Nessun match su nome per Spedizione ID {current_shipment_id} ({current_shipment_name}). Controllo ITEMS.")
             try:
+                # Impostiamo un timeout ridotto per la chiamata API items
                 items_response = client.get_outbound_shipment_items(shipment_id=current_shipment_id, merchant_id=current_merchant_id)
                 items_list = items_response.get('items', []) if isinstance(items_response, dict) else [] # API response è un dict
                 logger.debug(f"[VIEW_POST] Ricevuti {len(items_list)} items per Spedizione ID {current_shipment_id} ({current_shipment_name}).")
@@ -903,6 +931,9 @@ def search_shipments_by_products(request):
         if not shipments_matching_criteria:
             logger.info("[VIEW_POST] Nessuna spedizione ha soddisfatto i criteri dopo analisi completa.")
             cache.set(f"{search_id}_done", True, timeout=600)
+            # Log tempo totale di esecuzione
+            total_execution_time = time.time() - start_time
+            logger.info(f"[VIEW_POST] Tempo totale di esecuzione della ricerca (nessun risultato): {total_execution_time:.2f} secondi")
             return JsonResponse({
                 'status': 'no_results', 
                 'message': f'Nessuna spedizione trovata dopo aver analizzato {total_for_this_search} spedizioni.', 
@@ -967,6 +998,9 @@ def search_shipments_by_products(request):
         # Se ci sono spedizioni trovate e record creati, restituisci completed
         if records_created > 0:
             logger.info(f"[VIEW_POST] Ritorno status=completed con {records_created} record creati")
+            # Log tempo totale di esecuzione
+            total_execution_time = time.time() - start_time
+            logger.info(f"[VIEW_POST] Tempo totale di esecuzione della ricerca: {total_execution_time:.2f} secondi")
             return JsonResponse({
                 'status': 'completed',
                 'search_id': search_id,
@@ -979,6 +1013,9 @@ def search_shipments_by_products(request):
         # Se non ci sono spedizioni da processare, imposta subito il flag done
         if not shipment_ids_for_celery:
             logger.info("[VIEW_POST] Nessuna spedizione da processare, imposto subito il flag done")
+            # Log tempo totale di esecuzione
+            total_execution_time = time.time() - start_time
+            logger.info(f"[VIEW_POST] Tempo totale di esecuzione della ricerca (nessun risultato): {total_execution_time:.2f} secondi")
             cache.set(f"{search_id}_done", True, timeout=600)
             return JsonResponse({
                 'status': 'completed',
