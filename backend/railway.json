@@ -15,6 +15,6 @@
     {
       "name": "celery-beat",
       "startCommand": "celery -A prep_center beat -l info"
-    }
+  }
   ]
 } 

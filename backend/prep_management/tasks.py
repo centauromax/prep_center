@@ -239,4 +239,94 @@ def echo_task(message):
     logger.info(f"[CELERY_ECHO] Messaggio ricevuto: {message}")
     logger.info(f"[CELERY_ECHO] Timestamp: {timezone.now()}")
     logger.info(f"[CELERY_ECHO] ========================= FINE ECHO ========================")
-    return {"status": "echo_success", "message": message, "timestamp": str(timezone.now())} 
+    return {"status": "echo_success", "message": message, "timestamp": str(timezone.now())}
+
+@shared_task(bind=True, max_retries=3)
+def process_shipment_search_task(self, search_id, search_terms, merchant_id, shipment_status, max_shipments_to_analyze):
+    """
+    Task Celery che esegue la ricerca delle spedizioni per parole chiave, merchant, status, ecc.
+    Scarica le spedizioni, filtra per keyword (su nome e items), salva i risultati come SearchResultItem.
+    """
+    import time
+    start_time = time.time()
+    logger.info(f"[CELERY_SEARCH_TASK] INIZIO: search_id={search_id}, merchant_id={merchant_id}, status={shipment_status}, max={max_shipments_to_analyze}")
+    client = get_client()
+    shipments_collected_from_api = []
+    current_api_page = 1
+    shipments_matching_criteria = []
+    keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
+    
+    try:
+        # Scarica le spedizioni (solo outbound per ora, puoi estendere a inbound se serve)
+        while len(shipments_collected_from_api) < int(max_shipments_to_analyze):
+            if shipment_status == 'archived':
+                shipments_page_response = client.get_archived_outbound_shipments(
+                    merchant_id=merchant_id, page=current_api_page, per_page=50
+                )
+            else:
+                shipments_page_response = client.get_outbound_shipments(
+                    merchant_id=merchant_id, page=current_api_page, per_page=50
+                )
+            if not shipments_page_response or not shipments_page_response.data:
+                break
+            shipments_collected_from_api.extend(shipments_page_response.data)
+            if not shipments_page_response.next_page_url:
+                break
+            current_api_page += 1
+        shipments_to_actually_analyze = shipments_collected_from_api[:int(max_shipments_to_analyze)]
+        cache.set(f"search_{search_id}_total_to_analyze", len(shipments_to_actually_analyze), timeout=3600)
+        logger.info(f"[CELERY_SEARCH_TASK] Scaricate {len(shipments_to_actually_analyze)} spedizioni da analizzare")
+        # Filtra per keyword
+        for idx, shipment_obj in enumerate(shipments_to_actually_analyze):
+            shipment_name = getattr(shipment_obj, 'name', '')
+            shipment_id = getattr(shipment_obj, 'id', None)
+            shipment_name_lower = str(shipment_name).lower()
+            found_match_in_name = any(kw in shipment_name_lower for kw in keywords_list)
+            if found_match_in_name:
+                shipments_matching_criteria.append(shipment_obj)
+                continue
+            # Cerca negli items
+            try:
+                items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
+                items_list = items_response.get('items', []) if isinstance(items_response, dict) else []
+                for item_data in items_list:
+                    item_title = ''
+                    inner_item = item_data.get('item')
+                    if inner_item and isinstance(inner_item, dict):
+                        item_title = str(inner_item.get('title', '')).lower()
+                    else:
+                        item_title = str(item_data.get('title') or item_data.get('name', '')).lower()
+                    if any(kw in item_title for kw in keywords_list):
+                        shipments_matching_criteria.append(shipment_obj)
+                        break
+            except Exception as e_items:
+                logger.error(f"[CELERY_SEARCH_TASK] Errore items per shipment {shipment_id}: {e_items}")
+        logger.info(f"[CELERY_SEARCH_TASK] Trovate {len(shipments_matching_criteria)} spedizioni che matchano i criteri")
+        # Salva risultati
+        records_created = 0
+        for shipment_obj in shipments_matching_criteria:
+            try:
+                shipment_id = getattr(shipment_obj, 'id', 'N/A')
+                shipment_name = getattr(shipment_obj, 'name', f"Spedizione {shipment_id}")
+                SearchResultItem.objects.create(
+                    search_id=search_id,
+                    shipment_id_api=shipment_id,
+                    shipment_name=shipment_name,
+                    shipment_type="outbound",
+                    product_title=f"Spedizione {shipment_name}",
+                    product_sku=f"DIRECT_{shipment_id}",
+                    product_asin="AUTO_CREATED",
+                    product_fnsku="AUTO_CREATED",
+                    product_quantity=1,
+                    processing_status='complete'
+                )
+                records_created += 1
+            except Exception as e_create:
+                logger.error(f"[CELERY_SEARCH_TASK] Errore creazione record DB: {e_create}")
+        cache.set(f"{search_id}_done", True, timeout=600)
+        logger.info(f"[CELERY_SEARCH_TASK] FINE: creati {records_created} record per search_id={search_id}")
+        total_execution_time = time.time() - start_time
+        logger.info(f"[CELERY_SEARCH_TASK] Tempo totale esecuzione: {total_execution_time:.2f} s")
+    except Exception as e:
+        logger.error(f"[CELERY_SEARCH_TASK] ERRORE GENERALE: {e}\n{traceback.format_exc()}")
+        cache.set(f"{search_id}_done", True, timeout=600) 
