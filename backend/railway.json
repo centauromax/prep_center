@@ -4,7 +4,9 @@
       "PYTHON_VERSION": "3.12"
     }
   },
-  "deploy": {
-    "startCommand": "python manage.py migrate && gunicorn prep_center.wsgi:application --bind 0.0.0.0:8080 --timeout 60"
-  }
-} 
+  "services": [
+    {
+      "name": "celery"
+    }
+  ]
+}
