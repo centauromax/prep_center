@@ -302,25 +302,43 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
             except Exception as e_items:
                 logger.error(f"[CELERY_SEARCH_TASK] Errore items per shipment {shipment_id}: {e_items}")
         logger.info(f"[CELERY_SEARCH_TASK] Trovate {len(shipments_matching_criteria)} spedizioni che matchano i criteri")
-        # Salva risultati
+        # Salva risultati: una riga per ogni prodotto reale
         records_created = 0
         for shipment_obj in shipments_matching_criteria:
             try:
                 shipment_id = getattr(shipment_obj, 'id', 'N/A')
                 shipment_name = getattr(shipment_obj, 'name', f"Spedizione {shipment_id}")
-                SearchResultItem.objects.create(
-                    search_id=search_id,
-                    shipment_id_api=shipment_id,
-                    shipment_name=shipment_name,
-                    shipment_type="outbound",
-                    product_title=f"Spedizione {shipment_name}",
-                    product_sku=f"DIRECT_{shipment_id}",
-                    product_asin="AUTO_CREATED",
-                    product_fnsku="AUTO_CREATED",
-                    product_quantity=1,
-                    processing_status='complete'
-                )
-                records_created += 1
+                # Scarica gli items reali della spedizione
+                items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
+                items_list = items_response.get('items', []) if isinstance(items_response, dict) else []
+                for item_data in items_list:
+                    # Estrai info prodotto reale
+                    inner_item = item_data.get('item')
+                    if inner_item and isinstance(inner_item, dict):
+                        product_title = inner_item.get('title', '')
+                        product_sku = inner_item.get('sku', '')
+                        product_asin = inner_item.get('asin', '')
+                        product_fnsku = inner_item.get('fnsku', '')
+                        product_quantity = item_data.get('quantity', 1)
+                    else:
+                        product_title = item_data.get('title') or item_data.get('name', '')
+                        product_sku = item_data.get('sku', '')
+                        product_asin = item_data.get('asin', '')
+                        product_fnsku = item_data.get('fnsku', '')
+                        product_quantity = item_data.get('quantity', 1)
+                    SearchResultItem.objects.create(
+                        search_id=search_id,
+                        shipment_id_api=shipment_id,
+                        shipment_name=shipment_name,
+                        shipment_type="outbound",
+                        product_title=product_title,
+                        product_sku=product_sku,
+                        product_asin=product_asin,
+                        product_fnsku=product_fnsku,
+                        product_quantity=product_quantity,
+                        processing_status='complete'
+                    )
+                    records_created += 1
             except Exception as e_create:
                 logger.error(f"[CELERY_SEARCH_TASK] Errore creazione record DB: {e_create}")
         cache.set(f"{search_id}_done", True, timeout=600)
