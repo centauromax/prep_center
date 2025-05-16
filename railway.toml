@@ -1,2 +1,2 @@
-[deploy]
-postDeployCommand = "cd backend && python manage.py migrate" 
+#[deploy]
+#postDeployCommand = "cd backend && python manage.py migrate" 
