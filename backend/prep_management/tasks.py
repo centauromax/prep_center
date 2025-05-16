@@ -257,6 +257,8 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
     keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
     
     try:
+        # Truncate della tabella risultati prima di ogni nuova ricerca
+        SearchResultItem.objects.all().delete()
         # Scarica le spedizioni (solo outbound per ora, puoi estendere a inbound se serve)
         while len(shipments_collected_from_api) < int(max_shipments_to_analyze):
             if shipment_status == 'archived':
