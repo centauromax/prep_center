@@ -6,26 +6,26 @@ ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
 # Crea un gruppo e un utente non-root
-# RUN groupadd --system appgroup && useradd --system --gid appgroup --no-create-home appuser
+RUN groupadd --system appgroup && useradd --system --gid appgroup --no-create-home appuser
 
 # Crea la directory per i log temporanei (come da settings.py) e imposta i permessi
 # Assicurati che /tmp esista e sia scrivibile, il che di solito è vero.
 # La directory LOG_DIR è /tmp/logs
-# RUN mkdir -p /tmp/logs && \
-#     chown -R appuser:appgroup /tmp/logs && \
-#     chmod -R 755 /tmp/logs
+RUN mkdir -p /tmp/logs && \
+    chown -R appuser:appgroup /tmp/logs && \
+    chmod -R 755 /tmp/logs
 
 # Imposta la directory di lavoro nell'immagine
-# WORKDIR /app
+WORKDIR /app
 
 # Copia prima il file delle dipendenze per sfruttare il caching di Docker
-# COPY requirements.txt .
+COPY requirements.txt .
 
 # Installa le dipendenze di sistema se necessario (es. per psycopg2 o altre librerie)
 # RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev
 
 # Installa le dipendenze Python
-# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il file di configurazione di Gunicorn dalla root del progetto (relativo al contesto di build backend/)
 # COPY ../gunicorn.conf.py gunicorn.conf.py
