@@ -1,5 +1,5 @@
 # Usa un'immagine Python ufficiale
-FROM python:3.12-slim
+FROM python:3.12
 
 # Imposta variabili d'ambiente per prevenire la scrittura di file .pyc e per il buffering
 ENV PYTHONDONTWRITEBYTECODE 1
