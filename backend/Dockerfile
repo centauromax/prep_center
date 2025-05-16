@@ -28,7 +28,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il file di configurazione di Gunicorn dalla root del progetto (relativo al contesto di build backend/)
-COPY ../gunicorn.conf.py gunicorn.conf.py
+# COPY ../gunicorn.conf.py gunicorn.conf.py
 
 # Copia il resto del codice dell'applicazione dalla directory backend locale alla directory /app nell'immagine
 COPY . .
