@@ -8,5 +8,8 @@
     {
       "name": "celery"
     }
-  ]
+  ],
+  "deploy": {
+    "releaseCommand": "python manage.py migrate"
+  }
 }
