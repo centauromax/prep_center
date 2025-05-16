@@ -28,15 +28,15 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copia il file di configurazione di Gunicorn dalla root del progetto (relativo al contesto di build backend/)
-# COPY ../gunicorn.conf.py gunicorn.conf.py
+COPY ../gunicorn.conf.py gunicorn.conf.py
 
 # Copia il resto del codice dell'applicazione dalla directory backend locale alla directory /app nell'immagine
-# COPY . .
+COPY . .
 
 # Cambia il proprietario di tutti i file dell'applicazione all'utente appuser
 # Questo assicura che l'utente non-root possa eseguire e potenzialmente scrivere (se necessario per media, static temporanei, ecc.)
-# RUN chown -R appuser:appgroup /app
-# RUN chmod -R 755 /app # Assicura che i file siano eseguibili/leggibili
+RUN chown -R appuser:appgroup /app
+RUN chmod -R 755 /app # Assicura che i file siano eseguibili/leggibili
 
 # Passa all'utente non-root
 # USER appuser
