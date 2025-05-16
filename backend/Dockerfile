@@ -39,7 +39,7 @@ RUN chown -R appuser:appgroup /app
 RUN chmod -R 755 /app # Assicura che i file siano eseguibili/leggibili
 
 # Passa all'utente non-root
-# USER appuser
+USER appuser
 
 # Il Procfile si occuperà di eseguire i comandi specifici (runserver, celery worker)
 # Quindi non abbiamo bisogno di un CMD o ENTRYPOINT qui se il Procfile è il punto di ingresso principale per Railway.
