@@ -149,15 +149,12 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                 try:
                     SearchResultItem.objects.create(
                         search_id=search_id,
-                        shipment_id_api=result['shipment_id'],
                         shipment_name=result.get('shipment_name', f"Spedizione {result['shipment_id']}")[:255],
-                        shipment_type=shipment_type,
                         product_title=result['product_info']['title'][:255],
                         product_sku=result['product_info']['sku'][:255],
                         product_asin=result['product_info']['asin'][:255],
                         product_fnsku=result['product_info']['fnsku'][:255],
                         product_quantity=result['product_info']['quantity'],
-                        processing_status='complete'
                     )
                     saved_count += 1
                 except Exception as e:
@@ -173,15 +170,12 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
             try:
                 SearchResultItem.objects.create(
                     search_id=search_id,
-                    shipment_id_api=shipment_ids[0],
                     shipment_name=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
-                    shipment_type=shipment_type,
                     product_title=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
                     product_sku="FORCED_RESULT",
                     product_asin="FORCED_RESULT",
                     product_fnsku="FORCED_RESULT",
                     product_quantity=1,
-                    processing_status='complete'
                 )
                 saved_count = 1
                 logger.info(f"[CELERY_TASK] Aggiunto item forzato per la ricerca {search_id}")
@@ -330,15 +324,12 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                         product_quantity = item_data.get('quantity', 1)
                     SearchResultItem.objects.create(
                         search_id=search_id,
-                        shipment_id_api=shipment_id,
                         shipment_name=shipment_name,
-                        shipment_type="outbound",
                         product_title=product_title,
                         product_sku=product_sku,
                         product_asin=product_asin,
                         product_fnsku=product_fnsku,
                         product_quantity=product_quantity,
-                        processing_status='complete'
                     )
                     records_created += 1
             except Exception as e_create:

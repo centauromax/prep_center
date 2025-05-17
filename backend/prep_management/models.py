@@ -125,22 +125,15 @@ class SearchResultItem(models.Model):
     Modello per memorizzare un singolo item trovato durante la ricerca spedizioni.
     """
     search_id = models.CharField(max_length=36, null=True, blank=True)  # UUID per raggruppare i risultati
-    shipment_id_api = models.CharField(max_length=36, null=False, blank=False)
     shipment_name = models.CharField(max_length=255, null=True, blank=True)
-    shipment_type = models.CharField(max_length=36, null=True, blank=True)
     product_title = models.CharField(max_length=255, null=True, blank=True)
     product_sku = models.CharField(max_length=255, null=True, blank=True)
     product_asin = models.CharField(max_length=255, null=True, blank=True)
     product_fnsku = models.CharField(max_length=255, null=True, blank=True)
     product_quantity = models.IntegerField(null=True, blank=True)
-    processing_status = models.CharField(max_length=20, null=False, default='complete', 
-                                       choices=[('in_progress', 'In Progress'), 
-                                               ('complete', 'Complete'),
-                                               ('error', 'Error')])
-    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.product_title} ({self.shipment_id_api})"
+        return f"{self.product_title} ({self.shipment_name})"
 
     class Meta:
         ordering = ['shipment_name', 'product_title']
