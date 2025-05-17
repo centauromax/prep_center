@@ -654,7 +654,7 @@ def search_shipments_by_products(request):
             # Log dettagliato prima di cercare i risultati nel DB
             logger.info(f"[VIEW_GET] Cerco risultati per search_id={search_id_get} nel database")
             
-            results_from_db = SearchResultItem.objects.filter(search_id=search_id_get).order_by('-created_at')
+            results_from_db = SearchResultItem.objects.filter(search_id=search_id_get).order_by('-id')
             result_count = results_from_db.count()
             logger.info(f"[VIEW_GET] Trovati {result_count} risultati nel database per search_id={search_id_get}")
             

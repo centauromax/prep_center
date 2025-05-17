@@ -221,8 +221,9 @@ def cleanup_old_searches():
     """
     Clean up old search results (older than 24 hours)
     """
-    cutoff_time = timezone.now() - timedelta(hours=24)
-    SearchResultItem.objects.filter(created_at__lt=cutoff_time).delete()
+    # cutoff_time = timezone.now() - timedelta(hours=24)
+    # SearchResultItem.objects.filter(created_at__lt=cutoff_time).delete()
+    SearchResultItem.objects.all().delete()
 
 @shared_task
 def echo_task(message):
