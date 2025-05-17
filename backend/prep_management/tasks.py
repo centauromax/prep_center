@@ -299,6 +299,7 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
             except Exception as e_items:
                 logger.error(f"[CELERY_SEARCH_TASK] Errore items per shipment {shipment_id}: {e_items}")
         logger.info(f"[CELERY_SEARCH_TASK] Trovate {len(shipments_matching_criteria)} spedizioni che matchano i criteri")
+        logger.info(f"[CELERY_SEARCH_TASK] shipments_matching_criteria: {[getattr(s, 'id', None) for s in shipments_matching_criteria]}")
         # Salva risultati: una riga per ogni prodotto reale
         records_created = 0
         for shipment_obj in shipments_matching_criteria:
@@ -307,7 +308,9 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                 shipment_name = getattr(shipment_obj, 'name', f"Spedizione {shipment_id}")
                 # Scarica gli items reali della spedizione
                 items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
+                logger.info(f"[CELERY_SEARCH_TASK] items_response per shipment_id={shipment_id}: {items_response}")
                 items_list = items_response.get('items', []) if isinstance(items_response, dict) else []
+                logger.info(f"[CELERY_SEARCH_TASK] items_list per shipment_id={shipment_id}: {items_list} (len={len(items_list)})")
                 for item_data in items_list:
                     # Estrai info prodotto reale
                     inner_item = item_data.get('item')
