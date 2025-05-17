@@ -125,7 +125,6 @@ class SearchResultItem(models.Model):
     Modello per memorizzare un singolo item trovato durante la ricerca spedizioni.
     """
     search_id = models.CharField(max_length=36, null=True, blank=True)  # UUID per raggruppare i risultati
-    shipment_id_api = models.CharField(max_length=36)  # ID della spedizione nell'API
     shipment_type = models.CharField(max_length=36, null=True, blank=True)  # Tipo di spedizione (inbound/outbound)
     shipment_name = models.CharField(max_length=255, null=True, blank=True)
     product_title = models.CharField(max_length=255, null=True, blank=True)
