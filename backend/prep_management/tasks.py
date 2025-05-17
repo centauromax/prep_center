@@ -285,7 +285,18 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
             # Cerca negli items
             try:
                 items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
-                items_list = items_response.get('items', []) if isinstance(items_response, dict) else []
+                logger.info(f"[CELERY_SEARCH_TASK] items_response per shipment_id={shipment_id}: {items_response} (type={type(items_response)})")
+                items_list = []
+                if isinstance(items_response, dict):
+                    items_list = items_response.get('items', [])
+                elif hasattr(items_response, 'items'):
+                    items_list = items_response.items
+                else:
+                    logger.warning(f"[CELERY_SEARCH_TASK] items_response non ha attributo 'items' per shipment_id={shipment_id}: {type(items_response)}")
+                # Se gli item sono oggetti Pydantic, li converto in dict
+                if items_list and hasattr(items_list[0], 'model_dump'):
+                    items_list = [i.model_dump() for i in items_list]
+                logger.info(f"[CELERY_SEARCH_TASK] items_list per shipment_id={shipment_id}: {items_list} (len={len(items_list)})")
                 for item_data in items_list:
                     item_title = ''
                     inner_item = item_data.get('item')
@@ -309,7 +320,16 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                 # Scarica gli items reali della spedizione
                 items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
                 logger.info(f"[CELERY_SEARCH_TASK] items_response per shipment_id={shipment_id}: {items_response}")
-                items_list = items_response.get('items', []) if isinstance(items_response, dict) else []
+                items_list = []
+                if isinstance(items_response, dict):
+                    items_list = items_response.get('items', [])
+                elif hasattr(items_response, 'items'):
+                    items_list = items_response.items
+                else:
+                    logger.warning(f"[CELERY_SEARCH_TASK] items_response non ha attributo 'items' per shipment_id={shipment_id}: {type(items_response)}")
+                # Se gli item sono oggetti Pydantic, li converto in dict
+                if items_list and hasattr(items_list[0], 'model_dump'):
+                    items_list = [i.model_dump() for i in items_list]
                 logger.info(f"[CELERY_SEARCH_TASK] items_list per shipment_id={shipment_id}: {items_list} (len={len(items_list)})")
                 for item_data in items_list:
                     # Estrai info prodotto reale
