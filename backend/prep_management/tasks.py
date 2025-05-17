@@ -323,18 +323,34 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                         product_asin = item_data.get('asin', '')
                         product_fnsku = item_data.get('fnsku', '')
                         product_quantity = item_data.get('quantity', 1)
-                    SearchResultItem.objects.create(
-                        search_id=search_id,
-                        shipment_name=shipment_name,
-                        product_title=product_title,
-                        product_sku=product_sku,
-                        product_asin=product_asin,
-                        product_fnsku=product_fnsku,
-                        product_quantity=product_quantity,
-                    )
-                    records_created += 1
+                    try:
+                        SearchResultItem.objects.create(
+                            search_id=search_id,
+                            shipment_name=shipment_name,
+                            product_title=product_title,
+                            product_sku=product_sku,
+                            product_asin=product_asin,
+                            product_fnsku=product_fnsku,
+                            product_quantity=product_quantity,
+                        )
+                        records_created += 1
+                    except Exception as e_create:
+                        logger.error(
+                            f"[CELERY_SEARCH_TASK] Errore creazione record DB: {e_create}\n"
+                            f"Dati tentati: search_id={search_id}, shipment_name={shipment_name}, "
+                            f"product_title={product_title}, product_sku={product_sku}, "
+                            f"product_asin={product_asin}, product_fnsku={product_fnsku}, "
+                            f"product_quantity={product_quantity}\n"
+                            f"Traceback: {traceback.format_exc()}"
+                        )
             except Exception as e_create:
-                logger.error(f"[CELERY_SEARCH_TASK] Errore creazione record DB: {e_create}")
+                logger.error(f"[CELERY_SEARCH_TASK] Errore creazione record DB (outer): {e_create}\nTraceback: {traceback.format_exc()}")
+        if records_created == 0:
+            logger.warning(
+                f"[CELERY_SEARCH_TASK] Nessun record creato! "
+                f"Spedizioni matching: {len(shipments_matching_criteria)}. "
+                f"Verifica i dati e i log degli errori precedenti."
+            )
         cache.set(f"{search_id}_done", True, timeout=600)
         logger.info(f"[CELERY_SEARCH_TASK] FINE: creati {records_created} record per search_id={search_id}")
         total_execution_time = time.time() - start_time
