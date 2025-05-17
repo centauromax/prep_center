@@ -125,12 +125,20 @@ class SearchResultItem(models.Model):
     Modello per memorizzare un singolo item trovato durante la ricerca spedizioni.
     """
     search_id = models.CharField(max_length=36, null=True, blank=True)  # UUID per raggruppare i risultati
+    shipment_id_api = models.CharField(max_length=36)  # ID della spedizione nell'API
+    shipment_type = models.CharField(max_length=36, null=True, blank=True)  # Tipo di spedizione (inbound/outbound)
     shipment_name = models.CharField(max_length=255, null=True, blank=True)
     product_title = models.CharField(max_length=255, null=True, blank=True)
     product_sku = models.CharField(max_length=255, null=True, blank=True)
     product_asin = models.CharField(max_length=255, null=True, blank=True)
     product_fnsku = models.CharField(max_length=255, null=True, blank=True)
     product_quantity = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    processing_status = models.CharField(max_length=20, choices=[
+        ('in_progress', 'In Progress'),
+        ('complete', 'Complete'),
+        ('error', 'Error')
+    ], default='complete')
 
     def __str__(self):
         return f"{self.product_title} ({self.shipment_name})"

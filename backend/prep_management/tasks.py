@@ -149,7 +149,9 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                 try:
                     SearchResultItem.objects.create(
                         search_id=search_id,
-                        shipment_name=result.get('shipment_name', f"Spedizione {result['shipment_id']}")[:255],
+                        shipment_id_api=str(result['shipment_id']),
+                        shipment_type='outbound',
+                        shipment_name=result['shipment_name'],
                         product_title=result['product_info']['title'][:255],
                         product_sku=result['product_info']['sku'][:255],
                         product_asin=result['product_info']['asin'][:255],
@@ -170,6 +172,8 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
             try:
                 SearchResultItem.objects.create(
                     search_id=search_id,
+                    shipment_id_api=str(shipment_ids[0]),
+                    shipment_type='outbound',
                     shipment_name=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
                     product_title=f"RISULTATO FORZATO - Ricerca {search_id}"[:255],
                     product_sku="FORCED_RESULT",
@@ -349,6 +353,8 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                     try:
                         SearchResultItem.objects.create(
                             search_id=search_id,
+                            shipment_id_api=str(shipment_id),
+                            shipment_type='outbound',
                             shipment_name=shipment_name,
                             product_title=product_title,
                             product_sku=product_sku,
