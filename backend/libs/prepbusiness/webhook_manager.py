@@ -153,7 +153,7 @@ def update_webhook(webhook_id, url, merchant_id=None):
             timeout=PREP_BUSINESS_API_TIMEOUT,
         )
         
-        # Aggiorna il webhook abilitando solo outbound_shipment_created
+        # Aggiorna il webhook abilitando solo outbound_shipment_created e outbound_shipment_closed
         if merchant_id:
             response = client.update_merchant_webhook(
                 merchant_id=merchant_id,
@@ -167,7 +167,7 @@ def update_webhook(webhook_id, url, merchant_id=None):
                 outbound_shipment_notes_updated=False,
                 outbound_shipment_created=True,
                 outbound_shipment_shipped=False,
-                outbound_shipment_closed=False,
+                outbound_shipment_closed=True,
                 order_shipped=False
             )
             print(f'Webhook aggiornato per il merchant {merchant_id}: {url}')
@@ -183,7 +183,7 @@ def update_webhook(webhook_id, url, merchant_id=None):
                 outbound_shipment_notes_updated=False,
                 outbound_shipment_created=True,
                 outbound_shipment_shipped=False,
-                outbound_shipment_closed=False,
+                outbound_shipment_closed=True,
                 order_shipped=False
             )
             print(f'Webhook globale aggiornato: {url}')
