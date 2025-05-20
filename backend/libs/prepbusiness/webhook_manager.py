@@ -153,38 +153,38 @@ def update_webhook(webhook_id, url, merchant_id=None):
             timeout=PREP_BUSINESS_API_TIMEOUT,
         )
         
-        # Aggiorna il webhook attivando tutti gli eventi disponibili
+        # Aggiorna il webhook abilitando solo outbound_shipment_created
         if merchant_id:
             response = client.update_merchant_webhook(
                 merchant_id=merchant_id,
                 webhook_id=webhook_id,
                 url=url,
-                invoice_created=True,
-                inbound_shipment_notes_updated=True,
-                inbound_shipment_created=True,
-                inbound_shipment_shipped=True,
-                inbound_shipment_received=True,
-                outbound_shipment_notes_updated=True,
+                invoice_created=False,
+                inbound_shipment_notes_updated=False,
+                inbound_shipment_created=False,
+                inbound_shipment_shipped=False,
+                inbound_shipment_received=False,
+                outbound_shipment_notes_updated=False,
                 outbound_shipment_created=True,
-                outbound_shipment_shipped=True,
-                outbound_shipment_closed=True,
-                order_shipped=True
+                outbound_shipment_shipped=False,
+                outbound_shipment_closed=False,
+                order_shipped=False
             )
             print(f'Webhook aggiornato per il merchant {merchant_id}: {url}')
         else:
             response = client.update_webhook(
                 webhook_id=webhook_id,
                 url=url,
-                invoice_created=True,
-                inbound_shipment_notes_updated=True,
-                inbound_shipment_created=True,
-                inbound_shipment_shipped=True,
-                inbound_shipment_received=True,
-                outbound_shipment_notes_updated=True,
+                invoice_created=False,
+                inbound_shipment_notes_updated=False,
+                inbound_shipment_created=False,
+                inbound_shipment_shipped=False,
+                inbound_shipment_received=False,
+                outbound_shipment_notes_updated=False,
                 outbound_shipment_created=True,
-                outbound_shipment_shipped=True,
-                outbound_shipment_closed=True,
-                order_shipped=True
+                outbound_shipment_shipped=False,
+                outbound_shipment_closed=False,
+                order_shipped=False
             )
             print(f'Webhook globale aggiornato: {url}')
             

@@ -36,7 +36,7 @@
             </div>
             <div class="col-md-3">
                 <label for="max_shipments" class="form-label">Massimo numero di spedizioni</label>
-                <input type="number" class="form-control" id="max_shipments" name="max_shipments" min="1" max="1000" value="{{ max_shipments|default:20 }}">
+                <input type="number" class="form-control" id="max_shipments" name="max_shipments" min="1" max="10000" value="{{ max_shipments|default:20 }}">
                 <small class="text-muted">Consigliato: max 40 spedizioni per evitare timeout</small>
             </div>
         </div>
