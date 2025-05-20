@@ -256,9 +256,7 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
     keywords_list = [kw.strip().lower() for kw in search_terms.split(',') if kw.strip()]
     
     try:
-        # Truncate della tabella risultati prima di ogni nuova ricerca
         SearchResultItem.objects.all().delete()
-        # Scarica le spedizioni (solo outbound per ora, puoi estendere a inbound se serve)
         while len(shipments_collected_from_api) < int(max_shipments_to_analyze):
             if shipment_status == 'archived':
                 shipments_page_response = client.get_archived_outbound_shipments(
@@ -277,7 +275,6 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
         shipments_to_actually_analyze = shipments_collected_from_api[:int(max_shipments_to_analyze)]
         cache.set(f"search_{search_id}_total_to_analyze", len(shipments_to_actually_analyze), timeout=3600)
         logger.info(f"[CELERY_SEARCH_TASK] Scaricate {len(shipments_to_actually_analyze)} spedizioni da analizzare")
-        # Filtra per keyword
         for idx, shipment_obj in enumerate(shipments_to_actually_analyze):
             shipment_name = getattr(shipment_obj, 'name', '')
             shipment_id = getattr(shipment_obj, 'id', None)
@@ -286,7 +283,6 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
             if found_match_in_name:
                 shipments_matching_criteria.append(shipment_obj)
                 continue
-            # Cerca negli items
             try:
                 items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
                 logger.info(f"[CELERY_SEARCH_TASK] items_response per shipment_id={shipment_id}: {items_response} (type={type(items_response)})")
@@ -297,7 +293,6 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                     items_list = items_response.items
                 else:
                     logger.warning(f"[CELERY_SEARCH_TASK] items_response non ha attributo 'items' per shipment_id={shipment_id}: {type(items_response)}")
-                # Se gli item sono oggetti Pydantic, li converto in dict
                 if items_list and hasattr(items_list[0], 'model_dump'):
                     items_list = [i.model_dump() for i in items_list]
                 logger.info(f"[CELERY_SEARCH_TASK] items_list per shipment_id={shipment_id}: {items_list} (len={len(items_list)})")
@@ -315,13 +310,11 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                 logger.error(f"[CELERY_SEARCH_TASK] Errore items per shipment {shipment_id}: {e_items}")
         logger.info(f"[CELERY_SEARCH_TASK] Trovate {len(shipments_matching_criteria)} spedizioni che matchano i criteri")
         logger.info(f"[CELERY_SEARCH_TASK] shipments_matching_criteria: {[getattr(s, 'id', None) for s in shipments_matching_criteria]}")
-        # Salva risultati: una riga per ogni prodotto reale
         records_created = 0
         for shipment_obj in shipments_matching_criteria:
             try:
                 shipment_id = getattr(shipment_obj, 'id', 'N/A')
                 shipment_name = getattr(shipment_obj, 'name', f"Spedizione {shipment_id}")
-                # Scarica gli items reali della spedizione
                 items_response = client.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
                 logger.info(f"[CELERY_SEARCH_TASK] items_response per shipment_id={shipment_id}: {items_response}")
                 items_list = []
@@ -331,12 +324,10 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                     items_list = items_response.items
                 else:
                     logger.warning(f"[CELERY_SEARCH_TASK] items_response non ha attributo 'items' per shipment_id={shipment_id}: {type(items_response)}")
-                # Se gli item sono oggetti Pydantic, li converto in dict
                 if items_list and hasattr(items_list[0], 'model_dump'):
                     items_list = [i.model_dump() for i in items_list]
                 logger.info(f"[CELERY_SEARCH_TASK] items_list per shipment_id={shipment_id}: {items_list} (len={len(items_list)})")
                 for item_data in items_list:
-                    # Estrai info prodotto reale
                     inner_item = item_data.get('item')
                     if inner_item and isinstance(inner_item, dict):
                         product_title = inner_item.get('title', '')
@@ -353,7 +344,6 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                     try:
                         SearchResultItem.objects.create(
                             search_id=search_id,
-                            shipment_id_api=str(shipment_id),
                             shipment_type='outbound',
                             shipment_name=shipment_name,
                             product_title=product_title,
@@ -380,10 +370,16 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
                 f"Spedizioni matching: {len(shipments_matching_criteria)}. "
                 f"Verifica i dati e i log degli errori precedenti."
             )
-        cache.set(f"{search_id}_done", True, timeout=600)
         logger.info(f"[CELERY_SEARCH_TASK] FINE: creati {records_created} record per search_id={search_id}")
         total_execution_time = time.time() - start_time
         logger.info(f"[CELERY_SEARCH_TASK] Tempo totale esecuzione: {total_execution_time:.2f} s")
+        # Qui il task ha effettivamente finito di processare tutte le spedizioni richieste
+        logger.info(f"[CELERY_SEARCH_TASK] Ricerca completata, imposto flag done per search_id={search_id}")
+        cache.set(f"{search_id}_done", True, timeout=600)
     except Exception as e:
         logger.error(f"[CELERY_SEARCH_TASK] ERRORE GENERALE: {e}\n{traceback.format_exc()}")
-        cache.set(f"{search_id}_done", True, timeout=600) 
+    finally:
+        # Fallback di sicurezza: se per qualche motivo il flag non è stato impostato, lo imposto qui
+        if not cache.get(f"{search_id}_done"):
+            logger.warning(f"[CELERY_SEARCH_TASK] [finally] Flag {search_id}_done non impostato, lo imposto ora (fallback)")
+            cache.set(f"{search_id}_done", True, timeout=600) 
