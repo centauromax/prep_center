@@ -4,6 +4,9 @@ from . import views
 app_name = 'pallet_label'
 
 urlpatterns = [
+    # Debug
+    path('debug/', views.debug_view, name='debug'),
+    
     # Lista etichette
     path('', views.pallet_label_list, name='list'),
     

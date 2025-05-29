@@ -18,12 +18,44 @@
 {% endblock %}
 
 {% block content %}
+    <!-- Debug Info -->
+    {% if error %}
+        <div class="alert alert-danger">
+            <h6 class="alert-heading">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Errore nell'applicazione
+            </h6>
+            <p class="mb-2"><strong>Dettagli errore:</strong> {{ error }}</p>
+            <p class="mb-0">
+                <small>
+                    <a href="{% url 'pallet_label:debug' %}" target="_blank">
+                        <i class="fas fa-bug me-1"></i>
+                        Visualizza informazioni di debug
+                    </a>
+                </small>
+            </p>
+        </div>
+    {% endif %}
+
+    <!-- PDF Availability Warning -->
+    {% if not pdf_available %}
+        <div class="alert alert-warning">
+            <h6 class="alert-heading">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Generazione PDF non disponibile
+            </h6>
+            <p class="mb-0">
+                ReportLab non è installato correttamente. Le funzionalità PDF potrebbero non funzionare.
+            </p>
+        </div>
+    {% endif %}
+
     <!-- Statistiche -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card text-center">
                 <div class="card-body">
-                    <h5 class="card-title text-primary">{{ total_labels }}</h5>
+                    <h5 class="card-title text-primary">{{ total_labels|default:0 }}</h5>
                     <p class="card-text">Etichette Totali</p>
                 </div>
             </div>
@@ -31,7 +63,7 @@
         <div class="col-md-3">
             <div class="card text-center">
                 <div class="card-body">
-                    <h5 class="card-title text-success">{{ page_obj.paginator.count }}</h5>
+                    <h5 class="card-title text-success">{{ page_obj.paginator.count|default:0 }}</h5>
                     <p class="card-text">In questa vista</p>
                 </div>
             </div>

@@ -1,2 +1,2 @@
 #[deploy]
-postDeployCommand = "cd backend && python manage.py migrate" 
+postDeployCommand = "cd backend && python manage.py showmigrations && python manage.py migrate --verbosity=2 && python manage.py collectstatic --noinput" 

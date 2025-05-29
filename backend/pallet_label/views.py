@@ -10,9 +10,18 @@ import logging
 
 from .models import PalletLabel
 from .forms import PalletLabelForm, QuickPalletForm
-from .pdf_generator import generate_pallet_label_pdf
 
 logger = logging.getLogger(__name__)
+
+# Importazione condizionale per evitare errori se ReportLab non è disponibile
+try:
+    from .pdf_generator import generate_pallet_label_pdf
+    PDF_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Errore nell'importazione del PDF generator: {str(e)}")
+    PDF_AVAILABLE = False
+    def generate_pallet_label_pdf(pallet_label):
+        raise ImportError("ReportLab non disponibile")
 
 
 @login_required
@@ -20,19 +29,31 @@ def pallet_label_list(request):
     """
     Vista per elencare tutte le etichette pallet create dall'utente.
     """
-    pallet_labels = PalletLabel.objects.filter(created_by=request.user).order_by('-created_at')
-    
-    # Paginazione
-    paginator = Paginator(pallet_labels, 20)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'page_obj': page_obj,
-        'total_labels': pallet_labels.count()
-    }
-    
-    return render(request, 'pallet_label/list.html', context)
+    try:
+        pallet_labels = PalletLabel.objects.filter(created_by=request.user).order_by('-created_at')
+        
+        # Paginazione
+        paginator = Paginator(pallet_labels, 20)
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        context = {
+            'page_obj': page_obj,
+            'total_labels': pallet_labels.count(),
+            'pdf_available': PDF_AVAILABLE
+        }
+        
+        return render(request, 'pallet_label/list.html', context)
+        
+    except Exception as e:
+        logger.error(f"Errore nella vista pallet_label_list: {str(e)}")
+        messages.error(request, f'Errore nel caricamento delle etichette: {str(e)}')
+        return render(request, 'pallet_label/list.html', {
+            'page_obj': None,
+            'total_labels': 0,
+            'pdf_available': PDF_AVAILABLE,
+            'error': str(e)
+        })
 
 
 @login_required
@@ -330,3 +351,30 @@ def warehouse_autocomplete(request):
             })
     
     return JsonResponse({'results': results})
+
+
+def debug_view(request):
+    """
+    Vista di debug per testare se l'app funziona.
+    """
+    import sys
+    import django
+    
+    debug_info = {
+        'django_version': django.get_version(),
+        'python_version': sys.version,
+        'pdf_available': PDF_AVAILABLE,
+        'user_authenticated': request.user.is_authenticated,
+        'user': str(request.user) if request.user.is_authenticated else 'Anonymous'
+    }
+    
+    try:
+        from django.db import connection
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) FROM django_migrations WHERE app = 'pallet_label'")
+            migrations_count = cursor.fetchone()[0]
+        debug_info['pallet_label_migrations'] = migrations_count
+    except Exception as e:
+        debug_info['migration_error'] = str(e)
+    
+    return JsonResponse(debug_info)
