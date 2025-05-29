@@ -3,6 +3,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.i18n import i18n_patterns
+from . import views
 import logging
 
 logger = logging.getLogger('prep_center')
@@ -18,10 +19,17 @@ logger.info('[prep_center.urls] Dopo aver incluso prep_management.urls')
 
 # URL patterns localizzati
 urlpatterns += i18n_patterns(
+    # Homepage unificata
+    path('', views.homepage, name='homepage'),
+    
+    # Admin
     path('admin/', admin.site.urls),
+    
+    # Apps
     path('fbasaving/', include('fbasaving.urls')),
     path('return_management/', include('return_management.urls')),
     path('picture_check/', include('picture_check.urls')),
     path('pallet_label/', include('pallet_label.urls')),
+    
     prefix_default_language=False  # Non aggiunge il prefisso della lingua di default all'URL
 )
