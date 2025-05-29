@@ -38,8 +38,8 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
-    "apppc.fbaprepcenteritaly.com",  # dominio principale unificato
-    "backend.fbaprepcenteritaly.com",  # manteniamo per compatibilità
+    "backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
+    "apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
     "127.0.0.1",
     "localhost",
     "prepcenter-production.up.railway.app",  # aggiungo il dominio del backend
@@ -48,9 +48,9 @@ ALLOWED_HOSTS = [
 
 # Configurazione CSRF per consentire richieste da altri domini
 CSRF_TRUSTED_ORIGINS = [
-    "https://apppc.fbaprepcenteritaly.com",  # dominio principale unificato
+    "https://backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
+    "https://apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
     "https://prepcenter-production.up.railway.app",
-    "https://backend.fbaprepcenteritaly.com",  # manteniamo per compatibilità
     "https://*.up.railway.app",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
@@ -318,9 +318,9 @@ CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "https://apppc.fbaprepcenteritaly.com",  # dominio principale unificato
+    "https://backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
+    "https://apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
     "https://prepcenterfe-production.up.railway.app",
-    "https://backend.fbaprepcenteritaly.com",  # manteniamo per compatibilità
     "http://localhost:3000",
 ]
 

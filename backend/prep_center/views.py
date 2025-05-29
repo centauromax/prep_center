@@ -1,5 +1,6 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.http import HttpResponsePermanentRedirect
 
 
 @login_required
@@ -7,6 +8,10 @@ def homepage(request):
     """
     Homepage unificata con tutte le app disponibili.
     """
+    # Se l'utente arriva da apppc, reindirizza a backend per consistenza
+    if request.get_host() == 'apppc.fbaprepcenteritaly.com':
+        return HttpResponsePermanentRedirect(f'https://backend.fbaprepcenteritaly.com{request.get_full_path()}')
+    
     apps = [
         {
             'name': 'Prep Management',
