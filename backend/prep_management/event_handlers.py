@@ -9,6 +9,7 @@ from django.utils import timezone
 import time
 
 from .models import ShipmentStatusUpdate, OutgoingMessage
+from .utils.messaging import send_outbound_without_inbound_notification
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -259,13 +260,7 @@ class WebhookEventProcessor:
                         logger.error(f"[_process_outbound_shipment_created] Errore durante il recupero del nome del merchant via API: {str(e)}")
                         merchant_name = str(merchant_id)
                 # Enqueue message for Chrome extension
-                OutgoingMessage.objects.create(
-                    message_id='OUTBOUND_WITHOUT_INBOUND',
-                    parameters={
-                        'merchant_name': merchant_name,
-                        'outbound_shipment_name': shipment_name
-                    }
-                )
+                send_outbound_without_inbound_notification(merchant_name, shipment_name)
                 return {
                     'success': False,
                     'message': f'Nessuna spedizione in entrata trovata con nome: {shipment_name}',

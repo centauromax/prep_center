@@ -1,0 +1,48 @@
+{% extends 'pallet_label/create.html' %}
+
+{% block page_actions %}
+    <div class="btn-group" role="group">
+        <a href="{% url 'pallet_label:detail' pallet_label.pk %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>
+            Torna ai Dettagli
+        </a>
+        <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-list me-1"></i>
+            Lista Etichette
+        </a>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+    // Aggiungi validazione specifica per la modifica se necessario
+    document.addEventListener('DOMContentLoaded', function() {
+        // Evidenzia che stiamo modificando un'etichetta esistente
+        const cardHeader = document.querySelector('.card-header h5');
+        if (cardHeader) {
+            cardHeader.innerHTML = '<i class="fas fa-edit me-2"></i>Modifica Etichetta Pallet';
+        }
+        
+        // Aggiungi un avviso se il PDF è già stato generato
+        {% if pallet_label.pdf_generated %}
+        const form = document.querySelector('form');
+        if (form) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-info';
+            alert.innerHTML = `
+                <h6 class="alert-heading">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Modifica Etichetta Esistente
+                </h6>
+                <p class="mb-0">
+                    Stai modificando un'etichetta per cui è già stato generato un PDF. 
+                    Dopo aver salvato le modifiche, il PDF verrà rigenerato automaticamente.
+                </p>
+            `;
+            form.insertBefore(alert, form.firstChild);
+        }
+        {% endif %}
+    });
+</script>
+{% endblock %} 

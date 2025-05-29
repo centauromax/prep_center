@@ -17,5 +17,7 @@ urlpatterns = [
     path('queue/push/', views.push_outgoing_message, name='push_outgoing_message'),
     path('queue/poll/', views.poll_outgoing_messages, name='poll_outgoing_messages'),
     path('queue/consume/<int:pk>/', views.push_outgoing_message, name='consume_outgoing_message'),
+    path('queue/receive/', views.receive_extension_message, name='receive_extension_message'),
+    path('queue/wait/', views.wait_for_extension_response, name='wait_for_extension_response'),
     path('search-shipments/', views.search_shipments_by_products, name='search_shipments_by_products'),
 ]

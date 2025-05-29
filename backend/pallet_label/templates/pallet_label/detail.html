@@ -1,0 +1,335 @@
+{% extends 'pallet_label/base.html' %}
+
+{% block title %}Dettagli {{ pallet_label.pallet_id }} - Prep Center{% endblock %}
+
+{% block page_title %}Dettagli Etichetta Pallet{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group" role="group">
+        <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>
+            Torna alla Lista
+        </a>
+        {% if pallet_label.pdf_file %}
+            <a href="{% url 'pallet_label:download' pallet_label.pk %}" 
+               class="btn btn-success" 
+               target="_blank">
+                <i class="fas fa-download me-1"></i>
+                Scarica PDF
+            </a>
+        {% endif %}
+        <a href="{% url 'pallet_label:edit' pallet_label.pk %}" class="btn btn-primary">
+            <i class="fas fa-edit me-1"></i>
+            Modifica
+        </a>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div class="row">
+        <!-- Colonna principale -->
+        <div class="col-lg-8">
+            <!-- Informazioni Principali -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-pallet me-2"></i>
+                        {{ pallet_label.pallet_id }}
+                        <span class="badge bg-info ms-2">{{ pallet_label.amazon_warehouse_code }}</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary">Informazioni Pallet</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>ID Pallet:</strong></td>
+                                    <td>{{ pallet_label.pallet_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Pallet:</strong></td>
+                                    <td>{{ pallet_label.pallet_description }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Shipment ID:</strong></td>
+                                    <td>{{ pallet_label.shipment_id }}</td>
+                                </tr>
+                                {% if pallet_label.po_number %}
+                                <tr>
+                                    <td><strong>PO Number:</strong></td>
+                                    <td>{{ pallet_label.po_number }}</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="text-primary">Dettagli Fisici</h6>
+                            <table class="table table-sm">
+                                <tr>
+                                    <td><strong>Scatole:</strong></td>
+                                    <td>
+                                        <i class="fas fa-box me-1"></i>
+                                        {{ pallet_label.total_boxes }}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Peso:</strong></td>
+                                    <td>
+                                        <i class="fas fa-weight me-1"></i>
+                                        {{ pallet_label.pallet_weight }} kg
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Dimensioni:</strong></td>
+                                    <td>
+                                        {{ pallet_label.pallet_dimensions_length }}×{{ pallet_label.pallet_dimensions_width }}×{{ pallet_label.pallet_dimensions_height }} cm
+                                    </td>
+                                </tr>
+                                {% if pallet_label.total_volume_cbm > 0 %}
+                                <tr>
+                                    <td><strong>Volume:</strong></td>
+                                    <td>{{ pallet_label.total_volume_cbm|floatformat:3 }} m³</td>
+                                </tr>
+                                {% endif %}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Indirizzi -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        Indirizzi
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-primary">
+                                <i class="fas fa-user me-1"></i>
+                                Mittente
+                            </h6>
+                            <address class="mb-0">
+                                <strong>{{ pallet_label.sender_name }}</strong><br>
+                                {{ pallet_label.sender_address_line1 }}<br>
+                                {% if pallet_label.sender_address_line2 %}
+                                    {{ pallet_label.sender_address_line2 }}<br>
+                                {% endif %}
+                                {{ pallet_label.sender_postal_code }} {{ pallet_label.sender_city }}<br>
+                                {{ pallet_label.sender_country }}
+                            </address>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h6 class="text-primary">
+                                <i class="fab fa-amazon me-1"></i>
+                                Destinatario (Amazon)
+                            </h6>
+                            <address class="mb-0">
+                                <strong>{{ pallet_label.amazon_warehouse_name }}</strong><br>
+                                <span class="badge bg-info">{{ pallet_label.amazon_warehouse_code }}</span><br>
+                                {{ pallet_label.amazon_address_line1 }}<br>
+                                {% if pallet_label.amazon_address_line2 %}
+                                    {{ pallet_label.amazon_address_line2 }}<br>
+                                {% endif %}
+                                {{ pallet_label.amazon_postal_code }} {{ pallet_label.amazon_city }}<br>
+                                {{ pallet_label.amazon_country }}
+                            </address>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spedizione -->
+            {% if pallet_label.carrier or pallet_label.tracking_number %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-shipping-fast me-2"></i>
+                        Informazioni Spedizione
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if pallet_label.carrier %}
+                        <div class="col-md-6">
+                            <h6 class="text-primary">Corriere</h6>
+                            <p class="mb-0">{{ pallet_label.carrier }}</p>
+                        </div>
+                        {% endif %}
+                        
+                        {% if pallet_label.tracking_number %}
+                        <div class="col-md-6">
+                            <h6 class="text-primary">Numero di Tracking</h6>
+                            <p class="mb-0">
+                                <code>{{ pallet_label.tracking_number }}</code>
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Istruzioni Speciali -->
+            {% if pallet_label.special_instructions %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-sticky-note me-2"></i>
+                        Istruzioni Speciali
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ pallet_label.special_instructions|linebreaks }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Stato PDF -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-file-pdf me-2"></i>
+                        Stato PDF
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    {% if pallet_label.pdf_generated and pallet_label.pdf_file %}
+                        <div class="mb-3">
+                            <i class="fas fa-check-circle fa-3x text-success"></i>
+                        </div>
+                        <h6 class="text-success">PDF Generato</h6>
+                        <p class="text-muted small mb-3">
+                            L'etichetta PDF è pronta per il download
+                        </p>
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'pallet_label:download' pallet_label.pk %}" 
+                               class="btn btn-success" 
+                               target="_blank">
+                                <i class="fas fa-download me-1"></i>
+                                Scarica PDF
+                            </a>
+                            <a href="{% url 'pallet_label:regenerate_pdf' pallet_label.pk %}" 
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-sync me-1"></i>
+                                Rigenera PDF
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="mb-3">
+                            <i class="fas fa-clock fa-3x text-warning"></i>
+                        </div>
+                        <h6 class="text-warning">PDF Non Generato</h6>
+                        <p class="text-muted small mb-3">
+                            Il PDF non è ancora stato generato
+                        </p>
+                        <div class="d-grid">
+                            <a href="{% url 'pallet_label:regenerate_pdf' pallet_label.pk %}" 
+                               class="btn btn-primary">
+                                <i class="fas fa-file-pdf me-1"></i>
+                                Genera PDF
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Azioni -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        Azioni
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'pallet_label:edit' pallet_label.pk %}" 
+                           class="btn btn-primary">
+                            <i class="fas fa-edit me-1"></i>
+                            Modifica Etichetta
+                        </a>
+                        
+                        <button type="button" 
+                                class="btn btn-outline-danger" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#deleteModal">
+                            <i class="fas fa-trash me-1"></i>
+                            Elimina Etichetta
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metadati -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informazioni
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <tr>
+                            <td><strong>Creato da:</strong></td>
+                            <td>{{ pallet_label.created_by.username }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data creazione:</strong></td>
+                            <td>{{ pallet_label.created_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Ultimo aggiornamento:</strong></td>
+                            <td>{{ pallet_label.updated_at|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal di Conferma Eliminazione -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                        Conferma Eliminazione
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Sei sicuro di voler eliminare l'etichetta pallet <strong>{{ pallet_label.pallet_id }}</strong>?</p>
+                    <p class="text-muted small">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Questa azione non può essere annullata. Il file PDF associato verrà eliminato definitivamente.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>
+                        Annulla
+                    </button>
+                    <form method="post" action="{% url 'pallet_label:delete' pallet_label.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-1"></i>
+                            Elimina Definitivamente
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %} 

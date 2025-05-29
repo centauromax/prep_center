@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import PrepBusinessAPI
 from .utils.merchants import get_merchants
-from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem
-from .serializers import OutgoingMessageSerializer
+from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage
+from .serializers import OutgoingMessageSerializer, IncomingMessageSerializer
 import logging
 import requests
 import traceback
@@ -756,3 +756,192 @@ def search_shipments_by_products(request):
     # Ritorno per GET non gestito esplicitamente sopra (dovrebbe essere coperto dalla logica GET iniziale)
     logger.debug(f"[search_shipments_by_products DEBUG] Richiesta GET non POST, rendering form base o risultati esistenti.")
     return render(request, 'prep_management/search_shipments.html', context)
+
+def enqueue_box_services_request(payload: dict):
+    """
+    Salva un messaggio di tipo BOX_SERVICES_REQUEST nella coda OutgoingMessage.
+    """
+    from .models import OutgoingMessage
+    OutgoingMessage.objects.create(
+        message_id='BOX_SERVICES_REQUEST',
+        parameters=payload
+    )
+
+# Esempio di utilizzo (da inserire dove serve, ad esempio nel gestore webhook):
+# webhook_data = WebhookProcessor.parse_payload(request.body)
+# box_services_payload = generate_box_services_request(webhook_data)
+# enqueue_box_services_request(box_services_payload)
+
+@csrf_exempt
+@api_view(['POST', 'OPTIONS'])
+def receive_extension_message(request):
+    """
+    Endpoint per ricevere messaggi dall'estensione Chrome verso l'app.
+    L'estensione invia POST con i dati del messaggio.
+    """
+    if request.method == 'OPTIONS':
+        response = Response()
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Headers"] = "*"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return response
+    
+    try:
+        # Estrai i dati dal payload
+        data = request.data if hasattr(request, 'data') else json.loads(request.body)
+        
+        # Crea il messaggio in entrata
+        incoming_msg = IncomingMessage.objects.create(
+            message_type=data.get('message_type', 'USER_RESPONSE'),
+            payload=data.get('payload', {}),
+            session_id=data.get('session_id')
+        )
+        
+        logger.info(f"Messaggio ricevuto dall'estensione: {incoming_msg.message_type} (session: {incoming_msg.session_id})")
+        
+        # Processa il messaggio se necessario
+        process_result = _process_incoming_message(incoming_msg)
+        
+        response = Response({
+            'success': True, 
+            'message': 'Messaggio ricevuto',
+            'id': incoming_msg.id,
+            'process_result': process_result
+        })
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Headers"] = "*"
+        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Errore nella ricezione messaggio dall'estensione: {str(e)}")
+        response = Response({
+            'success': False, 
+            'error': str(e)
+        }, status=400)
+        response["Access-Control-Allow-Origin"] = "*"
+        return response
+
+@api_view(['GET', 'OPTIONS'])
+def wait_for_extension_response(request):
+    """
+    Endpoint per attendere una risposta dall'estensione per una sessione specifica.
+    Il backend fa polling solo quando attende una risposta specifica.
+    
+    Parametri:
+    - session_id: ID della sessione per cui attendere la risposta
+    - timeout: Timeout in secondi (default: 30)
+    - message_type: Tipo di messaggio atteso (opzionale)
+    """
+    if request.method == 'OPTIONS':
+        response = Response()
+        response["Access-Control-Allow-Origin"] = "*"
+        response["Access-Control-Allow-Credentials"] = "true"
+        response["Access-Control-Allow-Headers"] = "*"
+        response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        return response
+    
+    session_id = request.GET.get('session_id')
+    timeout = int(request.GET.get('timeout', 30))
+    expected_message_type = request.GET.get('message_type')
+    
+    if not session_id:
+        return Response({'success': False, 'error': 'session_id richiesto'}, status=400)
+    
+    import time
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        # Cerca messaggi per questa sessione
+        query = IncomingMessage.objects.filter(session_id=session_id, processed=False)
+        
+        if expected_message_type:
+            query = query.filter(message_type=expected_message_type)
+        
+        messages = query.order_by('created_at')
+        
+        if messages.exists():
+            # Marca i messaggi come processati
+            message_ids = list(messages.values_list('id', flat=True))
+            IncomingMessage.objects.filter(id__in=message_ids).update(
+                processed=True,
+                processed_at=timezone.now()
+            )
+            
+            # Serializza e restituisci i messaggi
+            serializer = IncomingMessageSerializer(messages, many=True)
+            
+            logger.info(f"Risposta ricevuta per sessione {session_id}: {len(messages)} messaggi")
+            
+            response = Response({
+                'success': True,
+                'messages': serializer.data,
+                'session_id': session_id
+            })
+            response["Access-Control-Allow-Origin"] = "*"
+            return response
+        
+        # Attendi un po' prima del prossimo controllo
+        time.sleep(0.5)
+    
+    # Timeout raggiunto
+    logger.warning(f"Timeout raggiunto per sessione {session_id}")
+    response = Response({
+        'success': False,
+        'error': 'timeout',
+        'session_id': session_id
+    })
+    response["Access-Control-Allow-Origin"] = "*"
+    return response
+
+def _process_incoming_message(incoming_msg: IncomingMessage) -> dict:
+    """
+    Processa un messaggio ricevuto dall'estensione.
+    
+    Args:
+        incoming_msg: Il messaggio da processare
+        
+    Returns:
+        Dict con il risultato dell'elaborazione
+    """
+    try:
+        message_type = incoming_msg.message_type
+        payload = incoming_msg.payload or {}
+        
+        result = {'processed': True, 'message': 'Messaggio elaborato'}
+        
+        if message_type == 'USER_RESPONSE':
+            # Elabora risposta utente
+            user_action = payload.get('action')
+            if user_action:
+                result['user_action'] = user_action
+                logger.info(f"Azione utente ricevuta: {user_action}")
+        
+        elif message_type == 'ACTION_COMPLETED':
+            # Elabora azione completata
+            action_result = payload.get('result')
+            if action_result:
+                result['action_result'] = action_result
+                logger.info(f"Azione completata: {action_result}")
+        
+        elif message_type == 'ERROR_REPORT':
+            # Elabora segnalazione errore
+            error_details = payload.get('error')
+            if error_details:
+                result['error_details'] = error_details
+                logger.error(f"Errore segnalato dall'estensione: {error_details}")
+        
+        # Salva il risultato dell'elaborazione
+        incoming_msg.process_result = result
+        incoming_msg.save()
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Errore nell'elaborazione del messaggio {incoming_msg.id}: {str(e)}")
+        error_result = {'processed': False, 'error': str(e)}
+        incoming_msg.process_result = error_result
+        incoming_msg.save()
+        return error_result

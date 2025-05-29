@@ -175,5 +175,5 @@ def monthly_counts(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #@@@
-from prep_management.tasks import echo_task
-echo_task.delay("@@@test celery@@@")
+#from prep_management.tasks import echo_task
+#echo_task.delay("@@@test celery@@@")

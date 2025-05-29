@@ -1,0 +1,239 @@
+{% extends 'pallet_label/base.html' %}
+
+{% block title %}{{ title }} - Prep Center{% endblock %}
+
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block page_actions %}
+    <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>
+        Torna alla Lista
+    </a>
+{% endblock %}
+
+{% block content %}
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Creazione Rapida Etichette Pallet
+                    </h5>
+                    <small class="text-muted">
+                        Compila i dati essenziali per generare rapidamente le etichette pallet
+                    </small>
+                </div>
+                <div class="card-body">
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        <!-- Informazioni Essenziali -->
+                        <div class="form-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Informazioni Essenziali
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.pallet_id.id_for_label }}" class="form-label">
+                                            {{ form.pallet_id.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.pallet_id }}
+                                        {% if form.pallet_id.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.pallet_id.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            Identificativo univoco del pallet (es: PLT-001)
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.amazon_warehouse_code.id_for_label }}" class="form-label">
+                                            {{ form.amazon_warehouse_code.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.amazon_warehouse_code }}
+                                        {% if form.amazon_warehouse_code.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.amazon_warehouse_code.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            Codice del warehouse Amazon (es: MXP5, LIN1)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="{{ form.shipment_id.id_for_label }}" class="form-label">
+                                    {{ form.shipment_id.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.shipment_id }}
+                                {% if form.shipment_id.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.shipment_id.errors.0 }}
+                                    </div>
+                                {% endif %}
+                                <div class="form-text">
+                                    ID della spedizione fornito da Amazon
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Dettagli Pallet -->
+                        <div class="form-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-pallet me-2"></i>
+                                Dettagli Pallet
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.total_boxes.id_for_label }}" class="form-label">
+                                            {{ form.total_boxes.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.total_boxes }}
+                                        {% if form.total_boxes.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.total_boxes.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.pallet_weight.id_for_label }}" class="form-label">
+                                            {{ form.pallet_weight.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            {{ form.pallet_weight }}
+                                            <span class="input-group-text">kg</span>
+                                        </div>
+                                        {% if form.pallet_weight.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.pallet_weight.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Opzioni Pallet Multipli -->
+                        <div class="form-section">
+                            <h6 class="section-title">
+                                <i class="fas fa-layer-group me-2"></i>
+                                Pallet Multipli
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="{{ form.pallet_count.id_for_label }}" class="form-label">
+                                            {{ form.pallet_count.label }}
+                                            <span class="text-danger">*</span>
+                                        </label>
+                                        {{ form.pallet_count }}
+                                        {% if form.pallet_count.errors %}
+                                            <div class="invalid-feedback d-block">
+                                                {{ form.pallet_count.errors.0 }}
+                                            </div>
+                                        {% endif %}
+                                        <div class="form-text">
+                                            Numero totale di pallet per questa spedizione
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check mt-4">
+                                            {{ form.generate_all }}
+                                            <label class="form-check-label" for="{{ form.generate_all.id_for_label }}">
+                                                {{ form.generate_all.label }}
+                                            </label>
+                                            <div class="form-text">
+                                                Se selezionato, verranno generate etichette per tutti i pallet
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Informazioni Aggiuntive -->
+                        <div class="alert alert-info">
+                            <h6 class="alert-heading">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Informazioni Aggiuntive
+                            </h6>
+                            <p class="mb-0">
+                                I dati del mittente e del destinatario verranno precompilati automaticamente. 
+                                Potrai modificarli successivamente se necessario.
+                            </p>
+                        </div>
+
+                        <!-- Pulsanti -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>
+                                Annulla
+                            </a>
+                            
+                            <div>
+                                <a href="{% url 'pallet_label:create' %}" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-cog me-1"></i>
+                                    Creazione Completa
+                                </a>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-plus-circle me-1"></i>
+                                    Crea Etichette
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Validazione in tempo reale per il numero di pallet
+    document.addEventListener('DOMContentLoaded', function() {
+        const palletCountInput = document.getElementById('{{ form.pallet_count.id_for_label }}');
+        const generateAllCheckbox = document.getElementById('{{ form.generate_all.id_for_label }}');
+        
+        function updateGenerateAllVisibility() {
+            const count = parseInt(palletCountInput.value) || 1;
+            const parentDiv = generateAllCheckbox.closest('.col-md-6');
+            
+            if (count > 1) {
+                parentDiv.style.display = 'block';
+                generateAllCheckbox.checked = true;
+            } else {
+                parentDiv.style.display = 'none';
+                generateAllCheckbox.checked = false;
+            }
+        }
+        
+        palletCountInput.addEventListener('input', updateGenerateAllVisibility);
+        updateGenerateAllVisibility(); // Chiamata iniziale
+    });
+</script>
+{% endblock %} 

@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     'fbasaving',
     'prep_management',
     'picture_check',
+    'pallet_label',
 ]
 
 MIDDLEWARE = [

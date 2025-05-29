@@ -106,6 +106,7 @@ class OutgoingMessage(models.Model):
     """Coda di messaggi per la comunicazione con l'estensione Chrome."""
     MESSAGE_TYPES = [
         ('OUTBOUND_WITHOUT_INBOUND', 'Outbound without inbound'),
+        ('BOX_SERVICES_REQUEST', 'Box Services Request'),
     ]
     message_id = models.CharField(verbose_name="Tipo messaggio", max_length=100, choices=MESSAGE_TYPES)
     parameters = models.JSONField(verbose_name="Parametri messaggio", null=True, blank=True)
@@ -119,6 +120,32 @@ class OutgoingMessage(models.Model):
 
     def __str__(self):
         return f"{self.message_id} ({self.id})"
+
+class IncomingMessage(models.Model):
+    """Coda di messaggi dall'estensione Chrome verso l'app."""
+    MESSAGE_TYPES = [
+        ('USER_RESPONSE', 'Risposta utente'),
+        ('EXTENSION_STATUS', 'Status estensione'),
+        ('ACTION_COMPLETED', 'Azione completata'),
+        ('ERROR_REPORT', 'Segnalazione errore'),
+    ]
+    
+    message_type = models.CharField(verbose_name="Tipo messaggio", max_length=100, choices=MESSAGE_TYPES)
+    payload = models.JSONField(verbose_name="Payload messaggio", null=True, blank=True)
+    session_id = models.CharField(verbose_name="ID Sessione", max_length=100, null=True, blank=True, 
+                                 help_text="ID per correlare richiesta/risposta")
+    created_at = models.DateTimeField(verbose_name="Data ricezione", auto_now_add=True)
+    processed = models.BooleanField(verbose_name="Elaborato", default=False)
+    processed_at = models.DateTimeField(verbose_name="Data elaborazione", null=True, blank=True)
+    process_result = models.JSONField(verbose_name="Risultato elaborazione", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Messaggio in entrata"
+        verbose_name_plural = "Messaggi in entrata"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.message_type} ({self.session_id or self.id})"
 
 class SearchResultItem(models.Model):
     """

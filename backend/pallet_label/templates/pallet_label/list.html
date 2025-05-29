@@ -1,0 +1,202 @@
+{% extends 'pallet_label/base.html' %}
+
+{% block title %}Lista Etichette Pallet - Prep Center{% endblock %}
+
+{% block page_title %}Lista Etichette Pallet{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group" role="group">
+        <a href="{% url 'pallet_label:quick_create' %}" class="btn btn-success">
+            <i class="fas fa-plus-circle me-1"></i>
+            Creazione Rapida
+        </a>
+        <a href="{% url 'pallet_label:create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>
+            Nuova Etichetta
+        </a>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <!-- Statistiche -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">{{ total_labels }}</h5>
+                    <p class="card-text">Etichette Totali</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-success">{{ page_obj.paginator.count }}</h5>
+                    <p class="card-text">In questa vista</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista Etichette -->
+    {% if page_obj %}
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-list me-2"></i>
+                    Le tue etichette pallet
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID Pallet</th>
+                                <th>Warehouse</th>
+                                <th>Shipment ID</th>
+                                <th>Pallet</th>
+                                <th>Scatole</th>
+                                <th>Peso</th>
+                                <th>Data</th>
+                                <th>PDF</th>
+                                <th>Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for label in page_obj %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ label.pallet_id }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ label.amazon_warehouse_code }}</span>
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">{{ label.shipment_id }}</small>
+                                    </td>
+                                    <td>
+                                        {{ label.pallet_number }} di {{ label.pallet_count }}
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-box me-1"></i>
+                                        {{ label.total_boxes }}
+                                    </td>
+                                    <td>
+                                        <i class="fas fa-weight me-1"></i>
+                                        {{ label.pallet_weight }} kg
+                                    </td>
+                                    <td>
+                                        <small>{{ label.created_at|date:"d/m/Y H:i" }}</small>
+                                    </td>
+                                    <td>
+                                        {% if label.pdf_generated and label.pdf_file %}
+                                            <span class="badge bg-success status-badge">
+                                                <i class="fas fa-check me-1"></i>
+                                                Generato
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-warning status-badge">
+                                                <i class="fas fa-clock me-1"></i>
+                                                Pending
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{% url 'pallet_label:detail' label.pk %}" 
+                                               class="btn btn-outline-primary" 
+                                               title="Visualizza">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            {% if label.pdf_file %}
+                                                <a href="{% url 'pallet_label:download' label.pk %}" 
+                                                   class="btn btn-outline-success" 
+                                                   title="Scarica PDF"
+                                                   target="_blank">
+                                                    <i class="fas fa-download"></i>
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'pallet_label:edit' label.pk %}" 
+                                               class="btn btn-outline-warning" 
+                                               title="Modifica">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paginazione -->
+        {% if page_obj.has_other_pages %}
+            <nav aria-label="Paginazione etichette" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1">
+                                <i class="fas fa-angle-double-left"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">
+                                <i class="fas fa-angle-left"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">
+                                <i class="fas fa-angle-right"></i>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
+                                <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+
+    {% else %}
+        <!-- Stato vuoto -->
+        <div class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-pallet fa-4x text-muted"></i>
+            </div>
+            <h4 class="text-muted">Nessuna etichetta pallet trovata</h4>
+            <p class="text-muted mb-4">
+                Non hai ancora creato nessuna etichetta pallet. Inizia creando la tua prima etichetta!
+            </p>
+            <div class="btn-group" role="group">
+                <a href="{% url 'pallet_label:quick_create' %}" class="btn btn-success">
+                    <i class="fas fa-plus-circle me-1"></i>
+                    Creazione Rapida
+                </a>
+                <a href="{% url 'pallet_label:create' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-1"></i>
+                    Nuova Etichetta
+                </a>
+            </div>
+        </div>
+    {% endif %}
+{% endblock %} 
