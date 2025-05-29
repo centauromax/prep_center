@@ -1,2 +1,2 @@
 #[deploy]
-postDeployCommand = "cd backend && python manage.py makemigrations --merge && python manage.py makemigrations pallet_label && python manage.py migrate" 
+postDeployCommand = "cd backend && python manage.py migrate" 
