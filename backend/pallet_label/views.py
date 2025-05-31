@@ -335,7 +335,6 @@ def debug_view(request):
     
     return JsonResponse(debug_info)
 
-
 def shipment_detail(request, numero_spedizione):
     """
     Vista semplificata per visualizzare una spedizione completa.
@@ -475,3 +474,4 @@ def download_latest_pdf(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
+

@@ -75,6 +75,9 @@
                     <form method="post" id="palletForm">
                         {% csrf_token %}
                         
+                        <!-- Campo nascosto per i dati cartoni JSON -->
+                        {{ form.cartoni_per_pallet }}
+                        
                         <!-- Dati del Venditore -->
                         <div class="row mb-3">
                             <div class="col-12">
@@ -170,6 +173,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const cartoniContainer = document.getElementById('cartoni-container');
     const cartoniInputs = document.getElementById('cartoni-inputs');
     const submitBtn = document.getElementById('submitBtn');
+    const cartoniPerPalletField = document.getElementById('{{ form.cartoni_per_pallet.id_for_label }}');
+    const form = document.getElementById('palletForm');
     
     function updateCartoniInputs() {
         const numPallet = parseInt(numeroPalletInput.value) || 0;
@@ -230,6 +235,19 @@ document.addEventListener('DOMContentLoaded', function() {
         
         submitBtn.disabled = !allValid || allInputs.length === 0;
     }
+    
+    // Gestione submit del form
+    form.addEventListener('submit', function(e) {
+        const cartoniInputs = document.querySelectorAll('.cartoni-input');
+        const cartoniData = [];
+        
+        cartoniInputs.forEach(input => {
+            cartoniData.push(parseInt(input.value) || 0);
+        });
+        
+        // Popola il campo nascosto con i dati JSON
+        cartoniPerPalletField.value = JSON.stringify(cartoniData);
+    });
     
     // Event listeners
     numeroPalletInput.addEventListener('input', updateCartoniInputs);
