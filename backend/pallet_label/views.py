@@ -24,13 +24,17 @@ except ImportError as e:
         raise ImportError("ReportLab non disponibile")
 
 
-@login_required
 def pallet_label_list(request):
     """
     Vista per elencare tutte le etichette pallet create dall'utente.
     """
     try:
-        pallet_labels = PalletLabel.objects.filter(created_by=request.user).order_by('-created_at')
+        # Se l'utente è autenticato, mostra solo le sue etichette
+        # Altrimenti mostra tutte le etichette (per demo)
+        if request.user.is_authenticated:
+            pallet_labels = PalletLabel.objects.filter(created_by=request.user).order_by('-created_at')
+        else:
+            pallet_labels = PalletLabel.objects.all().order_by('-created_at')
         
         # Paginazione
         paginator = Paginator(pallet_labels, 20)
@@ -56,7 +60,6 @@ def pallet_label_list(request):
         })
 
 
-@login_required
 def pallet_label_create(request):
     """
     Vista per creare una nuova etichetta pallet.
@@ -67,14 +70,30 @@ def pallet_label_create(request):
             try:
                 with transaction.atomic():
                     pallet_label = form.save(commit=False)
-                    pallet_label.created_by = request.user
+                    # Se l'utente è autenticato, assegna l'utente, altrimenti usa un utente di default
+                    if request.user.is_authenticated:
+                        pallet_label.created_by = request.user
+                    else:
+                        # Crea un utente di default per le demo
+                        from django.contrib.auth.models import User
+                        demo_user, created = User.objects.get_or_create(
+                            username='demo_user',
+                            defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
+                        )
+                        pallet_label.created_by = demo_user
+                    
                     pallet_label.save()
                     
-                    # Genera il PDF
-                    pdf_file = generate_pallet_label_pdf(pallet_label)
-                    pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                    pallet_label.pdf_generated = True
-                    pallet_label.save()
+                    # Genera il PDF se disponibile
+                    if PDF_AVAILABLE:
+                        try:
+                            pdf_file = generate_pallet_label_pdf(pallet_label)
+                            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+                            pallet_label.pdf_generated = True
+                            pallet_label.save()
+                        except Exception as pdf_error:
+                            logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
+                            messages.warning(request, 'Etichetta creata ma errore nella generazione PDF.')
                     
                     messages.success(request, f'Etichetta pallet {pallet_label.pallet_id} creata con successo!')
                     return redirect('pallet_label:detail', pk=pallet_label.pk)
@@ -93,7 +112,6 @@ def pallet_label_create(request):
     return render(request, 'pallet_label/create.html', context)
 
 
-@login_required
 def pallet_label_quick_create(request):
     """
     Vista per la creazione rapida di etichette con dati precompilati.
@@ -111,6 +129,16 @@ def pallet_label_quick_create(request):
                     pallet_weight = form.cleaned_data['pallet_weight']
                     pallet_count = form.cleaned_data['pallet_count']
                     generate_all = form.cleaned_data['generate_all']
+                    
+                    # Determina l'utente
+                    if request.user.is_authenticated:
+                        user = request.user
+                    else:
+                        from django.contrib.auth.models import User
+                        user, created = User.objects.get_or_create(
+                            username='demo_user',
+                            defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
+                        )
                     
                     # Dati precompilati (puoi personalizzare questi valori)
                     default_data = {
@@ -135,7 +163,7 @@ def pallet_label_quick_create(request):
                         # Genera etichette per tutti i pallet
                         for i in range(1, pallet_count + 1):
                             pallet_label = PalletLabel(
-                                created_by=request.user,
+                                created_by=user,
                                 pallet_id=f"{pallet_id_base}-{i:02d}",
                                 amazon_warehouse_code=amazon_warehouse_code,
                                 shipment_id=shipment_id,
@@ -147,17 +175,21 @@ def pallet_label_quick_create(request):
                             )
                             pallet_label.save()
                             
-                            # Genera PDF
-                            pdf_file = generate_pallet_label_pdf(pallet_label)
-                            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                            pallet_label.pdf_generated = True
-                            pallet_label.save()
+                            # Genera PDF se disponibile
+                            if PDF_AVAILABLE:
+                                try:
+                                    pdf_file = generate_pallet_label_pdf(pallet_label)
+                                    pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+                                    pallet_label.pdf_generated = True
+                                    pallet_label.save()
+                                except Exception as pdf_error:
+                                    logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
                             
                             created_labels.append(pallet_label)
                     else:
                         # Genera solo un'etichetta
                         pallet_label = PalletLabel(
-                            created_by=request.user,
+                            created_by=user,
                             pallet_id=pallet_id_base,
                             amazon_warehouse_code=amazon_warehouse_code,
                             shipment_id=shipment_id,
@@ -169,11 +201,15 @@ def pallet_label_quick_create(request):
                         )
                         pallet_label.save()
                         
-                        # Genera PDF
-                        pdf_file = generate_pallet_label_pdf(pallet_label)
-                        pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                        pallet_label.pdf_generated = True
-                        pallet_label.save()
+                        # Genera PDF se disponibile
+                        if PDF_AVAILABLE:
+                            try:
+                                pdf_file = generate_pallet_label_pdf(pallet_label)
+                                pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+                                pallet_label.pdf_generated = True
+                                pallet_label.save()
+                            except Exception as pdf_error:
+                                logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
                         
                         created_labels.append(pallet_label)
                     
@@ -198,12 +234,15 @@ def pallet_label_quick_create(request):
     return render(request, 'pallet_label/quick_create.html', context)
 
 
-@login_required
 def pallet_label_detail(request, pk):
     """
     Vista per visualizzare i dettagli di un'etichetta pallet.
     """
-    pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
+    if request.user.is_authenticated:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    else:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
     context = {
         'pallet_label': pallet_label
@@ -212,12 +251,15 @@ def pallet_label_detail(request, pk):
     return render(request, 'pallet_label/detail.html', context)
 
 
-@login_required
 def pallet_label_edit(request, pk):
     """
     Vista per modificare un'etichetta pallet esistente.
     """
-    pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
+    if request.user.is_authenticated:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    else:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
     if request.method == 'POST':
         form = PalletLabelForm(request.POST, instance=pallet_label)
@@ -226,11 +268,16 @@ def pallet_label_edit(request, pk):
                 with transaction.atomic():
                     pallet_label = form.save()
                     
-                    # Rigenera il PDF
-                    pdf_file = generate_pallet_label_pdf(pallet_label)
-                    pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                    pallet_label.pdf_generated = True
-                    pallet_label.save()
+                    # Rigenera il PDF se disponibile
+                    if PDF_AVAILABLE:
+                        try:
+                            pdf_file = generate_pallet_label_pdf(pallet_label)
+                            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+                            pallet_label.pdf_generated = True
+                            pallet_label.save()
+                        except Exception as pdf_error:
+                            logger.error(f"Errore nella rigenerazione PDF: {str(pdf_error)}")
+                            messages.warning(request, 'Etichetta aggiornata ma errore nella rigenerazione PDF.')
                     
                     messages.success(request, f'Etichetta pallet {pallet_label.pallet_id} aggiornata con successo!')
                     return redirect('pallet_label:detail', pk=pallet_label.pk)
@@ -250,14 +297,17 @@ def pallet_label_edit(request, pk):
     return render(request, 'pallet_label/edit.html', context)
 
 
-@login_required
 def pallet_label_download(request, pk):
     """
     Vista per scaricare il PDF di un'etichetta pallet.
     """
-    pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
+    if request.user.is_authenticated:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    else:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
-    if not pallet_label.pdf_file:
+    if not pallet_label.pdf_file and PDF_AVAILABLE:
         # Genera il PDF se non esiste
         try:
             pdf_file = generate_pallet_label_pdf(pallet_label)
@@ -269,6 +319,10 @@ def pallet_label_download(request, pk):
             messages.error(request, 'Errore nella generazione del PDF.')
             return redirect('pallet_label:detail', pk=pk)
     
+    if not pallet_label.pdf_file:
+        messages.error(request, 'PDF non disponibile.')
+        return redirect('pallet_label:detail', pk=pk)
+    
     # Restituisci il file PDF
     response = HttpResponse(pallet_label.pdf_file.read(), content_type='application/pdf')
     filename = f"pallet_label_{pallet_label.pallet_id}_{pallet_label.pallet_number}.pdf"
@@ -277,13 +331,16 @@ def pallet_label_download(request, pk):
     return response
 
 
-@login_required
 @require_http_methods(["POST"])
 def pallet_label_delete(request, pk):
     """
     Vista per eliminare un'etichetta pallet.
     """
-    pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
+    if request.user.is_authenticated:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    else:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
     try:
         pallet_id = pallet_label.pallet_id
@@ -296,12 +353,19 @@ def pallet_label_delete(request, pk):
     return redirect('pallet_label:list')
 
 
-@login_required
 def pallet_label_regenerate_pdf(request, pk):
     """
     Vista per rigenerare il PDF di un'etichetta pallet.
     """
-    pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
+    if request.user.is_authenticated:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
+    else:
+        pallet_label = get_object_or_404(PalletLabel, pk=pk)
+    
+    if not PDF_AVAILABLE:
+        messages.error(request, 'Generazione PDF non disponibile.')
+        return redirect('pallet_label:detail', pk=pk)
     
     try:
         # Rigenera il PDF
@@ -318,7 +382,6 @@ def pallet_label_regenerate_pdf(request, pk):
     return redirect('pallet_label:detail', pk=pk)
 
 
-@login_required
 def warehouse_autocomplete(request):
     """
     API per l'autocompletamento dei warehouse Amazon.
