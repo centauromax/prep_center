@@ -179,7 +179,7 @@ STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Pagina di login
-LOGIN_URL = 'login'
+# LOGIN_URL = 'login'  # Commentato per evitare redirect automatici
 
 # Definizione delle lingue disponibili
 LANGUAGES = [
