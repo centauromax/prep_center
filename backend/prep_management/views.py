@@ -71,7 +71,32 @@ def truncate_log_message(message_obj: Any, max_len: int = 1200, placeholder: str
         return "[Impossibile convertire oggetto in stringa per il log]"
 
 def index(request):
-    return render(request, 'prep_management/index.html')
+    # Definisce le app disponibili con informazioni e link
+    available_apps = [
+        {
+            'name': 'Verifica Foto Prodotti',
+            'description': 'Tramite l\'EAN o l\'FNSKU del prodotto, verifica se è stata gia inviata la foto o meno.',
+            'url': '/picture_check/',
+            'icon': 'fas fa-camera',
+            'color': 'primary',
+            'status': 'attiva'
+        },
+        {
+            'name': 'Etichette Pallet',
+            'description': 'Generatore di etichette di spedizione per i pallet destinati ad Amazon. Crea PDF stampabili con tutte le informazioni di spedizione necessarie.',
+            'url': '/pallet_label/',
+            'icon': 'fas fa-shipping-fast',
+            'color': 'success',
+            'status': 'attiva'
+        }
+    ]
+    
+    context = {
+        'available_apps': available_apps,
+        'total_apps': len(available_apps)
+    }
+    
+    return render(request, 'prep_management/index.html', context)
 
 def open_shipments(request):
     api = PrepBusinessAPI(settings.PREP_BUSINESS_API_KEY)
