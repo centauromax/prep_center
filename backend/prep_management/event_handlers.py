@@ -168,35 +168,19 @@ class WebhookEventProcessor:
             }
         
         try:
-            # Ottieni tutte le spedizioni in entrata per questo merchant
+            # Verifica che self.client sia disponibile
+            if self.client is None:
+                return {
+                    'success': False,
+                    'message': 'Client API non disponibile per controllare spedizioni inbound',
+                    'error': 'client_unavailable'
+                }
+            
+            # Ottieni tutte le spedizioni in entrata per questo merchant usando l'API reale
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
             start_time_inbound = time.time()
             
-            if self.client is not None:
-                # Usa l'API reale
-                logger.info("[_process_outbound_shipment_created] Uso API reale per get_inbound_shipments.")
-                inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
-            else:
-                # Fallback ai dati mock
-                logger.warning("[_process_outbound_shipment_created] Client non disponibile, uso dati mock per get_inbound_shipments.")
-                # Mock per InboundShipment (assicurati che i campi essenziali ci siano)
-                mock_inbound_shipment_1 = type('obj', (object,), {
-                    'id': 101, 
-                    'name': 'SPEDIZIONE_INBOUND_DIVERSA',  # Nome diverso per test
-                    'archived_at': None, 
-                    'status': 'open',
-                })
-                mock_inbound_shipment_2 = type('obj', (object,), {
-                    'id': 102, 
-                    'name': 'ALTRO_NOME_SPEDIZIONE_INBOUND', 
-                    'archived_at': None, 
-                    'status': 'open'
-                })
-                
-                # Mock per InboundShipmentsResponse
-                inbound_shipments_response = type('obj', (object,), {
-                    'data': [mock_inbound_shipment_1, mock_inbound_shipment_2]
-                })
+            inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
             
             end_time_inbound = time.time()
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
@@ -208,6 +192,11 @@ class WebhookEventProcessor:
             inbound_shipments = [s for s in inbound_shipments if s.archived_at is None]
             logger.info(f"[_process_outbound_shipment_created] {len(inbound_shipments)} spedizioni in entrata non archiviate.")
             
+            # Log dei nomi delle spedizioni inbound per debug
+            inbound_names = [s.name for s in inbound_shipments]
+            logger.info(f"[_process_outbound_shipment_created] Nomi spedizioni inbound trovate: {inbound_names}")
+            logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza per: '{shipment_name}'")
+            
             # Cerca una spedizione con lo stesso nome
             matching_shipment = next(
                 (s for s in inbound_shipments if s.name == shipment_name), 
@@ -215,6 +204,7 @@ class WebhookEventProcessor:
             )
             
             if matching_shipment:
+                logger.info(f"[_process_outbound_shipment_created] TROVATA corrispondenza: spedizione inbound ID {matching_shipment.id} con nome '{matching_shipment.name}'")
                 return {
                     'success': True,
                     'message': f'Trovata spedizione in entrata corrispondente: {matching_shipment.id}',
@@ -224,6 +214,8 @@ class WebhookEventProcessor:
                     'outbound_shipment_name': shipment_name
                 }
             else:
+                logger.warning(f"[_process_outbound_shipment_created] NESSUNA corrispondenza trovata per '{shipment_name}' tra le {len(inbound_shipments)} spedizioni inbound")
+                
                 # Recupera il nome del merchant
                 merchant_name = update.merchant_name
                 if not merchant_name and merchant_id:
@@ -231,16 +223,7 @@ class WebhookEventProcessor:
                         logger.info(f"[_process_outbound_shipment_created] Nome merchant non disponibile, chiamata API get_merchants...")
                         start_time_merchants = time.time()
                         
-                        if self.client is not None:
-                            # Usa l'API reale
-                            logger.info("[_process_outbound_shipment_created] Uso API reale per get_merchants.")
-                            merchants_response = self.client.get_merchants()
-                        else:
-                            # Fallback ai dati mock
-                            logger.warning("[_process_outbound_shipment_created] Client non disponibile, uso dati mock per get_merchants.")
-                            mock_merchant_1 = type('obj', (object,), {'id': merchant_id, 'name': f'Mock Merchant {merchant_id}'})
-                            mock_merchant_2 = type('obj', (object,), {'id': 999, 'name': 'Altro Mock Merchant'})
-                            merchants_response = type('obj', (object,), {'data': [mock_merchant_1, mock_merchant_2]})
+                        merchants_response = self.client.get_merchants()
                         
                         end_time_merchants = time.time()
                         logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
@@ -251,7 +234,9 @@ class WebhookEventProcessor:
                     except Exception as e:
                         logger.error(f"[_process_outbound_shipment_created] Errore durante il recupero del nome del merchant via API: {str(e)}")
                         merchant_name = str(merchant_id)
-                # Enqueue message for Chrome extension
+                
+                # Invia notifica per spedizione outbound senza corrispondente inbound
+                logger.info(f"[_process_outbound_shipment_created] Invio notifica OUTBOUND_WITHOUT_INBOUND per '{shipment_name}'")
                 send_outbound_without_inbound_notification(merchant_name, shipment_name)
                 return {
                     'success': False,
