@@ -114,14 +114,12 @@ def pallet_label_create(request):
                             
                             pdf_file = generate_shipment_labels_pdf(queryset)
                             
-                            # Salva il PDF per ogni etichetta (per compatibilità)
-                            for label in created_labels:
-                                filename = f"etichette_spedizione_{numero_spedizione}.pdf"
-                                label.pdf_file.save(filename, pdf_file)
-                                label.pdf_generated = True
-                                label.save()
-                                # Reset del file per la prossima iterazione
-                                pdf_file.seek(0)
+                            # Salva il PDF solo per la prima etichetta (per evitare duplicazioni)
+                            filename = f"etichette_spedizione_{numero_spedizione}.pdf"
+                            first_label = created_labels[0]
+                            first_label.pdf_file.save(filename, pdf_file)
+                            first_label.pdf_generated = True
+                            first_label.save()
                                 
                         except Exception as pdf_error:
                             logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
@@ -348,3 +346,114 @@ def debug_view(request):
         debug_info['migration_error'] = str(e)
     
     return JsonResponse(debug_info)
+
+
+def shipment_detail(request, numero_spedizione):
+    """
+    Vista semplificata per visualizzare una spedizione completa.
+    """
+    # Filtra per utente se autenticato
+    if request.user.is_authenticated:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione,
+            created_by=request.user
+        ).order_by('pallet_numero')
+    else:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione
+        ).order_by('pallet_numero')
+    
+    if not labels.exists():
+        messages.error(request, 'Spedizione non trovata.')
+        return redirect('pallet_label:list')
+    
+    first_label = labels.first()
+    
+    context = {
+        'labels': labels,
+        'first_label': first_label,
+        'numero_spedizione': numero_spedizione,
+        'total_pallet': labels.count(),
+        'total_cartoni': sum(label.numero_cartoni for label in labels),
+        'pdf_available': first_label.pdf_generated and first_label.pdf_file
+    }
+    
+    return render(request, 'pallet_label/shipment_detail.html', context)
+
+
+def shipment_download(request, numero_spedizione):
+    """
+    Vista semplificata per scaricare il PDF di una spedizione.
+    """
+    # Filtra per utente se autenticato
+    if request.user.is_authenticated:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione,
+            created_by=request.user
+        ).order_by('pallet_numero')
+    else:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione
+        ).order_by('pallet_numero')
+    
+    if not labels.exists():
+        messages.error(request, 'Spedizione non trovata.')
+        return redirect('pallet_label:list')
+    
+    first_label = labels.first()
+    
+    # Genera o rigenera il PDF se necessario
+    if not first_label.pdf_file and PDF_AVAILABLE:
+        try:
+            from .pdf_generator import generate_shipment_labels_pdf
+            pdf_file = generate_shipment_labels_pdf(labels)
+            filename = f"etichette_spedizione_{numero_spedizione}.pdf"
+            first_label.pdf_file.save(filename, pdf_file)
+            first_label.pdf_generated = True
+            first_label.save()
+        except Exception as e:
+            logger.error(f"Errore nella generazione del PDF: {str(e)}")
+            messages.error(request, 'Errore nella generazione del PDF.')
+            return redirect('pallet_label:shipment_detail', numero_spedizione=numero_spedizione)
+    
+    if not first_label.pdf_file:
+        messages.error(request, 'PDF non disponibile.')
+        return redirect('pallet_label:shipment_detail', numero_spedizione=numero_spedizione)
+    
+    # Restituisci il file PDF
+    filename = f"etichette_spedizione_{numero_spedizione}.pdf"
+    response = HttpResponse(first_label.pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+
+@require_http_methods(["POST"])
+def shipment_delete(request, numero_spedizione):
+    """
+    Vista per eliminare un'intera spedizione.
+    """
+    # Filtra per utente se autenticato
+    if request.user.is_authenticated:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione,
+            created_by=request.user
+        )
+    else:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione
+        )
+    
+    if not labels.exists():
+        messages.error(request, 'Spedizione non trovata.')
+        return redirect('pallet_label:list')
+    
+    try:
+        count = labels.count()
+        labels.delete()
+        messages.success(request, f'Spedizione {numero_spedizione} con {count} pallet eliminata con successo!')
+    except Exception as e:
+        logger.error(f"Errore nell'eliminazione della spedizione: {str(e)}")
+        messages.error(request, 'Errore nell\'eliminazione della spedizione.')
+    
+    return redirect('pallet_label:list')

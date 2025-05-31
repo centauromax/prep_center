@@ -53,8 +53,7 @@ class PalletLabelAdmin(admin.ModelAdmin):
                 'nome_venditore',
                 'nome_spedizione',
                 'numero_spedizione',
-                'indirizzo_spedizione',
-                'origine_spedizione'
+                'indirizzo_spedizione'
             )
         }),
         ('Dati Pallet', {
