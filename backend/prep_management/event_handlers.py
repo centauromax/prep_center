@@ -32,22 +32,18 @@ class WebhookEventProcessor:
         domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
         logger.info(f"[WebhookEventProcessor.__init__] Dominio calcolato per il client: {domain}")
         
-        # INIZIALIZZAZIONE CLIENT COMMENTATA TEMPORANEAMENTE PER RISOLVERE ERRORE SYNTAX
-        # try:
-        #     logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
-        #     self.client = PrepBusinessClient(
-        #         api_key=PREP_BUSINESS_API_KEY,
-        #         company_domain=domain,
-        #         timeout=PREP_BUSINESS_API_TIMEOUT,
-        #     )
-        #     logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
-        # except Exception as e_client_init:
-        #     logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: " + str(e_client_init))
-        #     self.client = None
-        
-        # Client disabilitato manualmente per evitare errori di sintassi
-        self.client = None
-        logger.info("[WebhookEventProcessor.__init__] Client disabilitato manualmente per debug")
+        # Riattivo il client per le chiamate API reali
+        try:
+            logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
+            self.client = PrepBusinessClient(
+                api_key=PREP_BUSINESS_API_KEY,
+                company_domain=domain,
+                timeout=PREP_BUSINESS_API_TIMEOUT,
+            )
+            logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+        except Exception as e_client_init:
+            logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: " + str(e_client_init))
+            self.client = None
         
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
     
@@ -172,43 +168,38 @@ class WebhookEventProcessor:
             }
         
         try:
-            # Verifica che self.client sia stato inizializzato
-            if self.client is None:
-                logger.warning(f"[_process_outbound_shipment_created] Client non inizializzato, utilizzo dati mock.")
-            
             # Ottieni tutte le spedizioni in entrata per questo merchant
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
             start_time_inbound = time.time()
-            # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
-            # inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
-            # Sostituito con dati mock:
-            logger.info("[_process_outbound_shipment_created] Restituzione dati mock per get_inbound_shipments.")
-            # Simula la struttura di InboundShipmentsResponse e InboundShipment come definito in libs/prepbusiness/models.py
-            # class InboundShipment(BaseModel): id: int, name: str, archived_at: Optional[datetime], status: InboundShipmentStatus
-            # class InboundShipmentsResponse(BaseModel): data: List[InboundShipment]
             
-            # Mock per InboundShipment (assicurati che i campi essenziali ci siano)
-            mock_inbound_shipment_1 = type('obj', (object,), {
-                'id': 101, 
-                'name': 'SPEDIZIONE_INBOUND_DIVERSA',  # Nome diverso per non trovare sempre corrispondenza
-                'archived_at': None, 
-                'status': 'open',
-                # Aggiungi altri campi se necessari per la logica successiva
-            })
-            mock_inbound_shipment_2 = type('obj', (object,), {
-                'id': 102, 
-                'name': 'ALTRO_NOME_SPEDIZIONE_INBOUND', 
-                'archived_at': None, 
-                'status': 'open'
-            })
-            
-            # Mock per InboundShipmentsResponse
-            inbound_shipments_response = type('obj', (object,), {
-                'data': [mock_inbound_shipment_1, mock_inbound_shipment_2]
-            })
+            if self.client is not None:
+                # Usa l'API reale
+                logger.info("[_process_outbound_shipment_created] Uso API reale per get_inbound_shipments.")
+                inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
+            else:
+                # Fallback ai dati mock
+                logger.warning("[_process_outbound_shipment_created] Client non disponibile, uso dati mock per get_inbound_shipments.")
+                # Mock per InboundShipment (assicurati che i campi essenziali ci siano)
+                mock_inbound_shipment_1 = type('obj', (object,), {
+                    'id': 101, 
+                    'name': 'SPEDIZIONE_INBOUND_DIVERSA',  # Nome diverso per test
+                    'archived_at': None, 
+                    'status': 'open',
+                })
+                mock_inbound_shipment_2 = type('obj', (object,), {
+                    'id': 102, 
+                    'name': 'ALTRO_NOME_SPEDIZIONE_INBOUND', 
+                    'archived_at': None, 
+                    'status': 'open'
+                })
+                
+                # Mock per InboundShipmentsResponse
+                inbound_shipments_response = type('obj', (object,), {
+                    'data': [mock_inbound_shipment_1, mock_inbound_shipment_2]
+                })
             
             end_time_inbound = time.time()
-            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments (mock) completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
+            logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
             
             inbound_shipments = inbound_shipments_response.data if inbound_shipments_response else []
             logger.info(f"[_process_outbound_shipment_created] Ricevute {len(inbound_shipments)} spedizioni in entrata grezze.")
@@ -239,19 +230,20 @@ class WebhookEventProcessor:
                     try:
                         logger.info(f"[_process_outbound_shipment_created] Nome merchant non disponibile, chiamata API get_merchants...")
                         start_time_merchants = time.time()
-                        # COMMENTO: Disabilitata la chiamata reale all'API PrepBusiness per evitare traffico durante lo sviluppo/test.
-                        # merchants_response = self.client.get_merchants()
-                        # Sostituito con dati mock:
-                        logger.info("[_process_outbound_shipment_created] Restituzione dati mock per get_merchants.")
-                        # Simula la struttura di MerchantsResponse e Merchant
-                        # class Merchant(BaseModel): id: int, name: str
-                        # class MerchantsResponse(BaseModel): data: List[Merchant]
-                        mock_merchant_1 = type('obj', (object,), {'id': merchant_id, 'name': f'Mock Merchant {merchant_id}'})
-                        mock_merchant_2 = type('obj', (object,), {'id': 999, 'name': 'Altro Mock Merchant'})
-                        merchants_response = type('obj', (object,), {'data': [mock_merchant_1, mock_merchant_2]})
+                        
+                        if self.client is not None:
+                            # Usa l'API reale
+                            logger.info("[_process_outbound_shipment_created] Uso API reale per get_merchants.")
+                            merchants_response = self.client.get_merchants()
+                        else:
+                            # Fallback ai dati mock
+                            logger.warning("[_process_outbound_shipment_created] Client non disponibile, uso dati mock per get_merchants.")
+                            mock_merchant_1 = type('obj', (object,), {'id': merchant_id, 'name': f'Mock Merchant {merchant_id}'})
+                            mock_merchant_2 = type('obj', (object,), {'id': 999, 'name': 'Altro Mock Merchant'})
+                            merchants_response = type('obj', (object,), {'data': [mock_merchant_1, mock_merchant_2]})
                         
                         end_time_merchants = time.time()
-                        logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants (mock) completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
+                        logger.info(f"[_process_outbound_shipment_created] Chiamata API get_merchants completata in {end_time_merchants - start_time_merchants:.2f} secondi.")
                         merchants = merchants_response.data if merchants_response else []
                         merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
                         merchant_name = merchant.name if merchant else str(merchant_id)
