@@ -7,9 +7,10 @@ from django.db import transaction
 from django.views.decorators.http import require_http_methods
 from django.urls import reverse
 import logging
+import json
 
 from .models import PalletLabel
-from .forms import PalletLabelForm, QuickPalletForm
+from .forms import PalletLabelForm
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ except ImportError as e:
 
 def pallet_label_list(request):
     """
-    Vista per elencare tutte le etichette pallet create dall'utente.
+    Vista per elencare tutte le etichette pallet create.
     """
     try:
         # Se l'utente è autenticato, mostra solo le sue etichette
@@ -62,73 +63,20 @@ def pallet_label_list(request):
 
 def pallet_label_create(request):
     """
-    Vista per creare una nuova etichetta pallet.
+    Vista per creare nuove etichette pallet.
     """
     if request.method == 'POST':
         form = PalletLabelForm(request.POST)
         if form.is_valid():
             try:
                 with transaction.atomic():
-                    pallet_label = form.save(commit=False)
-                    # Se l'utente è autenticato, assegna l'utente, altrimenti usa un utente di default
-                    if request.user.is_authenticated:
-                        pallet_label.created_by = request.user
-                    else:
-                        # Crea un utente di default per le demo
-                        from django.contrib.auth.models import User
-                        demo_user, created = User.objects.get_or_create(
-                            username='demo_user',
-                            defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
-                        )
-                        pallet_label.created_by = demo_user
-                    
-                    pallet_label.save()
-                    
-                    # Genera il PDF se disponibile
-                    if PDF_AVAILABLE:
-                        try:
-                            pdf_file = generate_pallet_label_pdf(pallet_label)
-                            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                            pallet_label.pdf_generated = True
-                            pallet_label.save()
-                        except Exception as pdf_error:
-                            logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
-                            messages.warning(request, 'Etichetta creata ma errore nella generazione PDF.')
-                    
-                    messages.success(request, f'Etichetta pallet {pallet_label.pallet_id} creata con successo!')
-                    return redirect('pallet_label:detail', pk=pallet_label.pk)
-                    
-            except Exception as e:
-                logger.error(f"Errore nella creazione dell'etichetta pallet: {str(e)}")
-                messages.error(request, 'Errore nella creazione dell\'etichetta. Riprova.')
-    else:
-        form = PalletLabelForm()
-    
-    context = {
-        'form': form,
-        'title': 'Crea Nuova Etichetta Pallet'
-    }
-    
-    return render(request, 'pallet_label/create.html', context)
-
-
-def pallet_label_quick_create(request):
-    """
-    Vista per la creazione rapida di etichette con dati precompilati.
-    """
-    if request.method == 'POST':
-        form = QuickPalletForm(request.POST)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    # Dati dal form
-                    pallet_id_base = form.cleaned_data['pallet_id']
-                    amazon_warehouse_code = form.cleaned_data['amazon_warehouse_code']
-                    shipment_id = form.cleaned_data['shipment_id']
-                    total_boxes = form.cleaned_data['total_boxes']
-                    pallet_weight = form.cleaned_data['pallet_weight']
-                    pallet_count = form.cleaned_data['pallet_count']
-                    generate_all = form.cleaned_data['generate_all']
+                    # Estrai i dati dal form
+                    nome_venditore = form.cleaned_data['nome_venditore']
+                    nome_spedizione = form.cleaned_data['nome_spedizione']
+                    numero_spedizione = form.cleaned_data['numero_spedizione']
+                    indirizzo_spedizione = form.cleaned_data['indirizzo_spedizione']
+                    numero_pallet = form.cleaned_data['numero_pallet']
+                    cartoni_per_pallet = form.get_cartoni_data()
                     
                     # Determina l'utente
                     if request.user.is_authenticated:
@@ -140,64 +88,18 @@ def pallet_label_quick_create(request):
                             defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
                         )
                     
-                    # Dati precompilati (puoi personalizzare questi valori)
-                    default_data = {
-                        'sender_name': 'Prep Center Italy',
-                        'sender_address_line1': 'Via Example 123',
-                        'sender_city': 'Milano',
-                        'sender_postal_code': '20100',
-                        'sender_country': 'Italia',
-                        'amazon_warehouse_name': f'Amazon Warehouse {amazon_warehouse_code}',
-                        'amazon_address_line1': 'Indirizzo Amazon',
-                        'amazon_city': 'Città Amazon',
-                        'amazon_postal_code': '00000',
-                        'amazon_country': 'Italia',
-                        'pallet_dimensions_length': 120,
-                        'pallet_dimensions_width': 80,
-                        'pallet_dimensions_height': 180,
-                    }
-                    
+                    # Crea le etichette per ogni pallet
                     created_labels = []
-                    
-                    if generate_all and pallet_count > 1:
-                        # Genera etichette per tutti i pallet
-                        for i in range(1, pallet_count + 1):
-                            pallet_label = PalletLabel(
-                                created_by=user,
-                                pallet_id=f"{pallet_id_base}-{i:02d}",
-                                amazon_warehouse_code=amazon_warehouse_code,
-                                shipment_id=shipment_id,
-                                total_boxes=total_boxes,
-                                pallet_weight=pallet_weight,
-                                pallet_count=pallet_count,
-                                pallet_number=i,
-                                **default_data
-                            )
-                            pallet_label.save()
-                            
-                            # Genera PDF se disponibile
-                            if PDF_AVAILABLE:
-                                try:
-                                    pdf_file = generate_pallet_label_pdf(pallet_label)
-                                    pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                                    pallet_label.pdf_generated = True
-                                    pallet_label.save()
-                                except Exception as pdf_error:
-                                    logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
-                            
-                            created_labels.append(pallet_label)
-                    else:
-                        # Genera solo un'etichetta
+                    for i, num_cartoni in enumerate(cartoni_per_pallet, 1):
                         pallet_label = PalletLabel(
                             created_by=user,
-                            pallet_id=pallet_id_base,
-                            amazon_warehouse_code=amazon_warehouse_code,
-                            shipment_id=shipment_id,
-                            total_boxes=total_boxes,
-                            pallet_weight=pallet_weight,
-                            pallet_count=pallet_count,
-                            pallet_number=1,
-                            **default_data
+                            nome_venditore=nome_venditore,
+                            nome_spedizione=nome_spedizione,
+                            numero_spedizione=numero_spedizione,
+                            indirizzo_spedizione=indirizzo_spedizione,
+                            pallet_numero=i,
+                            pallet_totale=numero_pallet,
+                            numero_cartoni=int(num_cartoni)
                         )
                         pallet_label.save()
                         
@@ -205,7 +107,7 @@ def pallet_label_quick_create(request):
                         if PDF_AVAILABLE:
                             try:
                                 pdf_file = generate_pallet_label_pdf(pallet_label)
-                                pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+                                pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
                                 pallet_label.pdf_generated = True
                                 pallet_label.save()
                             except Exception as pdf_error:
@@ -213,25 +115,26 @@ def pallet_label_quick_create(request):
                         
                         created_labels.append(pallet_label)
                     
+                    # Messaggio di successo e redirect
                     if len(created_labels) == 1:
-                        messages.success(request, f'Etichetta pallet {created_labels[0].pallet_id} creata con successo!')
+                        messages.success(request, f'Etichetta pallet per {nome_venditore} creata con successo!')
                         return redirect('pallet_label:detail', pk=created_labels[0].pk)
                     else:
-                        messages.success(request, f'{len(created_labels)} etichette pallet create con successo!')
+                        messages.success(request, f'{len(created_labels)} etichette pallet per {nome_venditore} create con successo!')
                         return redirect('pallet_label:list')
                         
             except Exception as e:
-                logger.error(f"Errore nella creazione rapida delle etichette: {str(e)}")
+                logger.error(f"Errore nella creazione delle etichette: {str(e)}")
                 messages.error(request, 'Errore nella creazione delle etichette. Riprova.')
     else:
-        form = QuickPalletForm()
+        form = PalletLabelForm()
     
     context = {
         'form': form,
-        'title': 'Creazione Rapida Etichette Pallet'
+        'title': 'Crea Nuove Etichette Pallet'
     }
     
-    return render(request, 'pallet_label/quick_create.html', context)
+    return render(request, 'pallet_label/create.html', context)
 
 
 def pallet_label_detail(request, pk):
@@ -244,57 +147,17 @@ def pallet_label_detail(request, pk):
     else:
         pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
+    # Trova altre etichette della stessa spedizione
+    related_labels = PalletLabel.objects.filter(
+        numero_spedizione=pallet_label.numero_spedizione
+    ).exclude(pk=pk).order_by('pallet_numero')
+    
     context = {
-        'pallet_label': pallet_label
+        'pallet_label': pallet_label,
+        'related_labels': related_labels
     }
     
     return render(request, 'pallet_label/detail.html', context)
-
-
-def pallet_label_edit(request, pk):
-    """
-    Vista per modificare un'etichetta pallet esistente.
-    """
-    # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
-    if request.user.is_authenticated:
-        pallet_label = get_object_or_404(PalletLabel, pk=pk, created_by=request.user)
-    else:
-        pallet_label = get_object_or_404(PalletLabel, pk=pk)
-    
-    if request.method == 'POST':
-        form = PalletLabelForm(request.POST, instance=pallet_label)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    pallet_label = form.save()
-                    
-                    # Rigenera il PDF se disponibile
-                    if PDF_AVAILABLE:
-                        try:
-                            pdf_file = generate_pallet_label_pdf(pallet_label)
-                            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
-                            pallet_label.pdf_generated = True
-                            pallet_label.save()
-                        except Exception as pdf_error:
-                            logger.error(f"Errore nella rigenerazione PDF: {str(pdf_error)}")
-                            messages.warning(request, 'Etichetta aggiornata ma errore nella rigenerazione PDF.')
-                    
-                    messages.success(request, f'Etichetta pallet {pallet_label.pallet_id} aggiornata con successo!')
-                    return redirect('pallet_label:detail', pk=pallet_label.pk)
-                    
-            except Exception as e:
-                logger.error(f"Errore nell'aggiornamento dell'etichetta pallet: {str(e)}")
-                messages.error(request, 'Errore nell\'aggiornamento dell\'etichetta. Riprova.')
-    else:
-        form = PalletLabelForm(instance=pallet_label)
-    
-    context = {
-        'form': form,
-        'pallet_label': pallet_label,
-        'title': f'Modifica Etichetta {pallet_label.pallet_id}'
-    }
-    
-    return render(request, 'pallet_label/edit.html', context)
 
 
 def pallet_label_download(request, pk):
@@ -311,7 +174,7 @@ def pallet_label_download(request, pk):
         # Genera il PDF se non esiste
         try:
             pdf_file = generate_pallet_label_pdf(pallet_label)
-            pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+            pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
             pallet_label.pdf_generated = True
             pallet_label.save()
         except Exception as e:
@@ -325,8 +188,7 @@ def pallet_label_download(request, pk):
     
     # Restituisci il file PDF
     response = HttpResponse(pallet_label.pdf_file.read(), content_type='application/pdf')
-    filename = f"pallet_label_{pallet_label.pallet_id}_{pallet_label.pallet_number}.pdf"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = f'attachment; filename="{pallet_label.pdf_filename}"'
     
     return response
 
@@ -343,11 +205,11 @@ def pallet_label_delete(request, pk):
         pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
     try:
-        pallet_id = pallet_label.pallet_id
+        numero_spedizione = pallet_label.numero_spedizione
         pallet_label.delete()
-        messages.success(request, f'Etichetta pallet {pallet_id} eliminata con successo!')
+        messages.success(request, f'Etichetta eliminata con successo!')
     except Exception as e:
-        logger.error(f"Errore nell'eliminazione dell'etichetta pallet: {str(e)}")
+        logger.error(f"Errore nell'eliminazione dell'etichetta: {str(e)}")
         messages.error(request, 'Errore nell\'eliminazione dell\'etichetta.')
     
     return redirect('pallet_label:list')
@@ -370,11 +232,11 @@ def pallet_label_regenerate_pdf(request, pk):
     try:
         # Rigenera il PDF
         pdf_file = generate_pallet_label_pdf(pallet_label)
-        pallet_label.pdf_file.save(pdf_file.name, pdf_file)
+        pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
         pallet_label.pdf_generated = True
         pallet_label.save()
         
-        messages.success(request, f'PDF dell\'etichetta {pallet_label.pallet_id} rigenerato con successo!')
+        messages.success(request, f'PDF dell\'etichetta rigenerato con successo!')
     except Exception as e:
         logger.error(f"Errore nella rigenerazione del PDF: {str(e)}")
         messages.error(request, 'Errore nella rigenerazione del PDF.')
@@ -382,38 +244,33 @@ def pallet_label_regenerate_pdf(request, pk):
     return redirect('pallet_label:detail', pk=pk)
 
 
-def warehouse_autocomplete(request):
+def download_all_pdfs(request):
     """
-    API per l'autocompletamento dei warehouse Amazon.
+    Vista per scaricare tutti i PDF di una spedizione.
     """
-    query = request.GET.get('q', '').upper()
+    numero_spedizione = request.GET.get('numero_spedizione')
+    if not numero_spedizione:
+        messages.error(request, 'Numero spedizione non specificato.')
+        return redirect('pallet_label:list')
     
-    # Lista di warehouse Amazon comuni (puoi espandere questa lista)
-    warehouses = {
-        'MXP5': {'name': 'Amazon MXP5 - Castel San Giovanni', 'city': 'Castel San Giovanni', 'country': 'Italia'},
-        'LIN1': {'name': 'Amazon LIN1 - Linate', 'city': 'Linate', 'country': 'Italia'},
-        'FCO1': {'name': 'Amazon FCO1 - Passo Corese', 'city': 'Passo Corese', 'country': 'Italia'},
-        'VCE1': {'name': 'Amazon VCE1 - Venezia', 'city': 'Venezia', 'country': 'Italia'},
-        'TXL2': {'name': 'Amazon TXL2 - Berlin', 'city': 'Berlin', 'country': 'Germania'},
-        'DUS2': {'name': 'Amazon DUS2 - Düsseldorf', 'city': 'Düsseldorf', 'country': 'Germania'},
-        'MUC1': {'name': 'Amazon MUC1 - München', 'city': 'München', 'country': 'Germania'},
-        'CDG6': {'name': 'Amazon CDG6 - Paris', 'city': 'Paris', 'country': 'Francia'},
-        'LYS1': {'name': 'Amazon LYS1 - Lyon', 'city': 'Lyon', 'country': 'Francia'},
-        'MAD4': {'name': 'Amazon MAD4 - Madrid', 'city': 'Madrid', 'country': 'Spagna'},
-        'BCN1': {'name': 'Amazon BCN1 - Barcelona', 'city': 'Barcelona', 'country': 'Spagna'},
-    }
+    # Filtra le etichette per utente se autenticato
+    if request.user.is_authenticated:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione,
+            created_by=request.user
+        ).order_by('pallet_numero')
+    else:
+        labels = PalletLabel.objects.filter(
+            numero_spedizione=numero_spedizione
+        ).order_by('pallet_numero')
     
-    results = []
-    for code, info in warehouses.items():
-        if query in code or query in info['name'].upper():
-            results.append({
-                'code': code,
-                'name': info['name'],
-                'city': info['city'],
-                'country': info['country']
-            })
+    if not labels.exists():
+        messages.error(request, 'Nessuna etichetta trovata per questa spedizione.')
+        return redirect('pallet_label:list')
     
-    return JsonResponse({'results': results})
+    # Per ora reindirizza alla lista, in futuro si può implementare un ZIP
+    messages.info(request, f'Trovate {labels.count()} etichette per la spedizione {numero_spedizione}')
+    return redirect('pallet_label:list')
 
 
 def debug_view(request):

@@ -4,25 +4,27 @@ from . import views
 app_name = 'pallet_label'
 
 urlpatterns = [
-    # Debug
-    path('debug/', views.debug_view, name='debug'),
-    
     # Lista etichette
     path('', views.pallet_label_list, name='list'),
     
     # Creazione etichette
     path('create/', views.pallet_label_create, name='create'),
-    path('quick-create/', views.pallet_label_quick_create, name='quick_create'),
     
-    # Dettagli e gestione etichette
+    # Dettagli etichetta
     path('<int:pk>/', views.pallet_label_detail, name='detail'),
-    path('<int:pk>/edit/', views.pallet_label_edit, name='edit'),
+    
+    # Download PDF
+    path('<int:pk>/download/', views.pallet_label_download, name='download'),
+    
+    # Elimina etichetta
     path('<int:pk>/delete/', views.pallet_label_delete, name='delete'),
     
-    # Download e rigenerazione PDF
-    path('<int:pk>/download/', views.pallet_label_download, name='download'),
+    # Rigenera PDF
     path('<int:pk>/regenerate-pdf/', views.pallet_label_regenerate_pdf, name='regenerate_pdf'),
     
-    # API
-    path('api/warehouse-autocomplete/', views.warehouse_autocomplete, name='warehouse_autocomplete'),
+    # Download multipli
+    path('download-all/', views.download_all_pdfs, name='download_all'),
+    
+    # Debug
+    path('debug/', views.debug_view, name='debug'),
 ] 

@@ -1,218 +1,107 @@
 from django import forms
-from .models import PalletLabel
+from django.core.exceptions import ValidationError
+import json
 
 
-class PalletLabelForm(forms.ModelForm):
+class PalletLabelForm(forms.Form):
     """
-    Form per la creazione di etichette pallet per Amazon.
+    Form per creare etichette pallet secondo i requisiti specifici.
     """
-    
-    class Meta:
-        model = PalletLabel
-        exclude = ['created_by', 'created_at', 'updated_at', 'pdf_generated', 'pdf_file']
-        
-        widgets = {
-            'pallet_id': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Es: PLT-001'
-            }),
-            'sender_name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Nome della tua azienda'
-            }),
-            'sender_address_line1': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Via/Piazza e numero civico'
-            }),
-            'sender_address_line2': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Interno, scala, ecc. (opzionale)'
-            }),
-            'sender_city': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Città'
-            }),
-            'sender_postal_code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'CAP'
-            }),
-            'sender_country': forms.TextInput(attrs={
-                'class': 'form-control'
-            }),
-            'amazon_warehouse_code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Es: MXP5, LIN1, FCO1'
-            }),
-            'amazon_warehouse_name': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Nome del warehouse Amazon'
-            }),
-            'amazon_address_line1': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Indirizzo del warehouse Amazon'
-            }),
-            'amazon_address_line2': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Informazioni aggiuntive indirizzo (opzionale)'
-            }),
-            'amazon_city': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Città del warehouse'
-            }),
-            'amazon_postal_code': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'CAP del warehouse'
-            }),
-            'amazon_country': forms.TextInput(attrs={
-                'class': 'form-control'
-            }),
-            'shipment_id': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'ID della spedizione Amazon'
-            }),
-            'po_number': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Numero Purchase Order (opzionale)'
-            }),
-            'pallet_count': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '1'
-            }),
-            'pallet_number': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '1'
-            }),
-            'total_boxes': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'min': '1'
-            }),
-            'pallet_weight': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'pallet_dimensions_length': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'pallet_dimensions_width': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'pallet_dimensions_height': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0'
-            }),
-            'carrier': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Nome del corriere (opzionale)'
-            }),
-            'tracking_number': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Numero di tracking (opzionale)'
-            }),
-            'special_instructions': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 3,
-                'placeholder': 'Istruzioni speciali per la consegna (opzionale)'
-            }),
-        }
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-        # Aggiungi validazione JavaScript per il numero pallet
-        self.fields['pallet_number'].widget.attrs.update({
-            'onchange': 'validatePalletNumber()'
+    nome_venditore = forms.CharField(
+        max_length=200,
+        label='Nome del venditore',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Es: Selley'
         })
-        self.fields['pallet_count'].widget.attrs.update({
-            'onchange': 'validatePalletNumber()'
+    )
+    
+    nome_spedizione = forms.CharField(
+        max_length=500,
+        label='Nome spedizione',
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Es: 904 - SINGER (USED RETURNS) Stiro Verticali (07/05/2025 07:52)-FC02'
         })
+    )
     
-    def clean(self):
-        cleaned_data = super().clean()
-        pallet_number = cleaned_data.get('pallet_number')
-        pallet_count = cleaned_data.get('pallet_count')
-        
-        if pallet_number and pallet_count:
-            if pallet_number > pallet_count:
-                raise forms.ValidationError(
-                    "Il numero del pallet corrente non può essere maggiore del numero totale di pallet."
-                )
-        
-        return cleaned_data
-
-
-class QuickPalletForm(forms.Form):
-    """
-    Form semplificata per la creazione rapida di etichette con dati precompilati.
-    """
-    
-    # Dati essenziali del pallet
-    pallet_id = forms.CharField(
+    numero_spedizione = forms.CharField(
         max_length=100,
-        label="ID Pallet",
+        label='Numero spedizione',
         widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Es: PLT-001'
+            'placeholder': 'Es: FBA15KB85LXZ'
         })
     )
     
-    amazon_warehouse_code = forms.CharField(
-        max_length=10,
-        label="Codice Warehouse Amazon",
-        widget=forms.TextInput(attrs={
+    indirizzo_spedizione = forms.CharField(
+        max_length=500,
+        label='Indirizzo di spedizione',
+        widget=forms.Textarea(attrs={
             'class': 'form-control',
-            'placeholder': 'Es: MXP5, LIN1'
+            'rows': 3,
+            'placeholder': 'Es: Amazon Italia Logistica S.R.L., Via Palianese, 00034 Colleferro Rome'
         })
     )
     
-    shipment_id = forms.CharField(
-        max_length=100,
-        label="ID Spedizione",
-        widget=forms.TextInput(attrs={
-            'class': 'form-control',
-            'placeholder': 'Shipment ID Amazon'
-        })
-    )
-    
-    total_boxes = forms.IntegerField(
-        label="Numero Scatole",
+    numero_pallet = forms.IntegerField(
         min_value=1,
-        widget=forms.NumberInput(attrs={
-            'class': 'form-control'
-        })
-    )
-    
-    pallet_weight = forms.DecimalField(
-        label="Peso (kg)",
-        max_digits=8,
-        decimal_places=2,
-        min_value=0,
+        max_value=50,
+        label='Numero di pallet',
         widget=forms.NumberInput(attrs={
             'class': 'form-control',
-            'step': '0.01'
+            'placeholder': 'Es: 3',
+            'id': 'id_numero_pallet'
         })
     )
     
-    # Opzioni per pallet multipli
-    pallet_count = forms.IntegerField(
-        label="Numero totale pallet",
-        min_value=1,
-        initial=1,
-        widget=forms.NumberInput(attrs={
-            'class': 'form-control'
-        })
+    # Campo nascosto per memorizzare i numeri di cartoni per ogni pallet
+    cartoni_per_pallet = forms.CharField(
+        widget=forms.HiddenInput(attrs={'id': 'id_cartoni_per_pallet'}),
+        required=False
     )
     
-    generate_all = forms.BooleanField(
-        label="Genera etichette per tutti i pallet",
-        required=False,
-        initial=True,
-        widget=forms.CheckboxInput(attrs={
-            'class': 'form-check-input'
-        })
-    ) 
+    def clean_numero_pallet(self):
+        numero_pallet = self.cleaned_data['numero_pallet']
+        if numero_pallet < 1:
+            raise ValidationError('Il numero di pallet deve essere almeno 1.')
+        if numero_pallet > 50:
+            raise ValidationError('Il numero massimo di pallet è 50.')
+        return numero_pallet
+    
+    def clean_cartoni_per_pallet(self):
+        cartoni_data = self.cleaned_data.get('cartoni_per_pallet', '')
+        numero_pallet = self.cleaned_data.get('numero_pallet', 0)
+        
+        if not cartoni_data:
+            raise ValidationError('Devi specificare il numero di cartoni per ogni pallet.')
+        
+        try:
+            cartoni_list = json.loads(cartoni_data)
+        except (json.JSONDecodeError, TypeError):
+            raise ValidationError('Dati cartoni non validi.')
+        
+        if not isinstance(cartoni_list, list):
+            raise ValidationError('Dati cartoni non validi.')
+        
+        if len(cartoni_list) != numero_pallet:
+            raise ValidationError(f'Devi specificare il numero di cartoni per tutti i {numero_pallet} pallet.')
+        
+        # Valida che ogni numero di cartoni sia valido
+        for i, cartoni in enumerate(cartoni_list, 1):
+            try:
+                cartoni_int = int(cartoni)
+                if cartoni_int < 1:
+                    raise ValidationError(f'Il numero di cartoni per il pallet {i} deve essere almeno 1.')
+                if cartoni_int > 1000:
+                    raise ValidationError(f'Il numero massimo di cartoni per il pallet {i} è 1000.')
+            except (ValueError, TypeError):
+                raise ValidationError(f'Il numero di cartoni per il pallet {i} deve essere un numero valido.')
+        
+        return cartoni_list
+    
+    def get_cartoni_data(self):
+        """
+        Restituisce la lista dei numeri di cartoni per ogni pallet.
+        """
+        return self.cleaned_data.get('cartoni_per_pallet', []) 

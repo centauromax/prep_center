@@ -1,531 +1,346 @@
 {% extends 'pallet_label/base.html' %}
 
-{% block title %}{{ title }} - Prep Center{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
-{% block page_title %}{{ title }}{% endblock %}
-
-{% block page_actions %}
-    <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-1"></i>
-        Torna alla Lista
-    </a>
+{% block extra_css %}
+<style>
+    .form-section {
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid #e9ecef;
+    }
+    .section-title {
+        color: #495057;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0.5rem;
+    }
+    .pallet-input-group {
+        background-color: white;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        border: 1px solid #ced4da;
+    }
+    .pallet-input-label {
+        font-weight: 500;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    .form-help {
+        font-size: 0.875rem;
+        color: #6c757d;
+        margin-top: 0.25rem;
+    }
+    .btn-primary {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+    .btn-primary:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
+    }
+    #pallet-inputs-container {
+        min-height: 60px;
+        display: none;
+    }
+    .fade-in {
+        animation: fadeIn 0.3s ease-in;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
 {% endblock %}
 
 {% block content %}
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-plus me-2"></i>
-                        Nuova Etichetta Pallet
-                    </h5>
-                    <small class="text-muted">
-                        Compila tutti i dettagli per creare un'etichetta pallet personalizzata
-                    </small>
+<div class="container my-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 text-secondary">
+            <i class="fas fa-plus-circle me-2"></i>
+            {{ title }}
+        </h1>
+        <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-2"></i>
+            Torna alla Lista
+        </a>
+    </div>
+
+    <!-- Form -->
+    <form method="post" id="pallet-form">
+        {% csrf_token %}
+        
+        <!-- Dati della Spedizione -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="fas fa-shipping-fast me-2"></i>
+                Dati della Spedizione
+            </h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.nome_venditore.id_for_label }}" class="form-label">
+                        {{ form.nome_venditore.label }}
+                    </label>
+                    {{ form.nome_venditore }}
+                    {% if form.nome_venditore.errors %}
+                        <div class="text-danger">{{ form.nome_venditore.errors.0 }}</div>
+                    {% endif %}
                 </div>
-                <div class="card-body">
-                    <form method="post" novalidate>
-                        {% csrf_token %}
-                        
-                        <!-- Informazioni Pallet -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fas fa-pallet me-2"></i>
-                                Informazioni Pallet
-                            </h6>
-                            
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_id.id_for_label }}" class="form-label">
-                                            {{ form.pallet_id.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.pallet_id }}
-                                        {% if form.pallet_id.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_id.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_count.id_for_label }}" class="form-label">
-                                            {{ form.pallet_count.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.pallet_count }}
-                                        {% if form.pallet_count.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_count.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_number.id_for_label }}" class="form-label">
-                                            {{ form.pallet_number.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.pallet_number }}
-                                        {% if form.pallet_number.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_number.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.numero_spedizione.id_for_label }}" class="form-label">
+                        {{ form.numero_spedizione.label }}
+                    </label>
+                    {{ form.numero_spedizione }}
+                    {% if form.numero_spedizione.errors %}
+                        <div class="text-danger">{{ form.numero_spedizione.errors.0 }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.nome_spedizione.id_for_label }}" class="form-label">
+                    {{ form.nome_spedizione.label }}
+                </label>
+                {{ form.nome_spedizione }}
+                {% if form.nome_spedizione.errors %}
+                    <div class="text-danger">{{ form.nome_spedizione.errors.0 }}</div>
+                {% endif %}
+            </div>
+            
+            <div class="mb-3">
+                <label for="{{ form.indirizzo_spedizione.id_for_label }}" class="form-label">
+                    {{ form.indirizzo_spedizione.label }}
+                </label>
+                {{ form.indirizzo_spedizione }}
+                {% if form.indirizzo_spedizione.errors %}
+                    <div class="text-danger">{{ form.indirizzo_spedizione.errors.0 }}</div>
+                {% endif %}
+            </div>
+        </div>
 
-                        <!-- Mittente -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fas fa-user me-2"></i>
-                                Informazioni Mittente
-                            </h6>
-                            
-                            <div class="mb-3">
-                                <label for="{{ form.sender_name.id_for_label }}" class="form-label">
-                                    {{ form.sender_name.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                {{ form.sender_name }}
-                                {% if form.sender_name.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.sender_name.errors.0 }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.sender_address_line1.id_for_label }}" class="form-label">
-                                            {{ form.sender_address_line1.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.sender_address_line1 }}
-                                        {% if form.sender_address_line1.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.sender_address_line1.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.sender_address_line2.id_for_label }}" class="form-label">
-                                            {{ form.sender_address_line2.label }}
-                                        </label>
-                                        {{ form.sender_address_line2 }}
-                                        {% if form.sender_address_line2.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.sender_address_line2.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.sender_city.id_for_label }}" class="form-label">
-                                            {{ form.sender_city.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.sender_city }}
-                                        {% if form.sender_city.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.sender_city.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.sender_postal_code.id_for_label }}" class="form-label">
-                                            {{ form.sender_postal_code.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.sender_postal_code }}
-                                        {% if form.sender_postal_code.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.sender_postal_code.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.sender_country.id_for_label }}" class="form-label">
-                                            {{ form.sender_country.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.sender_country }}
-                                        {% if form.sender_country.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.sender_country.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Destinatario Amazon -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fab fa-amazon me-2"></i>
-                                Warehouse Amazon
-                            </h6>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_warehouse_code.id_for_label }}" class="form-label">
-                                            {{ form.amazon_warehouse_code.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_warehouse_code }}
-                                        {% if form.amazon_warehouse_code.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_warehouse_code.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_warehouse_name.id_for_label }}" class="form-label">
-                                            {{ form.amazon_warehouse_name.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_warehouse_name }}
-                                        {% if form.amazon_warehouse_name.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_warehouse_name.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_address_line1.id_for_label }}" class="form-label">
-                                            {{ form.amazon_address_line1.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_address_line1 }}
-                                        {% if form.amazon_address_line1.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_address_line1.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_address_line2.id_for_label }}" class="form-label">
-                                            {{ form.amazon_address_line2.label }}
-                                        </label>
-                                        {{ form.amazon_address_line2 }}
-                                        {% if form.amazon_address_line2.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_address_line2.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_city.id_for_label }}" class="form-label">
-                                            {{ form.amazon_city.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_city }}
-                                        {% if form.amazon_city.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_city.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_postal_code.id_for_label }}" class="form-label">
-                                            {{ form.amazon_postal_code.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_postal_code }}
-                                        {% if form.amazon_postal_code.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_postal_code.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.amazon_country.id_for_label }}" class="form-label">
-                                            {{ form.amazon_country.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.amazon_country }}
-                                        {% if form.amazon_country.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.amazon_country.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Spedizione -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fas fa-shipping-fast me-2"></i>
-                                Dettagli Spedizione
-                            </h6>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.shipment_id.id_for_label }}" class="form-label">
-                                            {{ form.shipment_id.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.shipment_id }}
-                                        {% if form.shipment_id.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.shipment_id.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.po_number.id_for_label }}" class="form-label">
-                                            {{ form.po_number.label }}
-                                        </label>
-                                        {{ form.po_number }}
-                                        {% if form.po_number.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.po_number.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.carrier.id_for_label }}" class="form-label">
-                                            {{ form.carrier.label }}
-                                        </label>
-                                        {{ form.carrier }}
-                                        {% if form.carrier.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.carrier.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.tracking_number.id_for_label }}" class="form-label">
-                                            {{ form.tracking_number.label }}
-                                        </label>
-                                        {{ form.tracking_number }}
-                                        {% if form.tracking_number.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.tracking_number.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Dettagli Fisici -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fas fa-cube me-2"></i>
-                                Dettagli Fisici Pallet
-                            </h6>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.total_boxes.id_for_label }}" class="form-label">
-                                            {{ form.total_boxes.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        {{ form.total_boxes }}
-                                        {% if form.total_boxes.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.total_boxes.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_weight.id_for_label }}" class="form-label">
-                                            {{ form.pallet_weight.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            {{ form.pallet_weight }}
-                                            <span class="input-group-text">kg</span>
-                                        </div>
-                                        {% if form.pallet_weight.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_weight.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_dimensions_length.id_for_label }}" class="form-label">
-                                            {{ form.pallet_dimensions_length.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            {{ form.pallet_dimensions_length }}
-                                            <span class="input-group-text">cm</span>
-                                        </div>
-                                        {% if form.pallet_dimensions_length.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_dimensions_length.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_dimensions_width.id_for_label }}" class="form-label">
-                                            {{ form.pallet_dimensions_width.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            {{ form.pallet_dimensions_width }}
-                                            <span class="input-group-text">cm</span>
-                                        </div>
-                                        {% if form.pallet_dimensions_width.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_dimensions_width.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                
-                                <div class="col-md-4">
-                                    <div class="mb-3">
-                                        <label for="{{ form.pallet_dimensions_height.id_for_label }}" class="form-label">
-                                            {{ form.pallet_dimensions_height.label }}
-                                            <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            {{ form.pallet_dimensions_height }}
-                                            <span class="input-group-text">cm</span>
-                                        </div>
-                                        {% if form.pallet_dimensions_height.errors %}
-                                            <div class="invalid-feedback d-block">
-                                                {{ form.pallet_dimensions_height.errors.0 }}
-                                            </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Istruzioni Speciali -->
-                        <div class="form-section">
-                            <h6 class="section-title">
-                                <i class="fas fa-sticky-note me-2"></i>
-                                Istruzioni Speciali
-                            </h6>
-                            
-                            <div class="mb-3">
-                                <label for="{{ form.special_instructions.id_for_label }}" class="form-label">
-                                    {{ form.special_instructions.label }}
-                                </label>
-                                {{ form.special_instructions }}
-                                {% if form.special_instructions.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ form.special_instructions.errors.0 }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <!-- Pulsanti -->
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'pallet_label:list' %}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times me-1"></i>
-                                Annulla
-                            </a>
-                            
-                            <div>
-                                <a href="{% url 'pallet_label:quick_create' %}" class="btn btn-outline-success me-2">
-                                    <i class="fas fa-bolt me-1"></i>
-                                    Creazione Rapida
-                                </a>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-plus me-1"></i>
-                                    Crea Etichetta
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+        <!-- Configurazione Pallet -->
+        <div class="form-section">
+            <h3 class="section-title">
+                <i class="fas fa-pallet me-2"></i>
+                Configurazione Pallet
+            </h3>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label for="{{ form.numero_pallet.id_for_label }}" class="form-label">
+                        {{ form.numero_pallet.label }}
+                    </label>
+                    {{ form.numero_pallet }}
+                    <div class="form-help">
+                        Specifica quanti pallet totali hai per questa spedizione (max 50)
+                    </div>
+                    {% if form.numero_pallet.errors %}
+                        <div class="text-danger">{{ form.numero_pallet.errors.0 }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
-    </div>
+
+        <!-- Input Dinamici per Cartoni -->
+        <div class="form-section" id="pallet-inputs-container">
+            <h3 class="section-title">
+                <i class="fas fa-boxes me-2"></i>
+                Numero di Cartoni per Pallet
+            </h3>
+            <div class="form-help mb-3">
+                Inserisci il numero di cartoni contenuti in ogni pallet
+            </div>
+            <div id="pallet-inputs"></div>
+        </div>
+
+        <!-- Campo nascosto per i dati cartoni -->
+        {{ form.cartoni_per_pallet }}
+        {% if form.cartoni_per_pallet.errors %}
+            <div class="alert alert-danger">{{ form.cartoni_per_pallet.errors.0 }}</div>
+        {% endif %}
+
+        <!-- Bottoni di azione -->
+        <div class="d-flex justify-content-between">
+            <a href="{% url 'pallet_label:list' %}" class="btn btn-secondary">
+                <i class="fas fa-times me-2"></i>
+                Annulla
+            </a>
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn" disabled>
+                <i class="fas fa-check me-2"></i>
+                Crea Etichette
+            </button>
+        </div>
+    </form>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    function validatePalletNumber() {
-        const palletNumber = parseInt(document.getElementById('{{ form.pallet_number.id_for_label }}').value) || 0;
-        const palletCount = parseInt(document.getElementById('{{ form.pallet_count.id_for_label }}').value) || 0;
+document.addEventListener('DOMContentLoaded', function() {
+    const numeroPalletInput = document.getElementById('id_numero_pallet');
+    const palletInputsContainer = document.getElementById('pallet-inputs-container');
+    const palletInputsDiv = document.getElementById('pallet-inputs');
+    const cartoniPerPalletInput = document.getElementById('id_cartoni_per_pallet');
+    const submitBtn = document.getElementById('submit-btn');
+    const form = document.getElementById('pallet-form');
+
+    // Funzione per creare i campi di input per i cartoni
+    function createPalletInputs(numeroPallet) {
+        palletInputsDiv.innerHTML = '';
         
-        if (palletNumber > palletCount) {
-            document.getElementById('{{ form.pallet_number.id_for_label }}').setCustomValidity(
-                'Il numero del pallet non può essere maggiore del numero totale di pallet'
-            );
+        if (numeroPallet > 0) {
+            palletInputsContainer.style.display = 'block';
+            palletInputsContainer.classList.add('fade-in');
+            
+            for (let i = 1; i <= numeroPallet; i++) {
+                const inputGroup = document.createElement('div');
+                inputGroup.className = 'pallet-input-group fade-in';
+                inputGroup.style.animationDelay = `${i * 0.1}s`;
+                
+                inputGroup.innerHTML = `
+                    <div class="pallet-input-label">
+                        <i class="fas fa-pallet me-2"></i>
+                        Pallet ${i} di ${numeroPallet}
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-boxes"></i>
+                        </span>
+                        <input type="number" 
+                               class="form-control cartoni-input" 
+                               id="cartoni_pallet_${i}"
+                               placeholder="Numero di cartoni"
+                               min="1" 
+                               max="1000"
+                               data-pallet="${i}">
+                        <span class="input-group-text">cartoni</span>
+                    </div>
+                `;
+                
+                palletInputsDiv.appendChild(inputGroup);
+            }
+            
+            // Aggiungi event listener ai nuovi input
+            updateEventListeners();
         } else {
-            document.getElementById('{{ form.pallet_number.id_for_label }}').setCustomValidity('');
+            palletInputsContainer.style.display = 'none';
+        }
+        
+        updateSubmitButton();
+    }
+
+    // Funzione per aggiornare gli event listener
+    function updateEventListeners() {
+        const cartoniInputs = document.querySelectorAll('.cartoni-input');
+        cartoniInputs.forEach(input => {
+            input.addEventListener('input', function() {
+                updateCartoniData();
+                updateSubmitButton();
+            });
+        });
+    }
+
+    // Funzione per aggiornare i dati nel campo nascosto
+    function updateCartoniData() {
+        const cartoniInputs = document.querySelectorAll('.cartoni-input');
+        const cartoniData = [];
+        
+        cartoniInputs.forEach(input => {
+            const value = input.value;
+            cartoniData.push(value || '');
+        });
+        
+        cartoniPerPalletInput.value = JSON.stringify(cartoniData);
+    }
+
+    // Funzione per aggiornare lo stato del bottone submit
+    function updateSubmitButton() {
+        const numeroPallet = parseInt(numeroPalletInput.value) || 0;
+        const cartoniInputs = document.querySelectorAll('.cartoni-input');
+        
+        let allFilled = numeroPallet > 0;
+        
+        if (allFilled && cartoniInputs.length > 0) {
+            cartoniInputs.forEach(input => {
+                const value = parseInt(input.value) || 0;
+                if (value < 1) {
+                    allFilled = false;
+                }
+            });
+        } else {
+            allFilled = false;
+        }
+        
+        submitBtn.disabled = !allFilled;
+        
+        if (allFilled) {
+            submitBtn.classList.remove('btn-secondary');
+            submitBtn.classList.add('btn-primary');
+        } else {
+            submitBtn.classList.remove('btn-primary');
+            submitBtn.classList.add('btn-secondary');
         }
     }
+
+    // Event listener per il campo numero pallet
+    numeroPalletInput.addEventListener('input', function() {
+        const numeroPallet = parseInt(this.value) || 0;
+        createPalletInputs(numeroPallet);
+    });
+
+    // Validazione del form prima del submit
+    form.addEventListener('submit', function(e) {
+        const numeroPallet = parseInt(numeroPalletInput.value) || 0;
+        const cartoniInputs = document.querySelectorAll('.cartoni-input');
+        
+        // Verifica che tutti i campi siano compilati
+        let valid = true;
+        let errors = [];
+        
+        if (numeroPallet < 1) {
+            valid = false;
+            errors.push('Devi specificare almeno 1 pallet.');
+        }
+        
+        if (cartoniInputs.length !== numeroPallet) {
+            valid = false;
+            errors.push('Numero di campi cartoni non corrispondente.');
+        }
+        
+        cartoniInputs.forEach((input, index) => {
+            const value = parseInt(input.value) || 0;
+            if (value < 1 || value > 1000) {
+                valid = false;
+                errors.push(`Il numero di cartoni per il pallet ${index + 1} deve essere tra 1 e 1000.`);
+                input.classList.add('is-invalid');
+            } else {
+                input.classList.remove('is-invalid');
+            }
+        });
+        
+        if (!valid) {
+            e.preventDefault();
+            alert('Errori nel form:\n' + errors.join('\n'));
+            return false;
+        }
+        
+        // Aggiorna i dati prima del submit
+        updateCartoniData();
+        
+        // Disabilita il bottone per evitare doppi submit
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creazione in corso...';
+    });
+
+    // Inizializza lo stato del form
+    updateSubmitButton();
+});
 </script>
 {% endblock %} 

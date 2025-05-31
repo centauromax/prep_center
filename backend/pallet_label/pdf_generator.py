@@ -1,358 +1,165 @@
 """
-Servizio per la generazione di PDF delle etichette pallet per Amazon.
+Generatore PDF per etichette pallet secondo il formato richiesto.
+Basato sull'immagine fornita dall'utente.
 """
 
-import os
 from io import BytesIO
-from datetime import datetime
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm, cm
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
-from reportlab.lib import colors
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
-from django.conf import settings
 from django.core.files.base import ContentFile
-import logging
 
-logger = logging.getLogger(__name__)
-
-
-class PalletLabelPDFGenerator:
-    """
-    Generatore di PDF per etichette pallet Amazon.
-    """
-    
-    def __init__(self):
-        self.page_width, self.page_height = A4
-        self.margin = 20 * mm
-        self.content_width = self.page_width - 2 * self.margin
-        
-    def generate_pdf(self, pallet_label):
-        """
-        Genera il PDF per un'etichetta pallet.
-        
-        Args:
-            pallet_label: Istanza del modello PalletLabel
-            
-        Returns:
-            BytesIO: Buffer contenente il PDF generato
-        """
-        buffer = BytesIO()
-        
-        # Crea il documento PDF
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=A4,
-            rightMargin=self.margin,
-            leftMargin=self.margin,
-            topMargin=self.margin,
-            bottomMargin=self.margin
-        )
-        
-        # Costruisci il contenuto
-        story = []
-        
-        # Header con titolo
-        story.extend(self._build_header())
-        story.append(Spacer(1, 15 * mm))
-        
-        # Informazioni principali del pallet
-        story.extend(self._build_pallet_info(pallet_label))
-        story.append(Spacer(1, 10 * mm))
-        
-        # Informazioni mittente e destinatario
-        story.extend(self._build_addresses(pallet_label))
-        story.append(Spacer(1, 10 * mm))
-        
-        # Dettagli spedizione
-        story.extend(self._build_shipment_details(pallet_label))
-        story.append(Spacer(1, 10 * mm))
-        
-        # Dettagli pallet
-        story.extend(self._build_pallet_details(pallet_label))
-        story.append(Spacer(1, 10 * mm))
-        
-        # Istruzioni speciali se presenti
-        if pallet_label.special_instructions:
-            story.extend(self._build_special_instructions(pallet_label))
-            story.append(Spacer(1, 10 * mm))
-        
-        # Footer
-        story.extend(self._build_footer())
-        
-        # Genera il PDF
-        doc.build(story)
-        buffer.seek(0)
-        
-        return buffer
-    
-    def _build_header(self):
-        """Costruisce l'header del documento."""
-        styles = getSampleStyleSheet()
-        
-        # Titolo principale
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=24,
-            spaceAfter=5 * mm,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#1f4e79')
-        )
-        
-        subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
-            parent=styles['Normal'],
-            fontSize=14,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666')
-        )
-        
-        elements = [
-            Paragraph("ETICHETTA PALLET AMAZON", title_style),
-            Paragraph("Shipping Label for Amazon Warehouse", subtitle_style)
-        ]
-        
-        return elements
-    
-    def _build_pallet_info(self, pallet_label):
-        """Costruisce le informazioni principali del pallet."""
-        styles = getSampleStyleSheet()
-        
-        # Stile per le informazioni principali
-        info_style = ParagraphStyle(
-            'PalletInfo',
-            parent=styles['Normal'],
-            fontSize=16,
-            spaceAfter=3 * mm,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#1f4e79'),
-            fontName='Helvetica-Bold'
-        )
-        
-        elements = [
-            Paragraph(f"<b>PALLET ID: {pallet_label.pallet_id}</b>", info_style),
-            Paragraph(f"<b>{pallet_label.pallet_description}</b>", info_style),
-            Paragraph(f"<b>WAREHOUSE: {pallet_label.amazon_warehouse_code}</b>", info_style)
-        ]
-        
-        return elements
-    
-    def _build_addresses(self, pallet_label):
-        """Costruisce la sezione con indirizzi mittente e destinatario."""
-        styles = getSampleStyleSheet()
-        
-        # Stili per gli indirizzi
-        header_style = ParagraphStyle(
-            'AddressHeader',
-            parent=styles['Heading3'],
-            fontSize=12,
-            spaceAfter=3 * mm,
-            textColor=colors.HexColor('#1f4e79'),
-            fontName='Helvetica-Bold'
-        )
-        
-        address_style = ParagraphStyle(
-            'Address',
-            parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=1 * mm
-        )
-        
-        # Costruisci gli indirizzi
-        sender_address = [
-            Paragraph("DA / FROM:", header_style),
-            Paragraph(f"<b>{pallet_label.sender_name}</b>", address_style),
-            Paragraph(pallet_label.sender_address_line1, address_style)
-        ]
-        
-        if pallet_label.sender_address_line2:
-            sender_address.append(Paragraph(pallet_label.sender_address_line2, address_style))
-        
-        sender_address.extend([
-            Paragraph(f"{pallet_label.sender_postal_code} {pallet_label.sender_city}", address_style),
-            Paragraph(pallet_label.sender_country, address_style)
-        ])
-        
-        recipient_address = [
-            Paragraph("A / TO:", header_style),
-            Paragraph(f"<b>{pallet_label.amazon_warehouse_name}</b>", address_style),
-            Paragraph(f"<b>Warehouse Code: {pallet_label.amazon_warehouse_code}</b>", address_style),
-            Paragraph(pallet_label.amazon_address_line1, address_style)
-        ]
-        
-        if pallet_label.amazon_address_line2:
-            recipient_address.append(Paragraph(pallet_label.amazon_address_line2, address_style))
-        
-        recipient_address.extend([
-            Paragraph(f"{pallet_label.amazon_postal_code} {pallet_label.amazon_city}", address_style),
-            Paragraph(pallet_label.amazon_country, address_style)
-        ])
-        
-        # Crea tabella con gli indirizzi
-        address_table = Table(
-            [[sender_address, recipient_address]],
-            colWidths=[self.content_width / 2, self.content_width / 2]
-        )
-        
-        address_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 10 * mm),
-            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#cccccc'))
-        ]))
-        
-        return [address_table]
-    
-    def _build_shipment_details(self, pallet_label):
-        """Costruisce i dettagli della spedizione."""
-        styles = getSampleStyleSheet()
-        
-        header_style = ParagraphStyle(
-            'SectionHeader',
-            parent=styles['Heading3'],
-            fontSize=12,
-            spaceAfter=5 * mm,
-            textColor=colors.HexColor('#1f4e79'),
-            fontName='Helvetica-Bold'
-        )
-        
-        # Dati della spedizione
-        shipment_data = [
-            ['Shipment ID:', pallet_label.shipment_id],
-            ['Data creazione:', pallet_label.created_at.strftime('%d/%m/%Y %H:%M')],
-        ]
-        
-        if pallet_label.po_number:
-            shipment_data.append(['PO Number:', pallet_label.po_number])
-        
-        if pallet_label.carrier:
-            shipment_data.append(['Corriere:', pallet_label.carrier])
-        
-        if pallet_label.tracking_number:
-            shipment_data.append(['Tracking:', pallet_label.tracking_number])
-        
-        shipment_table = Table(shipment_data, colWidths=[40 * mm, 80 * mm])
-        shipment_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 5 * mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2 * mm),
-        ]))
-        
-        return [
-            Paragraph("DETTAGLI SPEDIZIONE / SHIPMENT DETAILS", header_style),
-            shipment_table
-        ]
-    
-    def _build_pallet_details(self, pallet_label):
-        """Costruisce i dettagli del pallet."""
-        styles = getSampleStyleSheet()
-        
-        header_style = ParagraphStyle(
-            'SectionHeader',
-            parent=styles['Heading3'],
-            fontSize=12,
-            spaceAfter=5 * mm,
-            textColor=colors.HexColor('#1f4e79'),
-            fontName='Helvetica-Bold'
-        )
-        
-        # Dati del pallet
-        pallet_data = [
-            ['Numero scatole:', str(pallet_label.total_boxes)],
-            ['Peso:', f"{pallet_label.pallet_weight} kg"],
-            ['Dimensioni (L×W×H):', f"{pallet_label.pallet_dimensions_length}×{pallet_label.pallet_dimensions_width}×{pallet_label.pallet_dimensions_height} cm"],
-        ]
-        
-        if pallet_label.total_volume_cbm > 0:
-            pallet_data.append(['Volume:', f"{pallet_label.total_volume_cbm:.3f} m³"])
-        
-        pallet_table = Table(pallet_data, colWidths=[40 * mm, 80 * mm])
-        pallet_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 5 * mm),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2 * mm),
-        ]))
-        
-        return [
-            Paragraph("DETTAGLI PALLET / PALLET DETAILS", header_style),
-            pallet_table
-        ]
-    
-    def _build_special_instructions(self, pallet_label):
-        """Costruisce la sezione istruzioni speciali."""
-        styles = getSampleStyleSheet()
-        
-        header_style = ParagraphStyle(
-            'SectionHeader',
-            parent=styles['Heading3'],
-            fontSize=12,
-            spaceAfter=5 * mm,
-            textColor=colors.HexColor('#1f4e79'),
-            fontName='Helvetica-Bold'
-        )
-        
-        instruction_style = ParagraphStyle(
-            'Instructions',
-            parent=styles['Normal'],
-            fontSize=10,
-            spaceAfter=3 * mm
-        )
-        
-        return [
-            Paragraph("ISTRUZIONI SPECIALI / SPECIAL INSTRUCTIONS", header_style),
-            Paragraph(pallet_label.special_instructions, instruction_style)
-        ]
-    
-    def _build_footer(self):
-        """Costruisce il footer del documento."""
-        styles = getSampleStyleSheet()
-        
-        footer_style = ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=8,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor('#666666')
-        )
-        
-        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        
-        return [
-            Spacer(1, 10 * mm),
-            Paragraph(f"Generato il {timestamp} - Prep Center Italy", footer_style)
-        ]
+try:
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm, cm
+    from reportlab.lib import colors
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.platypus import Paragraph
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    REPORTLAB_AVAILABLE = False
 
 
 def generate_pallet_label_pdf(pallet_label):
     """
-    Funzione di utilità per generare il PDF di un'etichetta pallet.
+    Genera il PDF per l'etichetta pallet secondo il formato richiesto.
     
-    Args:
-        pallet_label: Istanza del modello PalletLabel
-        
-    Returns:
-        ContentFile: File PDF pronto per essere salvato
+    Il PDF è formato da:
+    - Parte superiore: uguale per tutti i pallet
+      - Venditore: nome_venditore
+      - Nome spedizione: nome_spedizione  
+      - Numero spedizione: numero_spedizione
+      - Origine spedizione: origine_spedizione (fisso)
+      - Indirizzo di spedizione: indirizzo_spedizione
+    - Parte inferiore: specifica per ogni pallet
+      - Numero di cartoni: numero_cartoni
+      - Pallet n. X di Y
     """
-    try:
-        generator = PalletLabelPDFGenerator()
-        pdf_buffer = generator.generate_pdf(pallet_label)
+    if not REPORTLAB_AVAILABLE:
+        raise ImportError("ReportLab non è disponibile")
+    
+    # Crea buffer per il PDF
+    buffer = BytesIO()
+    
+    # Configurazione pagina A4
+    width, height = A4
+    c = canvas.Canvas(buffer, pagesize=A4)
+    
+    # Margini
+    margin_left = 2 * cm
+    margin_right = 2 * cm
+    margin_top = 2 * cm
+    margin_bottom = 2 * cm
+    
+    content_width = width - margin_left - margin_right
+    content_height = height - margin_top - margin_bottom
+    
+    # Posizioni Y (dall'alto verso il basso)
+    y_position = height - margin_top
+    
+    # Titolo - Venditore
+    c.setFont("Helvetica-Bold", 24)
+    vendor_text = f"Venditore: {pallet_label.nome_venditore}"
+    c.drawString(margin_left, y_position, vendor_text)
+    y_position -= 40
+    
+    # Linea separatrice
+    c.setStrokeColor(colors.black)
+    c.setLineWidth(1)
+    c.line(margin_left, y_position, width - margin_right, y_position)
+    y_position -= 30
+    
+    # PARTE SUPERIORE - Dati della spedizione (uguale per tutti i pallet)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, y_position, "Nome spedizione:")
+    y_position -= 20
+    
+    # Nome spedizione (può essere lungo, dividi su più righe se necessario)
+    c.setFont("Helvetica", 12)
+    nome_spedizione = pallet_label.nome_spedizione
+    if len(nome_spedizione) > 80:  # Se troppo lungo, spezza
+        lines = []
+        words = nome_spedizione.split()
+        current_line = ""
+        for word in words:
+            if len(current_line + " " + word) <= 80:
+                current_line += " " + word if current_line else word
+            else:
+                lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
         
-        # Crea il nome del file
-        filename = f"pallet_label_{pallet_label.pallet_id}_{pallet_label.pallet_number}.pdf"
-        
-        # Crea il ContentFile
-        pdf_file = ContentFile(pdf_buffer.getvalue(), name=filename)
-        
-        return pdf_file
-        
-    except Exception as e:
-        logger.error(f"Errore nella generazione del PDF per pallet {pallet_label.pallet_id}: {str(e)}")
-        raise 
+        for line in lines:
+            c.drawString(margin_left, y_position, line)
+            y_position -= 18
+    else:
+        c.drawString(margin_left, y_position, nome_spedizione)
+        y_position -= 25
+    
+    # Numero spedizione
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, y_position, "Numero spedizione:")
+    y_position -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(margin_left, y_position, pallet_label.numero_spedizione)
+    y_position -= 30
+    
+    # Origine spedizione
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, y_position, "Origine spedizione:")
+    y_position -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(margin_left, y_position, pallet_label.origine_spedizione)
+    y_position -= 30
+    
+    # Indirizzo di spedizione
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(margin_left, y_position, "Indirizzo di spedizione:")
+    y_position -= 20
+    c.setFont("Helvetica", 12)
+    
+    # Indirizzo può essere su più righe
+    indirizzo_lines = pallet_label.indirizzo_spedizione.split('\n')
+    for line in indirizzo_lines:
+        c.drawString(margin_left, y_position, line.strip())
+        y_position -= 18
+    
+    y_position -= 20
+    
+    # Linea separatrice centrale
+    c.setStrokeColor(colors.gray)
+    c.setLineWidth(2)
+    c.line(margin_left, y_position, width - margin_right, y_position)
+    y_position -= 40
+    
+    # PARTE INFERIORE - Dati specifici del pallet (varia per ogni pallet)
+    
+    # Numero di cartoni - GRANDE e prominente
+    c.setFont("Helvetica-Bold", 32)
+    cartoni_text = f"Numero di cartoni: {pallet_label.numero_cartoni}"
+    c.drawString(margin_left, y_position, cartoni_text)
+    y_position -= 60
+    
+    # Pallet n. X di Y - GRANDE e prominente
+    c.setFont("Helvetica-Bold", 32)
+    pallet_text = f"Pallet n. {pallet_label.pallet_numero} di {pallet_label.pallet_totale}"
+    c.drawString(margin_left, y_position, pallet_text)
+    
+    # Footer con informazioni tecniche (piccolo)
+    footer_y = margin_bottom + 10
+    c.setFont("Helvetica", 8)
+    c.setFillColor(colors.gray)
+    timestamp = pallet_label.created_at.strftime("%d/%m/%Y %H:%M")
+    footer_text = f"Generato il {timestamp} - ID: {pallet_label.pk}"
+    c.drawString(margin_left, footer_y, footer_text)
+    
+    # Finalizza il PDF
+    c.save()
+    
+    # Ritorna il file
+    buffer.seek(0)
+    pdf_file = ContentFile(buffer.read(), name=pallet_label.pdf_filename)
+    buffer.close()
+    
+    return pdf_file 

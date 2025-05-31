@@ -1,77 +1,70 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.utils import timezone
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class PalletLabel(models.Model):
     """
-    Modello per gestire le etichette dei pallet destinati ad Amazon.
+    Modello per memorizzare le etichette pallet secondo i nuovi requisiti.
     """
-    
-    # Informazioni di base
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Creato da")
-    created_at = models.DateTimeField(default=timezone.now, verbose_name="Data creazione")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Ultimo aggiornamento")
-    
-    # Informazioni del pallet
-    pallet_id = models.CharField(max_length=100, verbose_name="ID Pallet", help_text="Identificativo univoco del pallet")
-    
-    # Informazioni del mittente
-    sender_name = models.CharField(max_length=200, verbose_name="Nome mittente")
-    sender_address_line1 = models.CharField(max_length=200, verbose_name="Indirizzo mittente (riga 1)")
-    sender_address_line2 = models.CharField(max_length=200, blank=True, verbose_name="Indirizzo mittente (riga 2)")
-    sender_city = models.CharField(max_length=100, verbose_name="Città mittente")
-    sender_postal_code = models.CharField(max_length=20, verbose_name="CAP mittente")
-    sender_country = models.CharField(max_length=100, default="Italia", verbose_name="Paese mittente")
-    
-    # Informazioni del destinatario (Amazon)
-    amazon_warehouse_code = models.CharField(max_length=10, verbose_name="Codice warehouse Amazon", help_text="Es: MXP5, LIN1, etc.")
-    amazon_warehouse_name = models.CharField(max_length=200, verbose_name="Nome warehouse Amazon")
-    amazon_address_line1 = models.CharField(max_length=200, verbose_name="Indirizzo Amazon (riga 1)")
-    amazon_address_line2 = models.CharField(max_length=200, blank=True, verbose_name="Indirizzo Amazon (riga 2)")
-    amazon_city = models.CharField(max_length=100, verbose_name="Città Amazon")
-    amazon_postal_code = models.CharField(max_length=20, verbose_name="CAP Amazon")
-    amazon_country = models.CharField(max_length=100, default="Italia", verbose_name="Paese Amazon")
-    
-    # Informazioni della spedizione
-    shipment_id = models.CharField(max_length=100, verbose_name="ID Spedizione", help_text="Shipment ID di Amazon")
-    po_number = models.CharField(max_length=100, blank=True, verbose_name="Numero PO", help_text="Purchase Order Number")
-    
-    # Dettagli del pallet
-    pallet_count = models.PositiveIntegerField(default=1, verbose_name="Numero di pallet")
-    pallet_number = models.PositiveIntegerField(default=1, verbose_name="Numero pallet corrente", help_text="Es: 1 di 3")
-    total_boxes = models.PositiveIntegerField(verbose_name="Numero totale scatole")
-    pallet_weight = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Peso pallet (kg)")
-    pallet_dimensions_length = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="Lunghezza (cm)")
-    pallet_dimensions_width = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="Larghezza (cm)")
-    pallet_dimensions_height = models.DecimalField(max_digits=6, decimal_places=2, verbose_name="Altezza (cm)")
-    
-    # Informazioni aggiuntive
-    carrier = models.CharField(max_length=100, blank=True, verbose_name="Corriere", help_text="Nome del corriere")
-    tracking_number = models.CharField(max_length=100, blank=True, verbose_name="Numero di tracking")
-    special_instructions = models.TextField(blank=True, verbose_name="Istruzioni speciali")
-    
     # Metadati
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Creato da")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Aggiornato il")
+    
+    # Dati della spedizione (parte superiore dell'etichetta - uguale per tutti i pallet)
+    nome_venditore = models.CharField(max_length=200, verbose_name="Nome del venditore")
+    nome_spedizione = models.CharField(max_length=500, verbose_name="Nome spedizione")
+    numero_spedizione = models.CharField(max_length=100, verbose_name="Numero spedizione")
+    indirizzo_spedizione = models.TextField(verbose_name="Indirizzo di spedizione")
+    
+    # Dati del pallet specifico (parte inferiore dell'etichetta - varia per ogni pallet)
+    pallet_numero = models.PositiveIntegerField(
+        verbose_name="Numero pallet corrente",
+        validators=[MinValueValidator(1)]
+    )
+    pallet_totale = models.PositiveIntegerField(
+        verbose_name="Numero totale pallet",
+        validators=[MinValueValidator(1), MaxValueValidator(50)]
+    )
+    numero_cartoni = models.PositiveIntegerField(
+        verbose_name="Numero di cartoni in questo pallet",
+        validators=[MinValueValidator(1), MaxValueValidator(1000)]
+    )
+    
+    # Indirizzo di origine (fisso per tutte le etichette)
+    origine_spedizione = models.TextField(
+        default="FBAPREPCENTER, Via Caorliega 37, Mirano, Venezia, 30035, IT",
+        verbose_name="Indirizzo di origine"
+    )
+    
+    # File PDF generato
     pdf_generated = models.BooleanField(default=False, verbose_name="PDF generato")
-    pdf_file = models.FileField(upload_to='pallet_labels/', blank=True, null=True, verbose_name="File PDF")
+    pdf_file = models.FileField(
+        upload_to='pallet_labels/',
+        null=True,
+        blank=True,
+        verbose_name="File PDF"
+    )
     
     class Meta:
         verbose_name = "Etichetta Pallet"
         verbose_name_plural = "Etichette Pallet"
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['created_by', '-created_at']),
+            models.Index(fields=['numero_spedizione']),
+            models.Index(fields=['nome_venditore']),
+        ]
     
     def __str__(self):
-        return f"Pallet {self.pallet_id} - {self.amazon_warehouse_code}"
+        return f"Pallet {self.pallet_numero}/{self.pallet_totale} - {self.nome_venditore} - {self.numero_spedizione}"
+    
+    def get_pallet_display(self):
+        """Restituisce la stringa 'Pallet n. X di Y'"""
+        return f"Pallet n. {self.pallet_numero} di {self.pallet_totale}"
     
     @property
-    def pallet_description(self):
-        """Descrizione del pallet per l'etichetta"""
-        return f"Pallet {self.pallet_number} di {self.pallet_count}"
-    
-    @property
-    def total_volume_cbm(self):
-        """Calcola il volume in metri cubi"""
-        if all([self.pallet_dimensions_length, self.pallet_dimensions_width, self.pallet_dimensions_height]):
-            volume_cm3 = float(self.pallet_dimensions_length) * float(self.pallet_dimensions_width) * float(self.pallet_dimensions_height)
-            return volume_cm3 / 1000000  # Converti da cm³ a m³
-        return 0
+    def pdf_filename(self):
+        """Genera il nome del file PDF"""
+        return f"pallet_label_{self.numero_spedizione}_{self.pallet_numero}of{self.pallet_totale}.pdf"
