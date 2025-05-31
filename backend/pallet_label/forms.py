@@ -39,8 +39,8 @@ class PalletLabelForm(forms.Form):
         label='Indirizzo di spedizione',
         widget=forms.Textarea(attrs={
             'class': 'form-control',
-            'rows': 3,
-            'placeholder': 'Es: Amazon Italia Logistica S.R.L., Via Palianese, 00034 Colleferro Rome'
+            'rows': 5,
+            'placeholder': 'Es:\nAmazon.fr Logistique SAS\nParc d\'activites des Portes de Senlis\n1 avenue Alain Boucher\n60452 Senlis CEDEX\nFrancia'
         })
     )
     

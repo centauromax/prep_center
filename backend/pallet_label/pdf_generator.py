@@ -128,15 +128,33 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         y_position -= 15
         
         # Indirizzo di spedizione
-        c.setFont("Helvetica-Bold", 18)
+        c.setFont("Helvetica-Bold", 18)  # Aumentato del 10% da 16 a 18
         c.drawString(margin_left, y_position, "Indirizzo di spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 15)
+        c.setFont("Helvetica", 15)  # Aumentato del 10% da 14 a 15
         
-        indirizzo_lines = pallet_label.indirizzo_spedizione.split('\n')
-        for line in indirizzo_lines:
-            if line.strip():
-                c.drawString(margin_left, y_position, line.strip())
+        # Tratta l'indirizzo come riga unica (già convertito dal JavaScript)
+        indirizzo_text = pallet_label.indirizzo_spedizione.strip()
+        if indirizzo_text:
+            # Gestione testo lungo su più righe se necessario
+            if len(indirizzo_text) > 120:  # Limite caratteri per landscape
+                words = indirizzo_text.split()
+                lines = []
+                current_line = ""
+                for word in words:
+                    if len(current_line + " " + word) <= 120:
+                        current_line += " " + word if current_line else word
+                    else:
+                        lines.append(current_line)
+                        current_line = word
+                if current_line:
+                    lines.append(current_line)
+                
+                for line in lines:
+                    c.drawString(margin_left, y_position, line)
+                    y_position -= 20
+            else:
+                c.drawString(margin_left, y_position, indirizzo_text)
                 y_position -= 20
         
         y_position -= 25
