@@ -41,51 +41,6 @@
                 <i class="fas fa-pallet me-2 pallet-icon"></i>
                 Pallet Label Generator
             </a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'pallet_label:list' %}">
-                            <i class="fas fa-pallet me-1"></i>
-                            Etichette Pallet
-                        </a>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav">
-                    {% if user.is_authenticated %}
-                        <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user me-1"></i>
-                                {{ user.username }}
-                            </a>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="/">Dashboard</a></li>
-                                <li><a class="dropdown-item" href="/admin/">Admin</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="/logout/">Logout</a></li>
-                            </ul>
-                        </li>
-                    {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">
-                                <i class="fas fa-home me-1"></i>
-                                Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <span class="nav-link text-light">
-                                <i class="fas fa-user-slash me-1"></i>
-                                Modalità Demo
-                            </span>
-                        </li>
-                    {% endif %}
-                </ul>
-            </div>
         </div>
     </nav>
 

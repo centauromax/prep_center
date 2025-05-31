@@ -80,19 +80,19 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         # PARTE SUPERIORE - Dati della spedizione (uguale per tutti i pallet)
         
         # Nome spedizione
-        c.setFont("Helvetica-Bold", 18)
+        c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
         c.drawString(margin_left, y_position, "Nome spedizione:")
         y_position -= 25
         
-        c.setFont("Helvetica", 15)
+        c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         nome_spedizione = pallet_label.nome_spedizione
         # Gestione testo lungo su più righe
-        if len(nome_spedizione) > 100:  # Adattato per landscape
+        if len(nome_spedizione) > 90:  # Ridotto limite per font più grande
             lines = []
             words = nome_spedizione.split()
             current_line = ""
             for word in words:
-                if len(current_line + " " + word) <= 100:
+                if len(current_line + " " + word) <= 90:
                     current_line += " " + word if current_line else word
                 else:
                     lines.append(current_line)
@@ -102,60 +102,69 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
             
             for line in lines:
                 c.drawString(margin_left, y_position, line)
-                y_position -= 20
+                y_position -= 22
         else:
             c.drawString(margin_left, y_position, nome_spedizione)
             y_position -= 30
         
         # Numero spedizione
-        c.setFont("Helvetica-Bold", 18)
+        c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
         c.drawString(margin_left, y_position, "Numero spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 15)
+        c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         c.drawString(margin_left, y_position, pallet_label.numero_spedizione)
         y_position -= 35
         
         # Origine spedizione
-        c.setFont("Helvetica-Bold", 18)
+        c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
         c.drawString(margin_left, y_position, "Origine spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 15)
+        c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         origine_lines = pallet_label.origine_spedizione.split('\n')
         for line in origine_lines:
             if line.strip():
                 c.drawString(margin_left, y_position, line.strip())
-                y_position -= 20
+                y_position -= 22
         y_position -= 15
         
         # Indirizzo di spedizione
-        c.setFont("Helvetica-Bold", 18)  # Aumentato del 10% da 16 a 18
+        c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
         c.drawString(margin_left, y_position, "Indirizzo di spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 15)  # Aumentato del 10% da 14 a 15
+        c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         
         # Tratta l'indirizzo come riga unica (già convertito dal JavaScript)
         indirizzo_text = pallet_label.indirizzo_spedizione.strip()
         if indirizzo_text:
-            # Gestione testo lungo su più righe se necessario
-            if len(indirizzo_text) > 120:  # Limite caratteri per landscape
-                words = indirizzo_text.split()
-                lines = []
-                current_line = ""
-                for word in words:
-                    if len(current_line + " " + word) <= 120:
-                        current_line += " " + word if current_line else word
-                    else:
+            # Gestione testo lungo su più righe - migliorata per font più grande
+            max_chars_per_line = 100  # Ridotto per font più grande
+            words = indirizzo_text.split()
+            lines = []
+            current_line = ""
+            
+            for word in words:
+                # Testa se aggiungendo questa parola supereremmo il limite
+                test_line = current_line + " " + word if current_line else word
+                if len(test_line) <= max_chars_per_line:
+                    current_line = test_line
+                else:
+                    # Se la riga corrente non è vuota, salvala e inizia una nuova
+                    if current_line:
                         lines.append(current_line)
                         current_line = word
-                if current_line:
-                    lines.append(current_line)
-                
-                for line in lines:
-                    c.drawString(margin_left, y_position, line)
-                    y_position -= 20
-            else:
-                c.drawString(margin_left, y_position, indirizzo_text)
-                y_position -= 20
+                    else:
+                        # Se anche una singola parola è troppo lunga, forzala comunque
+                        lines.append(word)
+                        current_line = ""
+            
+            # Aggiungi l'ultima riga se non vuota
+            if current_line:
+                lines.append(current_line)
+            
+            # Stampa tutte le righe
+            for line in lines:
+                c.drawString(margin_left, y_position, line)
+                y_position -= 22
         
         y_position -= 25
         
