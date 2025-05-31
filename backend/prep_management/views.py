@@ -76,7 +76,7 @@ def index(request):
         {
             'name': 'Verifica Foto Prodotti',
             'description': 'Tramite l\'EAN o l\'FNSKU del prodotto, verifica se è stata gia inviata la foto o meno.',
-            'url': '/picture_check/',
+            'url': 'https://apppc.fbaprepcenteritaly.com/picture_check/',
             'icon': 'fas fa-camera',
             'color': 'primary',
             'status': 'attiva'
