@@ -27,44 +27,32 @@ except ImportError as e:
 
 def pallet_label_list(request):
     """
-    Vista per elencare tutte le etichette pallet create.
+    Vista unica per creare e scaricare etichette pallet.
     """
-    try:
-        # Se l'utente è autenticato, mostra solo le sue etichette
-        # Altrimenti mostra tutte le etichette (per demo)
-        if request.user.is_authenticated:
-            pallet_labels = PalletLabel.objects.filter(created_by=request.user).order_by('-created_at')
-        else:
-            pallet_labels = PalletLabel.objects.all().order_by('-created_at')
-        
-        # Paginazione
-        paginator = Paginator(pallet_labels, 20)
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        
-        context = {
-            'page_obj': page_obj,
-            'total_labels': pallet_labels.count(),
-            'pdf_available': PDF_AVAILABLE
-        }
-        
-        return render(request, 'pallet_label/list.html', context)
-        
-    except Exception as e:
-        logger.error(f"Errore nella vista pallet_label_list: {str(e)}")
-        messages.error(request, f'Errore nel caricamento delle etichette: {str(e)}')
-        return render(request, 'pallet_label/list.html', {
-            'page_obj': None,
-            'total_labels': 0,
-            'pdf_available': PDF_AVAILABLE,
-            'error': str(e)
-        })
-
-
-def pallet_label_create(request):
-    """
-    Vista per creare nuove etichette pallet.
-    """
+    # Determina l'utente
+    if request.user.is_authenticated:
+        user = request.user
+    else:
+        from django.contrib.auth.models import User
+        user, created = User.objects.get_or_create(
+            username='demo_user',
+            defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
+        )
+    
+    # Trova l'ultimo PDF generato per questo utente
+    if request.user.is_authenticated:
+        latest_label = PalletLabel.objects.filter(
+            created_by=user,
+            pdf_generated=True,
+            pdf_file__isnull=False
+        ).order_by('-created_at').first()
+    else:
+        latest_label = PalletLabel.objects.filter(
+            pdf_generated=True,
+            pdf_file__isnull=False
+        ).order_by('-created_at').first()
+    
+    # Gestione POST - creazione nuove etichette
     if request.method == 'POST':
         form = PalletLabelForm(request.POST)
         if form.is_valid():
@@ -78,17 +66,14 @@ def pallet_label_create(request):
                     numero_pallet = form.cleaned_data['numero_pallet']
                     cartoni_per_pallet = form.get_cartoni_data()
                     
-                    # Determina l'utente
+                    # Cancella le vecchie etichette di questo utente
                     if request.user.is_authenticated:
-                        user = request.user
+                        PalletLabel.objects.filter(created_by=user).delete()
                     else:
-                        from django.contrib.auth.models import User
-                        user, created = User.objects.get_or_create(
-                            username='demo_user',
-                            defaults={'email': 'demo@example.com', 'first_name': 'Demo', 'last_name': 'User'}
-                        )
+                        # Per demo user, cancella solo se non autenticato
+                        PalletLabel.objects.filter(created_by=user).delete()
                     
-                    # Crea le etichette per ogni pallet
+                    # Crea le nuove etichette per ogni pallet
                     created_labels = []
                     for i, num_cartoni in enumerate(cartoni_per_pallet, 1):
                         pallet_label = PalletLabel(
@@ -114,24 +99,25 @@ def pallet_label_create(request):
                             
                             pdf_file = generate_shipment_labels_pdf(queryset)
                             
-                            # Salva il PDF solo per la prima etichetta (per evitare duplicazioni)
+                            # Salva il PDF solo per la prima etichetta
                             filename = f"etichette_spedizione_{numero_spedizione}.pdf"
                             first_label = created_labels[0]
                             first_label.pdf_file.save(filename, pdf_file)
                             first_label.pdf_generated = True
                             first_label.save()
+                            
+                            # Aggiorna la variabile per il template
+                            latest_label = first_label
                                 
                         except Exception as pdf_error:
                             logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
-                            # Non bloccare la creazione delle etichette se il PDF fallisce
+                            messages.error(request, 'Errore nella generazione del PDF.')
                     
-                    # Messaggio di successo e redirect
-                    if len(created_labels) == 1:
-                        messages.success(request, f'Etichetta pallet per {nome_venditore} creata con successo!')
-                        return redirect('pallet_label:detail', pk=created_labels[0].pk)
-                    else:
-                        messages.success(request, f'{len(created_labels)} etichette pallet per {nome_venditore} create con successo!')
-                        return redirect('pallet_label:list')
+                    # Messaggio di successo
+                    messages.success(request, f'{len(created_labels)} etichette create con successo!')
+                    
+                    # Refresh della pagina per mostrare il nuovo stato
+                    return redirect('pallet_label:list')
                         
             except Exception as e:
                 logger.error(f"Errore nella creazione delle etichette: {str(e)}")
@@ -141,10 +127,12 @@ def pallet_label_create(request):
     
     context = {
         'form': form,
+        'latest_label': latest_label,
+        'pdf_available': PDF_AVAILABLE,
         'title': 'Crea Nuove Etichette Pallet'
     }
     
-    return render(request, 'pallet_label/create.html', context)
+    return render(request, 'pallet_label/main.html', context)
 
 
 def pallet_label_detail(request, pk):
@@ -457,3 +445,33 @@ def shipment_delete(request, numero_spedizione):
         messages.error(request, 'Errore nell\'eliminazione della spedizione.')
     
     return redirect('pallet_label:list')
+
+
+def download_latest_pdf(request):
+    """
+    Vista per scaricare l'ultimo PDF generato.
+    """
+    # Determina l'utente
+    if request.user.is_authenticated:
+        user = request.user
+        latest_label = PalletLabel.objects.filter(
+            created_by=user,
+            pdf_generated=True,
+            pdf_file__isnull=False
+        ).order_by('-created_at').first()
+    else:
+        latest_label = PalletLabel.objects.filter(
+            pdf_generated=True,
+            pdf_file__isnull=False
+        ).order_by('-created_at').first()
+    
+    if not latest_label or not latest_label.pdf_file:
+        messages.error(request, 'Nessun PDF disponibile. Crea prima delle etichette.')
+        return redirect('pallet_label:list')
+    
+    # Restituisci il file PDF
+    filename = f"etichette_spedizione_{latest_label.numero_spedizione}.pdf"
+    response = HttpResponse(latest_label.pdf_file.read(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
