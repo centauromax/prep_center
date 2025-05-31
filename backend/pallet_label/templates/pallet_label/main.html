@@ -219,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Compila automaticamente i pallet successivi
                         for (let i = currentPalletNum + 1; i <= numPallet; i++) {
                             const nextInput = document.querySelector(`input[name="cartoni_pallet_${i}"]`);
-                            if (nextInput && !nextInput.value) {
+                            if (nextInput) {
                                 nextInput.value = currentValue;
                             }
                         }
