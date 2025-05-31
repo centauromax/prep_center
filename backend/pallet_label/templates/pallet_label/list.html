@@ -1,23 +1,21 @@
 {% extends 'pallet_label/base.html' %}
 
-{% block title %}Lista Etichette Pallet - Prep Center{% endblock %}
+{% block title %}Lista Etichette Pallet{% endblock %}
 
-{% block page_title %}Lista Etichette Pallet{% endblock %}
-
-{% block page_actions %}
-    <div class="btn-group" role="group">
-        <a href="{% url 'pallet_label:quick_create' %}" class="btn btn-success">
-            <i class="fas fa-plus-circle me-1"></i>
-            Creazione Rapida
-        </a>
+{% block content %}
+<div class="container my-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h2 text-secondary">
+            <i class="fas fa-list me-2"></i>
+            Lista Etichette Pallet
+        </h1>
         <a href="{% url 'pallet_label:create' %}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i>
+            <i class="fas fa-plus me-2"></i>
             Nuova Etichetta
         </a>
     </div>
-{% endblock %}
 
-{% block content %}
     <!-- Debug Info -->
     {% if error %}
         <div class="alert alert-danger">
@@ -52,7 +50,7 @@
 
     <!-- Statistiche -->
     <div class="row mb-4">
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card text-center">
                 <div class="card-body">
                     <h5 class="card-title text-primary">{{ total_labels|default:0 }}</h5>
@@ -60,7 +58,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card text-center">
                 <div class="card-body">
                     <h5 class="card-title text-success">{{ page_obj.paginator.count|default:0 }}</h5>
@@ -68,15 +66,25 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-4">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-info">
+                        {% if page_obj %}{{ page_obj|length }}{% else %}0{% endif %}
+                    </h5>
+                    <p class="card-text">Questa pagina</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Lista Etichette -->
-    {% if page_obj %}
+    {% if page_obj and page_obj.object_list %}
         <div class="card">
             <div class="card-header">
                 <h5 class="card-title mb-0">
-                    <i class="fas fa-list me-2"></i>
-                    Le tue etichette pallet
+                    <i class="fas fa-pallet me-2"></i>
+                    Etichette Pallet
                 </h5>
             </div>
             <div class="card-body p-0">
@@ -84,12 +92,10 @@
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>ID Pallet</th>
-                                <th>Warehouse</th>
-                                <th>Shipment ID</th>
+                                <th>Venditore</th>
+                                <th>Numero Spedizione</th>
                                 <th>Pallet</th>
-                                <th>Scatole</th>
-                                <th>Peso</th>
+                                <th>Cartoni</th>
                                 <th>Data</th>
                                 <th>PDF</th>
                                 <th>Azioni</th>
@@ -99,24 +105,19 @@
                             {% for label in page_obj %}
                                 <tr>
                                     <td>
-                                        <strong>{{ label.pallet_id }}</strong>
+                                        <strong>{{ label.nome_venditore }}</strong>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ label.amazon_warehouse_code }}</span>
+                                        <code>{{ label.numero_spedizione }}</code>
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ label.shipment_id }}</small>
+                                        <span class="badge bg-secondary">
+                                            {{ label.get_pallet_display }}
+                                        </span>
                                     </td>
                                     <td>
-                                        {{ label.pallet_number }} di {{ label.pallet_count }}
-                                    </td>
-                                    <td>
-                                        <i class="fas fa-box me-1"></i>
-                                        {{ label.total_boxes }}
-                                    </td>
-                                    <td>
-                                        <i class="fas fa-weight me-1"></i>
-                                        {{ label.pallet_weight }} kg
+                                        <i class="fas fa-boxes me-1"></i>
+                                        {{ label.numero_cartoni }}
                                     </td>
                                     <td>
                                         <small>{{ label.created_at|date:"d/m/Y H:i" }}</small>
@@ -149,11 +150,14 @@
                                                     <i class="fas fa-download"></i>
                                                 </a>
                                             {% endif %}
-                                            <a href="{% url 'pallet_label:edit' label.pk %}" 
-                                               class="btn btn-outline-warning" 
-                                               title="Modifica">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
+                                            <form method="post" action="{% url 'pallet_label:delete' label.pk %}" 
+                                                  style="display: inline;" 
+                                                  onsubmit="return confirm('Sei sicuro di voler eliminare questa etichetta?')">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" title="Elimina">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
                                         </div>
                                     </td>
                                 </tr>
@@ -219,16 +223,27 @@
             <p class="text-muted mb-4">
                 Non hai ancora creato nessuna etichetta pallet. Inizia creando la tua prima etichetta!
             </p>
-            <div class="btn-group" role="group">
-                <a href="{% url 'pallet_label:quick_create' %}" class="btn btn-success">
-                    <i class="fas fa-plus-circle me-1"></i>
-                    Creazione Rapida
-                </a>
-                <a href="{% url 'pallet_label:create' %}" class="btn btn-primary">
-                    <i class="fas fa-plus me-1"></i>
-                    Nuova Etichetta
-                </a>
-            </div>
+            <a href="{% url 'pallet_label:create' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-plus-circle me-2"></i>
+                Crea Prima Etichetta
+            </a>
         </div>
     {% endif %}
+</div>
+
+<style>
+    .status-badge {
+        font-size: 0.75rem;
+    }
+    .table td {
+        vertical-align: middle;
+    }
+    code {
+        font-size: 0.875rem;
+        background-color: #f8f9fa;
+        color: #495057;
+        padding: 0.125rem 0.25rem;
+        border-radius: 0.25rem;
+    }
+</style>
 {% endblock %} 
