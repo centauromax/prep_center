@@ -66,7 +66,7 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         y_position = page_height - margin_top
         
         # Titolo principale - Venditore
-        c.setFont("Helvetica-Bold", 28)
+        c.setFont("Helvetica-Bold", 34)
         vendor_text = f"Venditore: {pallet_label.nome_venditore}"
         c.drawString(margin_left, y_position, vendor_text)
         y_position -= 50
@@ -80,11 +80,11 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         # PARTE SUPERIORE - Dati della spedizione (uguale per tutti i pallet)
         
         # Nome spedizione
-        c.setFont("Helvetica-Bold", 16)
+        c.setFont("Helvetica-Bold", 18)
         c.drawString(margin_left, y_position, "Nome spedizione:")
         y_position -= 25
         
-        c.setFont("Helvetica", 14)
+        c.setFont("Helvetica", 15)
         nome_spedizione = pallet_label.nome_spedizione
         # Gestione testo lungo su più righe
         if len(nome_spedizione) > 100:  # Adattato per landscape
@@ -108,18 +108,18 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
             y_position -= 30
         
         # Numero spedizione
-        c.setFont("Helvetica-Bold", 16)
+        c.setFont("Helvetica-Bold", 18)
         c.drawString(margin_left, y_position, "Numero spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 14)
+        c.setFont("Helvetica", 15)
         c.drawString(margin_left, y_position, pallet_label.numero_spedizione)
         y_position -= 35
         
         # Origine spedizione
-        c.setFont("Helvetica-Bold", 16)
+        c.setFont("Helvetica-Bold", 18)
         c.drawString(margin_left, y_position, "Origine spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 14)
+        c.setFont("Helvetica", 15)
         origine_lines = pallet_label.origine_spedizione.split('\n')
         for line in origine_lines:
             if line.strip():
@@ -128,10 +128,10 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         y_position -= 15
         
         # Indirizzo di spedizione
-        c.setFont("Helvetica-Bold", 16)
+        c.setFont("Helvetica-Bold", 18)
         c.drawString(margin_left, y_position, "Indirizzo di spedizione:")
         y_position -= 25
-        c.setFont("Helvetica", 14)
+        c.setFont("Helvetica", 15)
         
         indirizzo_lines = pallet_label.indirizzo_spedizione.split('\n')
         for line in indirizzo_lines:
