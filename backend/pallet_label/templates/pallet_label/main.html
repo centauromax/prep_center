@@ -272,6 +272,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Event listeners
     numeroPalletInput.addEventListener('input', updateCartoniInputs);
     
+    // Auto-conversione indirizzo multiriga
+    const indirizzoField = document.getElementById('{{ form.indirizzo_spedizione.id_for_label }}');
+    if (indirizzoField) {
+        indirizzoField.addEventListener('blur', function() {
+            const multilineAddress = this.value.trim();
+            if (multilineAddress) {
+                // Dividi per righe, rimuovi righe vuote, unisci con virgole
+                const singleLineAddress = multilineAddress
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line.length > 0)
+                    .join(', ');
+                
+                // Aggiorna il campo se è diverso
+                if (singleLineAddress !== multilineAddress) {
+                    this.value = singleLineAddress;
+                }
+            }
+        });
+    }
+    
     // Validazione iniziale
     updateCartoniInputs();
 });
