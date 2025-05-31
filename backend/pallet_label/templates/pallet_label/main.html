@@ -130,6 +130,21 @@
                             </div>
                         </div>
 
+                        <!-- Lingua Etichette -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="{{ form.lingua_etichette.id_for_label }}" class="form-label">
+                                    <i class="fas fa-language me-1"></i>
+                                    {{ form.lingua_etichette.label }}
+                                </label>
+                                {{ form.lingua_etichette }}
+                                {% if form.lingua_etichette.errors %}
+                                    <div class="text-danger small">{{ form.lingua_etichette.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">L'interfaccia rimane in italiano, solo le etichette PDF saranno tradotte</div>
+                            </div>
+                        </div>
+
                         <!-- Numero Pallet -->
                         <div class="row mb-4">
                             <div class="col-12">

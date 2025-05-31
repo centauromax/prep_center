@@ -15,12 +15,14 @@ class PalletLabelAdmin(admin.ModelAdmin):
         'nome_venditore', 
         'get_pallet_display',
         'numero_cartoni',
+        'lingua_etichette',
         'pdf_generated',
         'created_at'
     ]
     
     list_filter = [
         'nome_venditore',
+        'lingua_etichette',
         'pdf_generated',
         'created_at',
         'pallet_totale'
@@ -53,7 +55,8 @@ class PalletLabelAdmin(admin.ModelAdmin):
                 'nome_venditore',
                 'nome_spedizione',
                 'numero_spedizione',
-                'indirizzo_spedizione'
+                'indirizzo_spedizione',
+                'lingua_etichette'
             )
         }),
         ('Dati Pallet', {

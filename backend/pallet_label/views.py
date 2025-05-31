@@ -63,6 +63,7 @@ def pallet_label_list(request):
                     nome_spedizione = form.cleaned_data['nome_spedizione']
                     numero_spedizione = form.cleaned_data['numero_spedizione']
                     indirizzo_spedizione = form.cleaned_data['indirizzo_spedizione']
+                    lingua_etichette = form.cleaned_data['lingua_etichette']
                     numero_pallet = form.cleaned_data['numero_pallet']
                     cartoni_per_pallet = form.get_cartoni_data()
                     
@@ -82,6 +83,7 @@ def pallet_label_list(request):
                             nome_spedizione=nome_spedizione,
                             numero_spedizione=numero_spedizione,
                             indirizzo_spedizione=indirizzo_spedizione,
+                            lingua_etichette=lingua_etichette,
                             pallet_numero=i,
                             pallet_totale=numero_pallet,
                             numero_cartoni=int(num_cartoni)

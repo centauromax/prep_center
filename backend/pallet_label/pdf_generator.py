@@ -5,6 +5,7 @@ Genera un unico PDF con tutte le etichette della spedizione, una per pagina.
 
 from io import BytesIO
 from django.core.files.base import ContentFile
+from .translations import get_translation
 
 try:
     from reportlab.pdfgen import canvas
@@ -62,12 +63,15 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         if i > 0:  # Aggiungi nuova pagina dal secondo pallet in poi
             c.showPage()
         
+        # Ottieni la lingua per le traduzioni
+        lingua = getattr(pallet_label, 'lingua_etichette', 'it')
+        
         # Posizione Y iniziale (dall'alto verso il basso)
         y_position = page_height - margin_top
         
         # Titolo principale - Venditore
-        c.setFont("Helvetica-Bold", 34)
-        vendor_text = f"Venditore: {pallet_label.nome_venditore}"
+        c.setFont("Helvetica-Bold", 34)  # Aumentato del 20% da 28 a 34
+        vendor_text = f"{get_translation(lingua, 'vendor')}: {pallet_label.nome_venditore}"
         c.drawString(margin_left, y_position, vendor_text)
         y_position -= 50
         
@@ -81,7 +85,7 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         
         # Nome spedizione
         c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
-        c.drawString(margin_left, y_position, "Nome spedizione:")
+        c.drawString(margin_left, y_position, f"{get_translation(lingua, 'shipment_name')}:")
         y_position -= 25
         
         c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
@@ -109,7 +113,7 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         
         # Numero spedizione
         c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
-        c.drawString(margin_left, y_position, "Numero spedizione:")
+        c.drawString(margin_left, y_position, f"{get_translation(lingua, 'shipment_number')}:")
         y_position -= 25
         c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         c.drawString(margin_left, y_position, pallet_label.numero_spedizione)
@@ -117,7 +121,7 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         
         # Origine spedizione
         c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
-        c.drawString(margin_left, y_position, "Origine spedizione:")
+        c.drawString(margin_left, y_position, f"{get_translation(lingua, 'origin_address')}:")
         y_position -= 25
         c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         origine_lines = pallet_label.origine_spedizione.split('\n')
@@ -129,7 +133,7 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         
         # Indirizzo di spedizione
         c.setFont("Helvetica-Bold", 20)  # Aumentato di un altro 10% da 18 a 20
-        c.drawString(margin_left, y_position, "Indirizzo di spedizione:")
+        c.drawString(margin_left, y_position, f"{get_translation(lingua, 'destination_address')}:")
         y_position -= 25
         c.setFont("Helvetica", 17)  # Aumentato di un altro 10% da 15 a 17
         
@@ -178,13 +182,15 @@ def generate_shipment_labels_pdf(pallet_labels_queryset):
         
         # Numero di cartoni - MOLTO GRANDE e prominente
         c.setFont("Helvetica-Bold", 40)
-        cartoni_text = f"Numero di cartoni: {pallet_label.numero_cartoni}"
+        cartoni_text = f"{get_translation(lingua, 'box_count')}: {pallet_label.numero_cartoni}"
         c.drawString(margin_left, y_position, cartoni_text)
         y_position -= 80
         
         # Pallet n. X di Y - MOLTO GRANDE e prominente
         c.setFont("Helvetica-Bold", 40)
-        pallet_text = f"Pallet n. {pallet_label.pallet_numero} di {pallet_label.pallet_totale}"
+        pallet_text = get_translation(lingua, 'pallet_label', 
+                                     pallet_num=pallet_label.pallet_numero, 
+                                     total_pallets=pallet_label.pallet_totale)
         c.drawString(margin_left, y_position, pallet_text)
         
         # Nessun footer come richiesto

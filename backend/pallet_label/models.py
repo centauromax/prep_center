@@ -7,6 +7,13 @@ class PalletLabel(models.Model):
     """
     Modello per memorizzare le etichette pallet secondo i nuovi requisiti.
     """
+    LINGUA_CHOICES = [
+        ('it', 'Italiano'),
+        ('fr', 'Francese'),
+        ('de', 'Tedesco'),
+        ('es', 'Spagnolo'),
+    ]
+    
     # Metadati
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Creato da")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Creato il")
@@ -17,6 +24,12 @@ class PalletLabel(models.Model):
     nome_spedizione = models.CharField(max_length=500, verbose_name="Nome spedizione")
     numero_spedizione = models.CharField(max_length=100, verbose_name="Numero spedizione")
     indirizzo_spedizione = models.TextField(verbose_name="Indirizzo di spedizione")
+    lingua_etichette = models.CharField(
+        max_length=2,
+        choices=LINGUA_CHOICES,
+        default='it',
+        verbose_name="Lingua etichette"
+    )
     
     # Dati del pallet specifico (parte inferiore dell'etichetta - varia per ogni pallet)
     pallet_numero = models.PositiveIntegerField(

@@ -7,6 +7,13 @@ class PalletLabelForm(forms.Form):
     """
     Form per creare etichette pallet secondo i requisiti specifici.
     """
+    LINGUA_CHOICES = [
+        ('it', 'Italiano'),
+        ('fr', 'Francese'),
+        ('de', 'Tedesco'),
+        ('es', 'Spagnolo'),
+    ]
+    
     nome_venditore = forms.CharField(
         max_length=200,
         label='Nome del venditore',
@@ -41,6 +48,15 @@ class PalletLabelForm(forms.Form):
             'class': 'form-control',
             'rows': 5,
             'placeholder': 'Es:\nAmazon.fr Logistique SAS\nParc d\'activites des Portes de Senlis\n1 avenue Alain Boucher\n60452 Senlis CEDEX\nFrancia'
+        })
+    )
+    
+    lingua_etichette = forms.ChoiceField(
+        choices=LINGUA_CHOICES,
+        initial='it',
+        label='Lingua etichette',
+        widget=forms.Select(attrs={
+            'class': 'form-select'
         })
     )
     
