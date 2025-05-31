@@ -970,3 +970,76 @@ def _process_incoming_message(incoming_msg: IncomingMessage) -> dict:
         incoming_msg.process_result = error_result
         incoming_msg.save()
         return error_result
+
+def test_outbound_without_inbound(request):
+    """
+    Endpoint di test per verificare la funzionalità OUTBOUND_WITHOUT_INBOUND.
+    Simula un webhook outbound_shipment.created e verifica che il messaggio venga prodotto.
+    """
+    from .event_handlers import WebhookEventProcessor
+    from .models import ShipmentStatusUpdate
+    
+    # Simula un payload di webhook per outbound_shipment.created
+    test_payload = {
+        'data': {
+            'id': 12345,
+            'name': 'TEST_OUTBOUND_SPEDIZIONE_SENZA_INBOUND',
+            'status': 'created',
+            'merchant_id': 100,
+            'created_at': '2024-01-15T10:30:00Z'
+        },
+        'event_type': 'outbound_shipment.created',
+        'merchant_id': 100
+    }
+    
+    try:
+        # Crea un record di test nel database
+        shipment_update = ShipmentStatusUpdate(
+            shipment_id=test_payload['data']['id'],
+            event_type='outbound_shipment.created',
+            entity_type='outbound_shipment',
+            previous_status=None,
+            new_status='created',
+            merchant_id=test_payload['merchant_id'],
+            merchant_name='Test Merchant',
+            tracking_number=None,
+            carrier=None,
+            notes=f"Test per verificare OUTBOUND_WITHOUT_INBOUND - {timezone.now()}",
+            payload=test_payload
+        )
+        shipment_update.save()
+        
+        # Elabora l'evento usando il processor
+        processor = WebhookEventProcessor()
+        result = processor.process_event(shipment_update.id)
+        
+        # Controlla se ci sono messaggi in uscita di tipo OUTBOUND_WITHOUT_INBOUND
+        from .models import OutgoingMessage
+        outbound_messages = OutgoingMessage.objects.filter(
+            message_id='OUTBOUND_WITHOUT_INBOUND'
+        ).order_by('-created_at')[:5]
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Test completato',
+            'test_shipment_id': shipment_update.id,
+            'processor_result': result,
+            'outbound_messages_count': outbound_messages.count(),
+            'latest_outbound_messages': [
+                {
+                    'id': msg.id,
+                    'created_at': msg.created_at.isoformat(),
+                    'sent': msg.sent,
+                    'parameters': msg.parameters
+                } for msg in outbound_messages
+            ],
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.exception("Errore durante il test outbound without inbound")
+        return JsonResponse({
+            'status': 'error',
+            'message': f'Errore durante il test: {str(e)}',
+            'timestamp': timezone.now().isoformat()
+        }, status=500)

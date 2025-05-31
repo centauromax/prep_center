@@ -20,4 +20,5 @@ urlpatterns = [
     path('queue/receive/', views.receive_extension_message, name='receive_extension_message'),
     path('queue/wait/', views.wait_for_extension_response, name='wait_for_extension_response'),
     path('search-shipments/', views.search_shipments_by_products, name='search_shipments_by_products'),
+    path('test-outbound-without-inbound/', views.test_outbound_without_inbound, name='test_outbound_without_inbound'),
 ]
