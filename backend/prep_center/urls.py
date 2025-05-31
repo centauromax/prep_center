@@ -12,6 +12,7 @@ logger.info('[prep_center.urls] File urls.py caricato')
 # URL patterns non localizzati (sempre disponibili)
 logger.info('[prep_center.urls] Prima di includere prep_management.urls')
 urlpatterns = [
+    path('test/', views.test_view, name='test'),  # Vista di test
     path('prep_management/', include('prep_management.urls')),
     path('i18n/', include('django.conf.urls.i18n')),  # Manteniamo questo fuori da i18n_patterns
 ]

@@ -37,7 +37,7 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="https://backend.fbaprepcenteritaly.com/">
+            <a class="navbar-brand" href="/">
                 <i class="fas fa-warehouse me-2"></i>
                 Prep Center Italy
             </a>
@@ -92,12 +92,26 @@
                                 <div class="app-icon text-{{ app.color }}">
                                     <i class="{{ app.icon }}"></i>
                                 </div>
-                                <h5 class="card-title text-primary">{{ app.name }}</h5>
+                                <h5 class="card-title text-primary">
+                                    {{ app.name }}
+                                    {% if app.type == 'react' %}
+                                        <small class="badge bg-info ms-2">React</small>
+                                    {% else %}
+                                        <small class="badge bg-secondary ms-2">Django</small>
+                                    {% endif %}
+                                </h5>
                                 <p class="card-text text-muted">{{ app.description }}</p>
-                                <a href="{{ app.url }}" class="btn btn-{{ app.color }} btn-lg">
-                                    <i class="fas fa-arrow-right me-2"></i>
-                                    Accedi
-                                </a>
+                                {% if app.type == 'react' %}
+                                    <a href="{{ app.url }}" class="btn btn-{{ app.color }} btn-lg" target="_blank">
+                                        <i class="fas fa-external-link-alt me-2"></i>
+                                        Accedi
+                                    </a>
+                                {% else %}
+                                    <a href="{{ app.url }}" class="btn btn-{{ app.color }} btn-lg">
+                                        <i class="fas fa-arrow-right me-2"></i>
+                                        Accedi
+                                    </a>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

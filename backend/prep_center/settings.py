@@ -38,19 +38,19 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [
     os.environ.get("RAILWAY_STATIC_URL", ""),  # dominio railway se definito
-    "backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
-    "apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
+    "prepcenter-production.up.railway.app",  # dominio Railway principale
+    "backend.fbaprepcenteritaly.com",  # dominio personalizzato (se configurato)
+    "apppc.fbaprepcenteritaly.com",  # dominio personalizzato (se configurato)
     "127.0.0.1",
     "localhost",
-    "prepcenter-production.up.railway.app",  # aggiungo il dominio del backend
     "*.up.railway.app",  # per sicurezza, accetta tutti i sottodomini railway
 ]
 
 # Configurazione CSRF per consentire richieste da altri domini
 CSRF_TRUSTED_ORIGINS = [
-    "https://backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
-    "https://apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
-    "https://prepcenter-production.up.railway.app",
+    "https://prepcenter-production.up.railway.app",  # dominio Railway principale
+    "https://backend.fbaprepcenteritaly.com",  # dominio personalizzato (se configurato)
+    "https://apppc.fbaprepcenteritaly.com",  # dominio personalizzato (se configurato)
     "https://*.up.railway.app",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
@@ -78,7 +78,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'prep_center.middleware.RequestLoggingMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -318,10 +317,11 @@ CONTACT_EMAIL = 'info@fbaprepcenteritaly.com'
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "https://backend.fbaprepcenteritaly.com",  # dominio principale unificato (funzionante)
-    "https://apppc.fbaprepcenteritaly.com",  # manteniamo per compatibilità
-    "https://prepcenterfe-production.up.railway.app",
-    "http://localhost:3000",
+    "https://prepcenter-production.up.railway.app",  # dominio Railway backend
+    "https://backend.fbaprepcenteritaly.com",  # dominio Django backend
+    "https://apppc.fbaprepcenteritaly.com",  # dominio React frontend
+    "http://localhost:3000",  # sviluppo React
+    "http://localhost:8000",  # sviluppo Django
 ]
 
 # Celery configuration
