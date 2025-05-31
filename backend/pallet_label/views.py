@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Importazione condizionale per evitare errori se ReportLab non è disponibile
 try:
-    from .pdf_generator import generate_pallet_label_pdf
+    from .pdf_generator import generate_pallet_label_pdf, generate_shipment_labels_pdf
     PDF_AVAILABLE = True
 except ImportError as e:
     logger.error(f"Errore nell'importazione del PDF generator: {str(e)}")
@@ -102,18 +102,30 @@ def pallet_label_create(request):
                             numero_cartoni=int(num_cartoni)
                         )
                         pallet_label.save()
-                        
-                        # Genera PDF se disponibile
-                        if PDF_AVAILABLE:
-                            try:
-                                pdf_file = generate_pallet_label_pdf(pallet_label)
-                                pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
-                                pallet_label.pdf_generated = True
-                                pallet_label.save()
-                            except Exception as pdf_error:
-                                logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
-                        
                         created_labels.append(pallet_label)
+                    
+                    # Genera un unico PDF per tutta la spedizione
+                    if PDF_AVAILABLE and created_labels:
+                        try:
+                            queryset = PalletLabel.objects.filter(
+                                numero_spedizione=numero_spedizione,
+                                created_by=user
+                            ).order_by('pallet_numero')
+                            
+                            pdf_file = generate_shipment_labels_pdf(queryset)
+                            
+                            # Salva il PDF per ogni etichetta (per compatibilità)
+                            for label in created_labels:
+                                filename = f"etichette_spedizione_{numero_spedizione}.pdf"
+                                label.pdf_file.save(filename, pdf_file)
+                                label.pdf_generated = True
+                                label.save()
+                                # Reset del file per la prossima iterazione
+                                pdf_file.seek(0)
+                                
+                        except Exception as pdf_error:
+                            logger.error(f"Errore nella generazione PDF: {str(pdf_error)}")
+                            # Non bloccare la creazione delle etichette se il PDF fallisce
                     
                     # Messaggio di successo e redirect
                     if len(created_labels) == 1:
@@ -162,7 +174,7 @@ def pallet_label_detail(request, pk):
 
 def pallet_label_download(request, pk):
     """
-    Vista per scaricare il PDF di un'etichetta pallet.
+    Vista per scaricare il PDF di una spedizione (tutte le etichette).
     """
     # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
     if request.user.is_authenticated:
@@ -170,13 +182,32 @@ def pallet_label_download(request, pk):
     else:
         pallet_label = get_object_or_404(PalletLabel, pk=pk)
     
+    # Controlla se il PDF esiste, altrimenti lo genera
     if not pallet_label.pdf_file and PDF_AVAILABLE:
-        # Genera il PDF se non esiste
         try:
-            pdf_file = generate_pallet_label_pdf(pallet_label)
-            pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
-            pallet_label.pdf_generated = True
-            pallet_label.save()
+            from .pdf_generator import generate_shipment_labels_pdf
+            
+            # Trova tutte le etichette della stessa spedizione
+            if request.user.is_authenticated:
+                queryset = PalletLabel.objects.filter(
+                    numero_spedizione=pallet_label.numero_spedizione,
+                    created_by=request.user
+                ).order_by('pallet_numero')
+            else:
+                queryset = PalletLabel.objects.filter(
+                    numero_spedizione=pallet_label.numero_spedizione
+                ).order_by('pallet_numero')
+            
+            pdf_file = generate_shipment_labels_pdf(queryset)
+            filename = f"etichette_spedizione_{pallet_label.numero_spedizione}.pdf"
+            
+            # Salva il PDF per tutte le etichette della spedizione
+            for label in queryset:
+                label.pdf_file.save(filename, pdf_file)
+                label.pdf_generated = True
+                label.save()
+                pdf_file.seek(0)
+                
         except Exception as e:
             logger.error(f"Errore nella generazione del PDF: {str(e)}")
             messages.error(request, 'Errore nella generazione del PDF.')
@@ -187,8 +218,9 @@ def pallet_label_download(request, pk):
         return redirect('pallet_label:detail', pk=pk)
     
     # Restituisci il file PDF
+    filename = f"etichette_spedizione_{pallet_label.numero_spedizione}.pdf"
     response = HttpResponse(pallet_label.pdf_file.read(), content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{pallet_label.pdf_filename}"'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
 
@@ -217,7 +249,7 @@ def pallet_label_delete(request, pk):
 
 def pallet_label_regenerate_pdf(request, pk):
     """
-    Vista per rigenerare il PDF di un'etichetta pallet.
+    Vista per rigenerare il PDF di una spedizione (tutte le etichette).
     """
     # Se l'utente è autenticato, filtra per utente, altrimenti mostra tutte
     if request.user.is_authenticated:
@@ -230,13 +262,31 @@ def pallet_label_regenerate_pdf(request, pk):
         return redirect('pallet_label:detail', pk=pk)
     
     try:
-        # Rigenera il PDF
-        pdf_file = generate_pallet_label_pdf(pallet_label)
-        pallet_label.pdf_file.save(pallet_label.pdf_filename, pdf_file)
-        pallet_label.pdf_generated = True
-        pallet_label.save()
+        from .pdf_generator import generate_shipment_labels_pdf
         
-        messages.success(request, f'PDF dell\'etichetta rigenerato con successo!')
+        # Trova tutte le etichette della stessa spedizione
+        if request.user.is_authenticated:
+            queryset = PalletLabel.objects.filter(
+                numero_spedizione=pallet_label.numero_spedizione,
+                created_by=request.user
+            ).order_by('pallet_numero')
+        else:
+            queryset = PalletLabel.objects.filter(
+                numero_spedizione=pallet_label.numero_spedizione
+            ).order_by('pallet_numero')
+        
+        # Rigenera il PDF per tutta la spedizione
+        pdf_file = generate_shipment_labels_pdf(queryset)
+        filename = f"etichette_spedizione_{pallet_label.numero_spedizione}.pdf"
+        
+        # Salva il PDF per tutte le etichette della spedizione
+        for label in queryset:
+            label.pdf_file.save(filename, pdf_file)
+            label.pdf_generated = True
+            label.save()
+            pdf_file.seek(0)
+        
+        messages.success(request, f'PDF della spedizione {pallet_label.numero_spedizione} rigenerato con successo!')
     except Exception as e:
         logger.error(f"Errore nella rigenerazione del PDF: {str(e)}")
         messages.error(request, 'Errore nella rigenerazione del PDF.')

@@ -66,5 +66,5 @@ class PalletLabel(models.Model):
     
     @property
     def pdf_filename(self):
-        """Genera il nome del file PDF"""
-        return f"pallet_label_{self.numero_spedizione}_{self.pallet_numero}of{self.pallet_totale}.pdf"
+        """Genera il nome del file PDF per l'intera spedizione"""
+        return f"etichette_spedizione_{self.numero_spedizione}.pdf"
