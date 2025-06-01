@@ -223,11 +223,11 @@ class WebhookEventProcessor:
             # Log dei nomi delle spedizioni inbound per debug
             inbound_names = [s.name for s in active_inbound_shipments]
             logger.info(f"[_process_outbound_shipment_created] Nomi spedizioni inbound attive: {inbound_names}")
-            logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza ESATTA per: '{shipment_name}'")
+            logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza CASE-INSENSITIVE per: '{shipment_name}'")
             
-            # Cerca una spedizione con lo stesso nome (confronto esatto)
+            # Cerca una spedizione con lo stesso nome (confronto case-insensitive)
             matching_shipment = next(
-                (s for s in active_inbound_shipments if s.name == shipment_name), 
+                (s for s in active_inbound_shipments if s.name.lower() == shipment_name.lower()), 
                 None
             )
             
