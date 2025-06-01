@@ -170,6 +170,7 @@ class WebhookEventProcessor:
         try:
             # Verifica che self.client sia disponibile
             if self.client is None:
+                logger.error("[_process_outbound_shipment_created] Client API non disponibile!")
                 return {
                     'success': False,
                     'message': 'Client API non disponibile per controllare spedizioni inbound',
@@ -180,31 +181,58 @@ class WebhookEventProcessor:
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments per merchant {merchant_id}...")
             start_time_inbound = time.time()
             
-            inbound_shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
+            try:
+                # Aumento per_page per essere sicuri di non perdere spedizioni
+                inbound_shipments_response = self.client.get_inbound_shipments(
+                    merchant_id=merchant_id, 
+                    per_page=100
+                )
+                logger.info(f"[_process_outbound_shipment_created] API get_inbound_shipments chiamata con successo")
+            except Exception as e_api:
+                logger.error(f"[_process_outbound_shipment_created] ERRORE nella chiamata API get_inbound_shipments: {str(e_api)}")
+                logger.exception("Traceback della chiamata API:")
+                return {
+                    'success': False,
+                    'message': f'Errore nella chiamata API per spedizioni inbound: {str(e_api)}',
+                    'error': 'api_call_failed'
+                }
             
             end_time_inbound = time.time()
             logger.info(f"[_process_outbound_shipment_created] Chiamata API get_inbound_shipments completata in {end_time_inbound - start_time_inbound:.2f} secondi.")
             
+            # Verifica la risposta
+            if not inbound_shipments_response:
+                logger.warning("[_process_outbound_shipment_created] Risposta API vuota!")
+                return {
+                    'success': False,
+                    'message': 'Risposta API vuota per spedizioni inbound',
+                    'error': 'empty_api_response'
+                }
+            
             inbound_shipments = inbound_shipments_response.data if inbound_shipments_response else []
             logger.info(f"[_process_outbound_shipment_created] Ricevute {len(inbound_shipments)} spedizioni in entrata grezze.")
             
+            # Log di alcuni esempi delle spedizioni ricevute
+            if len(inbound_shipments) > 0:
+                logger.info(f"[_process_outbound_shipment_created] Esempio prima spedizione: ID={inbound_shipments[0].id}, nome='{inbound_shipments[0].name}', archived_at={inbound_shipments[0].archived_at}")
+            
             # Filtra solo le spedizioni in entrata non archiviate
-            inbound_shipments = [s for s in inbound_shipments if s.archived_at is None]
-            logger.info(f"[_process_outbound_shipment_created] {len(inbound_shipments)} spedizioni in entrata non archiviate.")
+            active_inbound_shipments = [s for s in inbound_shipments if s.archived_at is None]
+            logger.info(f"[_process_outbound_shipment_created] {len(active_inbound_shipments)} spedizioni in entrata non archiviate.")
             
             # Log dei nomi delle spedizioni inbound per debug
-            inbound_names = [s.name for s in inbound_shipments]
-            logger.info(f"[_process_outbound_shipment_created] Nomi spedizioni inbound trovate: {inbound_names}")
-            logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza per: '{shipment_name}'")
+            inbound_names = [s.name for s in active_inbound_shipments]
+            logger.info(f"[_process_outbound_shipment_created] Nomi spedizioni inbound attive: {inbound_names}")
+            logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza ESATTA per: '{shipment_name}'")
             
-            # Cerca una spedizione con lo stesso nome
+            # Cerca una spedizione con lo stesso nome (confronto esatto)
             matching_shipment = next(
-                (s for s in inbound_shipments if s.name == shipment_name), 
+                (s for s in active_inbound_shipments if s.name == shipment_name), 
                 None
             )
             
             if matching_shipment:
-                logger.info(f"[_process_outbound_shipment_created] TROVATA corrispondenza: spedizione inbound ID {matching_shipment.id} con nome '{matching_shipment.name}'")
+                logger.info(f"[_process_outbound_shipment_created] ✅ TROVATA corrispondenza: spedizione inbound ID {matching_shipment.id} con nome '{matching_shipment.name}'")
                 return {
                     'success': True,
                     'message': f'Trovata spedizione in entrata corrispondente: {matching_shipment.id}',
@@ -214,7 +242,7 @@ class WebhookEventProcessor:
                     'outbound_shipment_name': shipment_name
                 }
             else:
-                logger.warning(f"[_process_outbound_shipment_created] NESSUNA corrispondenza trovata per '{shipment_name}' tra le {len(inbound_shipments)} spedizioni inbound")
+                logger.warning(f"[_process_outbound_shipment_created] ❌ NESSUNA corrispondenza trovata per '{shipment_name}' tra le {len(active_inbound_shipments)} spedizioni inbound attive")
                 
                 # Recupera il nome del merchant
                 merchant_name = update.merchant_name
@@ -236,7 +264,7 @@ class WebhookEventProcessor:
                         merchant_name = str(merchant_id)
                 
                 # Invia notifica per spedizione outbound senza corrispondente inbound
-                logger.info(f"[_process_outbound_shipment_created] Invio notifica OUTBOUND_WITHOUT_INBOUND per '{shipment_name}'")
+                logger.info(f"[_process_outbound_shipment_created] 🚨 Invio notifica OUTBOUND_WITHOUT_INBOUND per '{shipment_name}' (merchant: {merchant_name})")
                 send_outbound_without_inbound_notification(merchant_name, shipment_name)
                 return {
                     'success': False,
