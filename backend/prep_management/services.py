@@ -131,7 +131,8 @@ telegram_service = TelegramService()
 
 def send_telegram_notification(email, message, event_type=None, shipment_id=None):
     """
-    Invia una notifica Telegram a un utente identificato dalla email.
+    Invia una notifica Telegram a TUTTI gli utenti registrati con la stessa email.
+    Supporta più dipendenti aziendali con la stessa email PrepBusiness.
     
     Args:
         email: Email dell'utente (collegata a PrepBusiness)
@@ -140,63 +141,77 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
         shipment_id: ID spedizione (opzionale)
         
     Returns:
-        bool: True se inviato con successo
+        bool: True se almeno un messaggio è stato inviato con successo
     """
     try:
-        # Trova l'utente Telegram
-        telegram_user = TelegramNotification.objects.get(
+        # Trova TUTTI gli utenti Telegram con questa email
+        telegram_users = TelegramNotification.objects.filter(
             email=email,
             is_active=True
         )
         
-        # Crea il record del messaggio
-        telegram_message = TelegramMessage.objects.create(
-            telegram_user=telegram_user,
-            message_text=message,
-            event_type=event_type,
-            shipment_id=shipment_id,
-            status='pending'
-        )
+        if not telegram_users.exists():
+            logger.warning(f"Nessun utente Telegram trovato per email: {email}")
+            return False
         
-        # Invia il messaggio
-        response = telegram_service.send_message(
-            chat_id=telegram_user.chat_id,
-            text=message
-        )
+        success_count = 0
         
-        # Aggiorna il messaggio con successo
-        if response.get('ok'):
-            telegram_message.status = 'sent'
-            telegram_message.sent_at = timezone.now()
-            telegram_message.telegram_message_id = response.get('result', {}).get('message_id')
-            telegram_message.save()
-            
-            # Incrementa il contatore dell'utente
-            telegram_user.increment_notification_count()
-            
-            logger.info(f"Messaggio Telegram inviato con successo a {email}")
+        # Invia a tutti gli utenti con questa email
+        for telegram_user in telegram_users:
+            try:
+                # Crea il record del messaggio
+                telegram_message = TelegramMessage.objects.create(
+                    telegram_user=telegram_user,
+                    message_text=message,
+                    event_type=event_type,
+                    shipment_id=shipment_id,
+                    status='pending'
+                )
+                
+                # Invia il messaggio
+                response = telegram_service.send_message(
+                    chat_id=telegram_user.chat_id,
+                    text=message
+                )
+                
+                # Aggiorna il messaggio con risultato
+                if response.get('ok'):
+                    telegram_message.status = 'sent'
+                    telegram_message.sent_at = timezone.now()
+                    telegram_message.telegram_message_id = response.get('result', {}).get('message_id')
+                    telegram_message.save()
+                    
+                    # Incrementa il contatore dell'utente
+                    telegram_user.increment_notification_count()
+                    
+                    success_count += 1
+                    logger.info(f"Messaggio Telegram inviato a {email} -> chat_id: {telegram_user.chat_id}")
+                else:
+                    # Errore nella risposta Telegram
+                    telegram_message.status = 'failed'
+                    telegram_message.error_message = str(response)
+                    telegram_message.save()
+                    
+                    logger.error(f"Errore API Telegram per {email} chat_id {telegram_user.chat_id}: {response}")
+                    
+            except Exception as e:
+                # Errore per questo specifico utente
+                if 'telegram_message' in locals():
+                    telegram_message.status = 'failed'
+                    telegram_message.error_message = str(e)
+                    telegram_message.save()
+                
+                logger.error(f"Errore invio a {email} chat_id {telegram_user.chat_id}: {str(e)}")
+        
+        if success_count > 0:
+            logger.info(f"Notifica Telegram inviata con successo a {success_count} utenti per email {email}")
             return True
         else:
-            # Errore nella risposta Telegram
-            telegram_message.status = 'failed'
-            telegram_message.error_message = str(response)
-            telegram_message.save()
-            
-            logger.error(f"Errore API Telegram per {email}: {response}")
+            logger.warning(f"Nessun messaggio inviato con successo per email {email}")
             return False
             
-    except TelegramNotification.DoesNotExist:
-        logger.warning(f"Utente Telegram non trovato per email: {email}")
-        return False
-        
     except Exception as e:
-        # Aggiorna il messaggio con errore
-        if 'telegram_message' in locals():
-            telegram_message.status = 'failed'
-            telegram_message.error_message = str(e)
-            telegram_message.save()
-        
-        logger.error(f"Errore nell'invio notifica Telegram a {email}: {str(e)}")
+        logger.error(f"Errore generale nell'invio notifica Telegram a {email}: {str(e)}")
         return False
 
 
@@ -280,10 +295,24 @@ def register_telegram_user(chat_id, email, user_info=None):
                 'language_code': user_info.get('language_code', 'it')
             })
         
-        telegram_user, created = TelegramNotification.objects.update_or_create(
-            email=email,
-            defaults=user_data
-        )
+        # Controlla se questo chat_id è già registrato con un'altra email
+        existing_chat = TelegramNotification.objects.filter(chat_id=chat_id).first()
+        if existing_chat and existing_chat.email != email:
+            # Aggiorna l'email esistente invece di creare nuovo record
+            existing_chat.email = email
+            for key, value in user_data.items():
+                if key != 'chat_id':  # Non sovrascrivere chat_id
+                    setattr(existing_chat, key, value)
+            existing_chat.save()
+            telegram_user = existing_chat
+            created = False
+        else:
+            # Crea nuovo record o aggiorna esistente per questa combinazione email+chat_id
+            telegram_user, created = TelegramNotification.objects.update_or_create(
+                email=email,
+                chat_id=chat_id,
+                defaults={k: v for k, v in user_data.items() if k != 'chat_id'}
+            )
         
         action = "registrato" if created else "aggiornato"
         success_msg = f"Account {action} con successo per {email}!"

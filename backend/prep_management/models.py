@@ -182,7 +182,6 @@ class TelegramNotification(models.Model):
     """
     email = models.EmailField(
         verbose_name="Email PrepBusiness", 
-        unique=True,
         help_text="Email utilizzata nell'account PrepBusiness del cliente"
     )
     chat_id = models.BigIntegerField(
@@ -238,6 +237,9 @@ class TelegramNotification(models.Model):
         verbose_name = "Notifica Telegram"
         verbose_name_plural = "Notifiche Telegram"
         ordering = ['-created_at']
+        # Una persona può registrarsi più volte con email diversa, 
+        # ma stesso chat_id può avere solo una email
+        unique_together = [['email', 'chat_id']]
     
     def __str__(self):
         return f"{self.email} -> @{self.username or 'N/A'}"
