@@ -1308,15 +1308,23 @@ def telegram_bot_info(request):
         }, status=500)
 
 
-@api_view(['POST'])
+@api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def set_telegram_webhook(request):
     """
     Endpoint per configurare il webhook del bot Telegram.
+    Accetta sia GET che POST per facilità d'uso.
     """
     from .services import telegram_service
     
     try:
+        if not telegram_service.bot_token:
+            return Response({
+                'success': False,
+                'error': 'Bot Telegram non configurato (TELEGRAM_BOT_TOKEN mancante)',
+                'configured': False
+            }, status=400)
+        
         webhook_url = request.build_absolute_uri('/prep_management/telegram/webhook/')
         
         url = f"{telegram_service.base_url}/setWebhook"
@@ -1329,17 +1337,25 @@ def set_telegram_webhook(request):
             return Response({
                 'success': True,
                 'webhook_url': webhook_url,
-                'telegram_response': result
+                'telegram_response': result,
+                'message': '✅ Webhook configurato con successo!',
+                'next_steps': [
+                    '1. Testa il bot cercandolo su Telegram',
+                    '2. Invia /start per verificare che risponda',
+                    '3. Registra un utente con la sua email PrepBusiness'
+                ]
             })
         else:
             return Response({
                 'success': False,
                 'error': 'Errore nella configurazione webhook',
-                'response': response.text
+                'response': response.text,
+                'webhook_url': webhook_url
             }, status=400)
             
     except Exception as e:
         return Response({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'webhook_url': request.build_absolute_uri('/prep_management/telegram/webhook/') if request else None
         }, status=500)
