@@ -1325,7 +1325,10 @@ def set_telegram_webhook(request):
                 'configured': False
             }, status=400)
         
+        # Forza HTTPS per il webhook (richiesto da Telegram)
         webhook_url = request.build_absolute_uri('/prep_management/telegram/webhook/')
+        if webhook_url.startswith('http://'):
+            webhook_url = webhook_url.replace('http://', 'https://', 1)
         
         url = f"{telegram_service.base_url}/setWebhook"
         payload = {'url': webhook_url}
@@ -1357,5 +1360,5 @@ def set_telegram_webhook(request):
         return Response({
             'success': False,
             'error': str(e),
-            'webhook_url': request.build_absolute_uri('/prep_management/telegram/webhook/') if request else None
+            'webhook_url': request.build_absolute_uri('/prep_management/telegram/webhook/').replace('http://', 'https://', 1) if request else None
         }, status=500)
