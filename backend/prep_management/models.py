@@ -173,3 +173,150 @@ class SearchResultItem(models.Model):
         ordering = ['shipment_name', 'product_title']
         verbose_name = "Risultato Ricerca Item"
         verbose_name_plural = "Risultati Ricerca Items"
+
+
+class TelegramNotification(models.Model):
+    """
+    Modello per gestire le notifiche Telegram dei clienti.
+    Collega l'email PrepBusiness con il chat_id Telegram.
+    """
+    email = models.EmailField(
+        verbose_name="Email PrepBusiness", 
+        unique=True,
+        help_text="Email utilizzata nell'account PrepBusiness del cliente"
+    )
+    chat_id = models.BigIntegerField(
+        verbose_name="Chat ID Telegram", 
+        unique=True,
+        help_text="ID della chat Telegram per l'invio di notifiche"
+    )
+    username = models.CharField(
+        verbose_name="Username Telegram", 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    first_name = models.CharField(
+        verbose_name="Nome", 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    last_name = models.CharField(
+        verbose_name="Cognome", 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    is_active = models.BooleanField(
+        verbose_name="Attivo", 
+        default=True,
+        help_text="Se disattivato, non riceverà notifiche"
+    )
+    language_code = models.CharField(
+        verbose_name="Codice lingua", 
+        max_length=10, 
+        null=True, 
+        blank=True,
+        default='it'
+    )
+    created_at = models.DateTimeField(verbose_name="Data registrazione", auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name="Ultimo aggiornamento", auto_now=True)
+    last_notification_at = models.DateTimeField(
+        verbose_name="Ultima notifica", 
+        null=True, 
+        blank=True
+    )
+    
+    # Statistiche
+    total_notifications_sent = models.PositiveIntegerField(
+        verbose_name="Notifiche inviate", 
+        default=0
+    )
+    
+    class Meta:
+        verbose_name = "Notifica Telegram"
+        verbose_name_plural = "Notifiche Telegram"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.email} -> @{self.username or 'N/A'}"
+    
+    def get_full_name(self):
+        """Restituisce il nome completo dell'utente."""
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        elif self.first_name:
+            return self.first_name
+        elif self.username:
+            return f"@{self.username}"
+        else:
+            return self.email
+    
+    def increment_notification_count(self):
+        """Incrementa il contatore delle notifiche inviate."""
+        from django.utils import timezone
+        self.total_notifications_sent += 1
+        self.last_notification_at = timezone.now()
+        self.save(update_fields=['total_notifications_sent', 'last_notification_at'])
+
+
+class TelegramMessage(models.Model):
+    """
+    Log dei messaggi Telegram inviati per il debugging e statistiche.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'In attesa'),
+        ('sent', 'Inviato'),
+        ('failed', 'Fallito'),
+        ('retry', 'Da riprovare'),
+    ]
+    
+    telegram_user = models.ForeignKey(
+        TelegramNotification, 
+        on_delete=models.CASCADE,
+        verbose_name="Utente Telegram"
+    )
+    message_text = models.TextField(verbose_name="Testo messaggio")
+    status = models.CharField(
+        verbose_name="Stato", 
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='pending'
+    )
+    telegram_message_id = models.BigIntegerField(
+        verbose_name="ID Messaggio Telegram", 
+        null=True, 
+        blank=True
+    )
+    error_message = models.TextField(
+        verbose_name="Messaggio errore", 
+        null=True, 
+        blank=True
+    )
+    retry_count = models.PositiveIntegerField(verbose_name="Tentativi", default=0)
+    created_at = models.DateTimeField(verbose_name="Data creazione", auto_now_add=True)
+    sent_at = models.DateTimeField(verbose_name="Data invio", null=True, blank=True)
+    
+    # Metadati opzionali
+    event_type = models.CharField(
+        verbose_name="Tipo evento", 
+        max_length=100, 
+        null=True, 
+        blank=True,
+        help_text="Tipo di evento che ha generato il messaggio"
+    )
+    shipment_id = models.CharField(
+        verbose_name="ID Spedizione", 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    
+    class Meta:
+        verbose_name = "Messaggio Telegram"
+        verbose_name_plural = "Messaggi Telegram"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.telegram_user.email}: {self.message_text[:50]}..."

@@ -21,4 +21,9 @@ urlpatterns = [
     path('queue/wait/', views.wait_for_extension_response, name='wait_for_extension_response'),
     path('search-shipments/', views.search_shipments_by_products, name='search_shipments_by_products'),
     path('test-outbound-without-inbound/', views.test_outbound_without_inbound, name='test_outbound_without_inbound'),
+    
+    # URL per il bot Telegram
+    path('telegram/webhook/', views.telegram_webhook, name='telegram_webhook'),
+    path('telegram/bot-info/', views.telegram_bot_info, name='telegram_bot_info'),
+    path('telegram/set-webhook/', views.set_telegram_webhook, name='set_telegram_webhook'),
 ]

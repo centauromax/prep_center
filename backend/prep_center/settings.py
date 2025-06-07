@@ -328,3 +328,23 @@ CORS_ALLOWED_ORIGINS = [
 CELERY_BROKER_URL = os.environ.get("REDIS_URL") or os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
+# =============================================================================
+# CONFIGURAZIONE TELEGRAM BOT
+# =============================================================================
+
+# Token del bot Telegram (da configurare nelle variabili d'ambiente)
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN')
+
+# URL webhook Telegram (configurato automaticamente)
+TELEGRAM_WEBHOOK_URL = os.environ.get('TELEGRAM_WEBHOOK_URL')
+
+# Log della configurazione Telegram
+if TELEGRAM_BOT_TOKEN:
+    print(f"✅ Bot Telegram configurato: {TELEGRAM_BOT_TOKEN[:10]}...")
+else:
+    print("⚠️  Token Telegram non configurato (TELEGRAM_BOT_TOKEN)")
+
+# =============================================================================
+# FINE CONFIGURAZIONI
+# =============================================================================

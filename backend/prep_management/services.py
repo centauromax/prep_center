@@ -53,3 +53,319 @@ class PrepBusinessAPI:
         except Exception as e:
             # In caso di errore, restituisci un elenco vuoto
             return []
+
+
+# =============================================================================
+# SERVIZI TELEGRAM
+# =============================================================================
+
+import logging
+from django.conf import settings
+from django.utils import timezone
+from .models import TelegramNotification, TelegramMessage
+
+logger = logging.getLogger(__name__)
+
+class TelegramService:
+    """Servizio per gestire l'invio di messaggi Telegram."""
+    
+    def __init__(self):
+        self.bot_token = getattr(settings, 'TELEGRAM_BOT_TOKEN', None)
+        self.base_url = f"https://api.telegram.org/bot{self.bot_token}"
+        
+        if not self.bot_token:
+            logger.warning("TELEGRAM_BOT_TOKEN non configurato nelle settings")
+    
+    def send_message(self, chat_id, text, parse_mode='HTML'):
+        """
+        Invia un messaggio Telegram.
+        
+        Args:
+            chat_id: ID della chat Telegram
+            text: Testo del messaggio
+            parse_mode: Modalità parsing (HTML, Markdown)
+            
+        Returns:
+            dict: Risposta API Telegram
+        """
+        if not self.bot_token:
+            raise ValueError("Bot token Telegram non configurato")
+        
+        url = f"{self.base_url}/sendMessage"
+        payload = {
+            'chat_id': chat_id,
+            'text': text,
+            'parse_mode': parse_mode,
+            'disable_web_page_preview': True
+        }
+        
+        try:
+            response = requests.post(url, data=payload, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Errore nell'invio messaggio Telegram a {chat_id}: {str(e)}")
+            raise
+    
+    def get_chat_info(self, chat_id):
+        """Ottiene informazioni su una chat Telegram."""
+        if not self.bot_token:
+            raise ValueError("Bot token Telegram non configurato")
+            
+        url = f"{self.base_url}/getChat"
+        payload = {'chat_id': chat_id}
+        
+        try:
+            response = requests.post(url, data=payload, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Errore nel recuperare info chat {chat_id}: {str(e)}")
+            raise
+
+# Istanza globale del servizio
+telegram_service = TelegramService()
+
+
+def send_telegram_notification(email, message, event_type=None, shipment_id=None):
+    """
+    Invia una notifica Telegram a un utente identificato dalla email.
+    
+    Args:
+        email: Email dell'utente (collegata a PrepBusiness)
+        message: Testo del messaggio
+        event_type: Tipo di evento (opzionale)
+        shipment_id: ID spedizione (opzionale)
+        
+    Returns:
+        bool: True se inviato con successo
+    """
+    try:
+        # Trova l'utente Telegram
+        telegram_user = TelegramNotification.objects.get(
+            email=email,
+            is_active=True
+        )
+        
+        # Crea il record del messaggio
+        telegram_message = TelegramMessage.objects.create(
+            telegram_user=telegram_user,
+            message_text=message,
+            event_type=event_type,
+            shipment_id=shipment_id,
+            status='pending'
+        )
+        
+        # Invia il messaggio
+        response = telegram_service.send_message(
+            chat_id=telegram_user.chat_id,
+            text=message
+        )
+        
+        # Aggiorna il messaggio con successo
+        if response.get('ok'):
+            telegram_message.status = 'sent'
+            telegram_message.sent_at = timezone.now()
+            telegram_message.telegram_message_id = response.get('result', {}).get('message_id')
+            telegram_message.save()
+            
+            # Incrementa il contatore dell'utente
+            telegram_user.increment_notification_count()
+            
+            logger.info(f"Messaggio Telegram inviato con successo a {email}")
+            return True
+        else:
+            # Errore nella risposta Telegram
+            telegram_message.status = 'failed'
+            telegram_message.error_message = str(response)
+            telegram_message.save()
+            
+            logger.error(f"Errore API Telegram per {email}: {response}")
+            return False
+            
+    except TelegramNotification.DoesNotExist:
+        logger.warning(f"Utente Telegram non trovato per email: {email}")
+        return False
+        
+    except Exception as e:
+        # Aggiorna il messaggio con errore
+        if 'telegram_message' in locals():
+            telegram_message.status = 'failed'
+            telegram_message.error_message = str(e)
+            telegram_message.save()
+        
+        logger.error(f"Errore nell'invio notifica Telegram a {email}: {str(e)}")
+        return False
+
+
+def retry_telegram_message(telegram_message):
+    """
+    Riprova l'invio di un messaggio Telegram fallito.
+    
+    Args:
+        telegram_message: Istanza di TelegramMessage
+        
+    Returns:
+        bool: True se inviato con successo
+    """
+    try:
+        telegram_message.retry_count += 1
+        telegram_message.status = 'retry'
+        telegram_message.save()
+        
+        # Invia il messaggio
+        response = telegram_service.send_message(
+            chat_id=telegram_message.telegram_user.chat_id,
+            text=telegram_message.message_text
+        )
+        
+        # Aggiorna con il risultato
+        if response.get('ok'):
+            telegram_message.status = 'sent'
+            telegram_message.sent_at = timezone.now()
+            telegram_message.telegram_message_id = response.get('result', {}).get('message_id')
+            telegram_message.error_message = None
+            telegram_message.save()
+            
+            # Incrementa il contatore dell'utente
+            telegram_message.telegram_user.increment_notification_count()
+            
+            return True
+        else:
+            telegram_message.status = 'failed'
+            telegram_message.error_message = str(response)
+            telegram_message.save()
+            return False
+            
+    except Exception as e:
+        telegram_message.status = 'failed'
+        telegram_message.error_message = str(e)
+        telegram_message.save()
+        
+        logger.error(f"Errore nel retry messaggio {telegram_message.id}: {str(e)}")
+        return False
+
+
+def register_telegram_user(chat_id, email, user_info=None):
+    """
+    Registra un utente Telegram collegandolo alla sua email PrepBusiness.
+    
+    Args:
+        chat_id: ID chat Telegram
+        email: Email dell'utente
+        user_info: Informazioni utente da Telegram (opzionale)
+        
+    Returns:
+        tuple: (success: bool, message: str, user: TelegramNotification|None)
+    """
+    try:
+        # Verifica che l'email sia valida (puoi aggiungere qui controlli con PrepBusiness)
+        if not email or '@' not in email:
+            return False, "Email non valida", None
+        
+        # Crea o aggiorna l'utente
+        user_data = {
+            'chat_id': chat_id,
+            'is_active': True
+        }
+        
+        # Aggiungi info utente se disponibili
+        if user_info:
+            user_data.update({
+                'username': user_info.get('username'),
+                'first_name': user_info.get('first_name'),
+                'last_name': user_info.get('last_name'),
+                'language_code': user_info.get('language_code', 'it')
+            })
+        
+        telegram_user, created = TelegramNotification.objects.update_or_create(
+            email=email,
+            defaults=user_data
+        )
+        
+        action = "registrato" if created else "aggiornato"
+        success_msg = f"Account {action} con successo per {email}!"
+        
+        logger.info(f"Utente Telegram {action}: {email} -> {chat_id}")
+        return True, success_msg, telegram_user
+        
+    except Exception as e:
+        error_msg = f"Errore nella registrazione: {str(e)}"
+        logger.error(f"Errore registrazione Telegram per {email}: {str(e)}")
+        return False, error_msg, None
+
+
+def verify_email_in_prepbusiness(email):
+    """
+    Verifica se un'email esiste in PrepBusiness (da implementare con API).
+    
+    Args:
+        email: Email da verificare
+        
+    Returns:
+        bool: True se l'email esiste
+    """
+    # TODO: Implementare la verifica con API PrepBusiness
+    # Per ora restituiamo sempre True per permettere la registrazione
+    logger.info(f"Verifica email PrepBusiness: {email} (stub - sempre True)")
+    return True
+
+
+def format_shipment_notification(event_type, shipment_data):
+    """
+    Formatta un messaggio di notifica per una spedizione.
+    
+    Args:
+        event_type: Tipo di evento
+        shipment_data: Dati della spedizione
+        
+    Returns:
+        str: Messaggio formattato
+    """
+    icons = {
+        'inbound_shipment.created': '📦',
+        'inbound_shipment.received': '✅',
+        'inbound_shipment.shipped': '🚛',
+        'outbound_shipment.created': '📤',
+        'outbound_shipment.shipped': '🚚',
+        'outbound_shipment.closed': '✅',
+        'order.created': '🛒',
+        'order.shipped': '📮'
+    }
+    
+    messages = {
+        'inbound_shipment.created': 'Nuova spedizione in entrata creata',
+        'inbound_shipment.received': 'Spedizione in entrata ricevuta',
+        'inbound_shipment.shipped': 'Spedizione in entrata in transito',
+        'outbound_shipment.created': 'Nuova spedizione in uscita creata',
+        'outbound_shipment.shipped': 'Spedizione in uscita spedita',
+        'outbound_shipment.closed': 'Spedizione in uscita completata',
+        'order.created': 'Nuovo ordine creato',
+        'order.shipped': 'Ordine spedito'
+    }
+    
+    icon = icons.get(event_type, '📋')
+    title = messages.get(event_type, 'Aggiornamento spedizione')
+    
+    message = f"{icon} <b>{title}</b>\n\n"
+    
+    if shipment_data.get('shipment_id'):
+        message += f"🆔 <b>ID:</b> {shipment_data['shipment_id']}\n"
+    
+    if shipment_data.get('shipment_name'):
+        message += f"📝 <b>Nome:</b> {shipment_data['shipment_name']}\n"
+        
+    if shipment_data.get('tracking_number'):
+        message += f"🔍 <b>Tracking:</b> {shipment_data['tracking_number']}\n"
+        
+    if shipment_data.get('carrier'):
+        message += f"🚛 <b>Corriere:</b> {shipment_data['carrier']}\n"
+    
+    if shipment_data.get('notes'):
+        message += f"\n💬 <b>Note:</b>\n{shipment_data['notes']}\n"
+    
+    message += f"\n🕒 <i>Aggiornamento del {timezone.now().strftime('%d/%m/%Y alle %H:%M')}</i>"
+    
+    return message

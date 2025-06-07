@@ -3,12 +3,12 @@ from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
 from .services import PrepBusinessAPI
 from .utils.merchants import get_merchants
-from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage
+from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification
 from .serializers import OutgoingMessageSerializer, IncomingMessageSerializer
 import logging
 import requests
@@ -53,6 +53,7 @@ from libs.config import (
 )
 import re
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
+from rest_framework.permissions import AllowAny
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -1042,4 +1043,303 @@ def test_outbound_without_inbound(request):
             'status': 'error',
             'message': f'Errore durante il test: {str(e)}',
             'timestamp': timezone.now().isoformat()
+        }, status=500)
+
+@csrf_exempt
+def telegram_webhook(request):
+    """
+    Webhook per ricevere aggiornamenti dal bot Telegram.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        # Parse del payload JSON
+        data = json.loads(request.body.decode('utf-8'))
+        logger.info(f"Webhook Telegram ricevuto: {data}")
+        
+        # Controlla se è un messaggio
+        if 'message' in data:
+            message = data['message']
+            chat_id = message['chat']['id']
+            text = message.get('text', '')
+            user_info = message.get('from', {})
+            
+            # Gestisci il comando /start
+            if text.startswith('/start'):
+                handle_start_command(chat_id, user_info)
+            
+            # Controlla se è una email (registrazione)
+            elif '@' in text and '.' in text:
+                handle_email_registration(chat_id, text.strip(), user_info)
+            
+            # Comandi di aiuto
+            elif text.lower() in ['/help', 'aiuto', 'help']:
+                handle_help_command(chat_id)
+            
+            # Comando per test
+            elif text.lower() in ['/test', 'test']:
+                handle_test_command(chat_id)
+            
+            else:
+                # Messaggio non riconosciuto
+                send_unknown_command_message(chat_id)
+        
+        return JsonResponse({'ok': True})
+        
+    except Exception as e:
+        logger.error(f"Errore nel webhook Telegram: {str(e)}")
+        return JsonResponse({'error': 'Internal server error'}, status=500)
+
+
+def handle_start_command(chat_id, user_info):
+    """Gestisce il comando /start del bot."""
+    from .services import telegram_service
+    
+    welcome_message = """
+🤖 <b>Benvenuto al FBA Prep Center Italy Bot!</b>
+
+Per ricevere notifiche sui tuoi ordini e spedizioni, devi registrare la tua email di PrepBusiness.
+
+📧 <b>Invia la tua email</b> (quella utilizzata su PrepBusiness) per iniziare a ricevere notifiche automatiche.
+
+Esempio: <code>mario.rossi@example.com</code>
+
+ℹ️ Usa /help per vedere tutti i comandi disponibili.
+    """
+    
+    try:
+        telegram_service.send_message(chat_id, welcome_message)
+    except Exception as e:
+        logger.error(f"Errore nell'invio messaggio di benvenuto: {str(e)}")
+
+
+def handle_email_registration(chat_id, email, user_info):
+    """Gestisce la registrazione dell'email."""
+    from .services import register_telegram_user, telegram_service
+    
+    # Validazione email di base
+    if not email or '@' not in email or '.' not in email:
+        error_message = """
+❌ <b>Email non valida</b>
+
+Invia una email valida nel formato: <code>nome@dominio.com</code>
+        """
+        telegram_service.send_message(chat_id, error_message)
+        return
+    
+    # Registra l'utente
+    success, message, user = register_telegram_user(chat_id, email, user_info)
+    
+    if success:
+        success_message = f"""
+✅ <b>Registrazione completata!</b>
+
+📧 Email: <code>{email}</code>
+🆔 Chat ID: <code>{chat_id}</code>
+
+Ora riceverai notifiche automatiche su:
+• 📦 Spedizioni in entrata ricevute
+• 📤 Spedizioni in uscita create/spedite/chiuse
+• 🛒 Nuovi ordini
+• 📋 Altri aggiornamenti importanti
+
+🔔 Le notifiche sono <b>attive</b>. Usa /help per vedere altri comandi.
+        """
+        telegram_service.send_message(chat_id, success_message)
+        
+        # Invia un messaggio di test
+        test_message = """
+🔧 <b>Messaggio di test</b>
+
+Se ricevi questo messaggio, la configurazione è avvenuta con successo! 🎉
+
+Da ora in poi riceverai qui tutte le notifiche relative ai tuoi ordini e spedizioni.
+        """
+        telegram_service.send_message(chat_id, test_message)
+        
+    else:
+        error_message = f"""
+❌ <b>Errore nella registrazione</b>
+
+{message}
+
+Riprova con una email valida utilizzata su PrepBusiness.
+        """
+        telegram_service.send_message(chat_id, error_message)
+
+
+def handle_help_command(chat_id):
+    """Gestisce il comando di aiuto."""
+    from .services import telegram_service
+    
+    help_message = """
+🤖 <b>FBA Prep Center Italy Bot - Aiuto</b>
+
+<b>Comandi disponibili:</b>
+• <code>/start</code> - Avvia il bot e ottieni istruzioni
+• <code>/help</code> - Mostra questo messaggio di aiuto
+• <code>/test</code> - Invia un messaggio di test
+• <code>/status</code> - Controlla lo stato della tua registrazione
+
+<b>Per registrarti:</b>
+1. Invia la tua email PrepBusiness
+2. Conferma la registrazione
+3. Inizia a ricevere notifiche!
+
+<b>Tipi di notifiche:</b>
+📦 Spedizioni in entrata
+📤 Spedizioni in uscita
+🛒 Ordini
+📋 Aggiornamenti generali
+
+<b>Supporto:</b>
+Per problemi o domande, contatta il supporto FBA Prep Center Italy.
+    """
+    
+    try:
+        telegram_service.send_message(chat_id, help_message)
+    except Exception as e:
+        logger.error(f"Errore nell'invio messaggio di aiuto: {str(e)}")
+
+
+def handle_test_command(chat_id):
+    """Gestisce il comando di test."""
+    from .services import telegram_service
+    from .models import TelegramNotification
+    
+    try:
+        # Controlla se l'utente è registrato
+        telegram_user = TelegramNotification.objects.get(chat_id=chat_id, is_active=True)
+        
+        test_message = f"""
+✅ <b>Test di connessione riuscito!</b>
+
+👤 <b>Utente:</b> {telegram_user.get_full_name()}
+📧 <b>Email:</b> {telegram_user.email}
+🆔 <b>Chat ID:</b> {chat_id}
+📊 <b>Notifiche inviate:</b> {telegram_user.total_notifications_sent}
+📅 <b>Registrato il:</b> {telegram_user.created_at.strftime('%d/%m/%Y alle %H:%M')}
+
+🔔 Le notifiche sono <b>attive</b> e funzionanti!
+        """
+        
+        telegram_service.send_message(chat_id, test_message)
+        
+        # Incrementa il contatore
+        telegram_user.increment_notification_count()
+        
+    except TelegramNotification.DoesNotExist:
+        not_registered_message = """
+❌ <b>Utente non registrato</b>
+
+Per utilizzare questo bot devi prima registrarti inviando la tua email PrepBusiness.
+
+Esempio: <code>mario.rossi@example.com</code>
+
+Usa /start per le istruzioni complete.
+        """
+        telegram_service.send_message(chat_id, not_registered_message)
+        
+    except Exception as e:
+        logger.error(f"Errore nel comando test: {str(e)}")
+        error_message = "❌ Errore nel test. Riprova più tardi."
+        telegram_service.send_message(chat_id, error_message)
+
+
+def send_unknown_command_message(chat_id):
+    """Invia un messaggio per comando non riconosciuto."""
+    from .services import telegram_service
+    
+    unknown_message = """
+❓ <b>Comando non riconosciuto</b>
+
+Se vuoi registrarti, invia la tua email PrepBusiness.
+Se hai bisogno di aiuto, usa il comando /help.
+
+<b>Comandi disponibili:</b>
+• /help - Aiuto
+• /test - Test connessione
+• /start - Riavvia bot
+    """
+    
+    try:
+        telegram_service.send_message(chat_id, unknown_message)
+    except Exception as e:
+        logger.error(f"Errore nell'invio messaggio comando sconosciuto: {str(e)}")
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def telegram_bot_info(request):
+    """
+    Endpoint per ottenere informazioni sul bot Telegram.
+    """
+    from .services import telegram_service
+    
+    try:
+        if not telegram_service.bot_token:
+            return Response({
+                'error': 'Bot Telegram non configurato',
+                'configured': False
+            }, status=400)
+        
+        # Ottieni info del bot
+        url = f"{telegram_service.base_url}/getMe"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            bot_info = response.json()
+            return Response({
+                'configured': True,
+                'bot_info': bot_info.get('result', {}),
+                'webhook_url': request.build_absolute_uri('/prep_management/telegram/webhook/')
+            })
+        else:
+            return Response({
+                'error': 'Errore nel recuperare info bot',
+                'configured': False
+            }, status=400)
+            
+    except Exception as e:
+        return Response({
+            'error': str(e),
+            'configured': False
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def set_telegram_webhook(request):
+    """
+    Endpoint per configurare il webhook del bot Telegram.
+    """
+    from .services import telegram_service
+    
+    try:
+        webhook_url = request.build_absolute_uri('/prep_management/telegram/webhook/')
+        
+        url = f"{telegram_service.base_url}/setWebhook"
+        payload = {'url': webhook_url}
+        
+        response = requests.post(url, data=payload, timeout=10)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return Response({
+                'success': True,
+                'webhook_url': webhook_url,
+                'telegram_response': result
+            })
+        else:
+            return Response({
+                'success': False,
+                'error': 'Errore nella configurazione webhook',
+                'response': response.text
+            }, status=400)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
         }, status=500)

@@ -10,6 +10,7 @@ import time
 
 from .models import ShipmentStatusUpdate, OutgoingMessage
 from .utils.messaging import send_outbound_without_inbound_notification
+from .services import send_telegram_notification, format_shipment_notification
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import (
     PREP_BUSINESS_API_URL,
@@ -110,6 +111,9 @@ class WebhookEventProcessor:
             update.process_result = result
             update.save()
             logger.info(f"[WebhookEventProcessor.process_event] Risultato salvato per Update ID: {update_id}.")
+            
+            # Invia notifica Telegram se l'evento lo richiede
+            self._send_telegram_notification_if_needed(update)
             
             return result
             
@@ -300,3 +304,101 @@ class WebhookEventProcessor:
             'success': True,
             'message': f'Evento {event_type} per spedizione in entrata {shipment_id} registrato',
         } 
+
+    def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate):
+        """
+        Invia una notifica Telegram se l'evento lo richiede.
+        
+        Args:
+            update: Oggetto ShipmentStatusUpdate da elaborare
+        """
+        # Lista degli eventi per cui inviare notifiche
+        notify_events = [
+            'inbound_shipment.received',
+            'inbound_shipment.shipped', 
+            'outbound_shipment.created',
+            'outbound_shipment.shipped',
+            'outbound_shipment.closed',
+            'order.created',
+            'order.shipped'
+        ]
+        
+        # Controlla se l'evento richiede una notifica
+        if update.event_type not in notify_events:
+            logger.info(f"[_send_telegram_notification_if_needed] Evento {update.event_type} non richiede notifica Telegram")
+            return
+        
+        try:
+            # Estrai l'email del merchant dall'API PrepBusiness
+            merchant_email = self._get_merchant_email(update.merchant_id)
+            
+            if not merchant_email:
+                logger.warning(f"[_send_telegram_notification_if_needed] Email merchant non trovata per ID: {update.merchant_id}")
+                return
+            
+            # Prepara i dati della spedizione
+            payload = update.payload or {}
+            data = payload.get('data', {})
+            
+            shipment_data = {
+                'shipment_id': update.shipment_id,
+                'shipment_name': data.get('name', ''),
+                'tracking_number': update.tracking_number,
+                'carrier': update.carrier,
+                'notes': update.notes,
+                'merchant_name': update.merchant_name,
+                'new_status': update.new_status
+            }
+            
+            # Formatta il messaggio
+            message = format_shipment_notification(update.event_type, shipment_data)
+            
+            # Invia la notifica
+            success = send_telegram_notification(
+                email=merchant_email,
+                message=message,
+                event_type=update.event_type,
+                shipment_id=update.shipment_id
+            )
+            
+            if success:
+                logger.info(f"[_send_telegram_notification_if_needed] Notifica Telegram inviata per evento {update.event_type} a {merchant_email}")
+            else:
+                logger.warning(f"[_send_telegram_notification_if_needed] Notifica Telegram fallita per evento {update.event_type} a {merchant_email}")
+                
+        except Exception as e:
+            logger.error(f"[_send_telegram_notification_if_needed] Errore nell'invio notifica Telegram: {str(e)}")
+    
+    def _get_merchant_email(self, merchant_id: str) -> Optional[str]:
+        """
+        Recupera l'email di un merchant dall'API PrepBusiness.
+        
+        Args:
+            merchant_id: ID del merchant
+            
+        Returns:
+            Email del merchant o None se non trovata
+        """
+        if not self.client or not merchant_id:
+            return None
+            
+        try:
+            logger.info(f"[_get_merchant_email] Recupero email per merchant ID: {merchant_id}")
+            
+            # Ottieni i merchant dall'API
+            merchants_response = self.client.get_merchants()
+            merchants = merchants_response.data if merchants_response else []
+            
+            # Trova il merchant con l'ID specificato
+            merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
+            
+            if merchant and hasattr(merchant, 'email'):
+                logger.info(f"[_get_merchant_email] Email trovata per merchant {merchant_id}: {merchant.email}")
+                return merchant.email
+            else:
+                logger.warning(f"[_get_merchant_email] Merchant {merchant_id} non trovato o senza email")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[_get_merchant_email] Errore nel recupero email merchant {merchant_id}: {str(e)}")
+            return None 
