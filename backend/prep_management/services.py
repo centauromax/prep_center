@@ -395,6 +395,14 @@ def format_shipment_notification(event_type, shipment_data):
     if shipment_data.get('notes'):
         message += f"\n💬 <b>Note:</b>\n{shipment_data['notes']}\n"
     
-    message += f"\n🕒 <i>Aggiornamento del {timezone.now().strftime('%d/%m/%Y alle %H:%M')}</i>"
+    # Usa il timezone di Roma configurato nelle settings
+    from django.conf import settings
+    import pytz
+    
+    # Ottieni il timezone di Roma
+    rome_tz = pytz.timezone('Europe/Rome')
+    local_time = timezone.now().astimezone(rome_tz)
+    
+    message += f"\n🕒 <i>Aggiornamento del {local_time.strftime('%d/%m/%Y alle %H:%M')}</i>"
     
     return message

@@ -315,6 +315,7 @@ class WebhookEventProcessor:
         """
         # Lista degli eventi per cui inviare notifiche
         notify_events = [
+            'inbound_shipment.created',    # Aggiunto! 
             'inbound_shipment.received',
             'inbound_shipment.shipped', 
             'outbound_shipment.created',
