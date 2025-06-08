@@ -283,7 +283,8 @@ def register_telegram_user(chat_id, email, user_info=None):
         # Verifica che l'email esista nel software del Prep Center
         logger.info(f"[register_telegram_user] Verifica email {email} nel software del Prep Center")
         if not verify_email_in_prepbusiness(email):
-            error_msg = f"Email {email} non trovata nel software del Prep Center. Verifica di aver inserito l'email corretta utilizzata per il tuo account sul software del Prep Center."
+            # Restituiamo solo la chiave di traduzione, sarà gestita nel view
+            error_msg = "email_not_found_in_system"
             logger.warning(f"[register_telegram_user] ❌ Registrazione fallita per {email}: email non trovata nel software del Prep Center")
             return False, error_msg, None
         

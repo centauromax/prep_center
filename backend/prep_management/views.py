@@ -1160,7 +1160,11 @@ def handle_email_registration(chat_id, email, user_info):
         telegram_service.send_message(chat_id, test_message)
         
     else:
-        error_message = get_text('registration_error', lang=user_lang, message=message)
+        # Gestisci messaggi di errore specifici
+        if message == "email_not_found_in_system":
+            error_message = get_text('email_not_found_in_system', lang=user_lang, email=email)
+        else:
+            error_message = get_text('registration_error', lang=user_lang, message=message)
         telegram_service.send_message(chat_id, error_message)
 
 

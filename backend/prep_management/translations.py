@@ -147,12 +147,12 @@ From now on, you will receive all notifications about your orders and shipments 
         """
     },
     
-    # Errore registrazione
-    'registration_error': {
+    # Errore registrazione - email non trovata
+    'email_not_found_in_system': {
         'it': """
-❌ <b>Errore nella registrazione</b>
+❌ <b>Email non trovata nel sistema</b>
 
-{message}
+L'email {email} non è stata trovata nel software del Prep Center.
 
 Per registrarti devi utilizzare l'email con cui hai attivato il tuo account sul software del Prep Center.
 
@@ -162,15 +162,37 @@ Per registrarti devi utilizzare l'email con cui hai attivato il tuo account sul 
 • Contatta il supporto se il problema persiste
         """,
         'en': """
-❌ <b>Registration error</b>
+❌ <b>Email not found in system</b>
 
-{message}
+The email {email} was not found in the Prep Center software.
 
 To register, you must use the email you used to activate your account on the Prep Center software.
 
 💡 <b>Suggestions:</b>
 • Check that you have typed the email correctly
 • Make sure it's the same email as your Prep Center software account
+• Contact support if the problem persists
+        """
+    },
+    
+    # Errore registrazione generico
+    'registration_error': {
+        'it': """
+❌ <b>Errore nella registrazione</b>
+
+{message}
+
+💡 <b>Suggerimenti:</b>
+• Verifica di aver scritto correttamente l'email
+• Contatta il supporto se il problema persiste
+        """,
+        'en': """
+❌ <b>Registration error</b>
+
+{message}
+
+💡 <b>Suggestions:</b>
+• Check that you have typed the email correctly
 • Contact support if the problem persists
         """
     },
