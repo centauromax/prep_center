@@ -54,6 +54,7 @@ from libs.config import (
 import re
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from rest_framework.permissions import AllowAny
+from django.contrib.auth.models import User
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -1361,4 +1362,38 @@ def set_telegram_webhook(request):
             'success': False,
             'error': str(e),
             'webhook_url': request.build_absolute_uri('/prep_management/telegram/webhook/').replace('http://', 'https://', 1) if request else None
+        }, status=500)
+
+def create_admin_user(request):
+    """Crea/aggiorna l'utente admin via web"""
+    try:
+        username = 'admin'
+        email = 'admin@fbaprepcenteritaly.com'
+        password = 'FbaPrepAdmin2024!'
+
+        # Elimina l'utente se esiste
+        User.objects.filter(username=username).delete()
+        
+        # Crea nuovo superuser
+        user = User.objects.create_superuser(
+            username=username,
+            email=email,
+            password=password
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'✅ Superuser "{username}" creato con successo!',
+            'credentials': {
+                'username': username,
+                'email': email,
+                'password': password,
+                'user_id': user.id
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         }, status=500)
