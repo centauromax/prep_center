@@ -68,21 +68,39 @@ class ChatManager:
             recipients = self.get_conversation_recipients(sender.email)
             delivered_to = []
             
+            # Filtra solo destinatari validi (esistenti e attivi)
+            valid_recipients = []
             for recipient in recipients:
                 if recipient.chat_id != chat_id:  # Non inviare a se stesso
-                    
-                    # Formatta messaggio diversamente per admin vs cliente
-                    if recipient.email == ADMIN_EMAIL:
-                        formatted_message = self.format_message_for_admin(
-                            sender.email, message_text, conversation
-                        )
-                        # Imposta questa come conversazione attiva per admin
-                        self.set_admin_active_conversation(recipient.chat_id, conversation)
+                    # Verifica che il destinatario sia valido
+                    if recipient.is_active:
+                        valid_recipients.append(recipient)
                     else:
-                        # Messaggio normale per altri utenti dello stesso cliente
-                        formatted_message = f"💬 <b>{sender.get_full_name()}</b>:\n{message_text}"
-                    
-                    # Invia messaggio
+                        logger.warning(f"Destinatario non attivo: {recipient.email}")
+            
+            if not valid_recipients:
+                logger.info(f"Nessun destinatario valido per {sender.email}, solo salvataggio messaggio")
+                return {
+                    'success': True,
+                    'message': 'Messaggio salvato (nessun destinatario disponibile)',
+                    'conversation_id': conversation.thread_id,
+                    'delivered_to': 0
+                }
+            
+            for recipient in valid_recipients:
+                # Formatta messaggio diversamente per admin vs cliente
+                if recipient.email == ADMIN_EMAIL:
+                    formatted_message = self.format_message_for_admin(
+                        sender.email, message_text, conversation
+                    )
+                    # Imposta questa come conversazione attiva per admin
+                    self.set_admin_active_conversation(recipient.chat_id, conversation)
+                else:
+                    # Messaggio normale per altri utenti dello stesso cliente
+                    formatted_message = f"💬 <b>{sender.get_full_name()}</b>:\n{message_text}"
+                
+                # Invia messaggio con gestione errori
+                try:
                     success = self.telegram_service.send_message(
                         chat_id=recipient.chat_id,
                         text=formatted_message
@@ -90,6 +108,12 @@ class ChatManager:
                     
                     if success.get('ok'):
                         delivered_to.append(recipient.chat_id)
+                    else:
+                        logger.warning(f"Invio fallito a {recipient.chat_id}: {success}")
+                        
+                except Exception as e:
+                    logger.error(f"Errore invio a {recipient.email} ({recipient.chat_id}): {str(e)}")
+                    # Continua con gli altri destinatari
             
             # Aggiorna delivery status
             chat_message.delivered_to = delivered_to
