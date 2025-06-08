@@ -1,2 +1,2 @@
-web: cd backend && python manage.py runserver 0.0.0.0:$PORT
+web: cd backend && ./deploy.sh
 worker: cd backend && celery -A prep_center worker -l info
