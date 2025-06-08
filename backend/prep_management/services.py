@@ -129,10 +129,14 @@ class TelegramService:
 telegram_service = TelegramService()
 
 
+# Email amministrativa che riceve tutte le notifiche
+ADMIN_EMAIL = "info@fbaprepcenteritaly.com"
+
 def send_telegram_notification(email, message, event_type=None, shipment_id=None, shipment_data=None):
     """
     Invia una notifica Telegram a TUTTI gli utenti registrati con la stessa email.
     Supporta più dipendenti aziendali con la stessa email del Prep Center.
+    Invia automaticamente una copia anche all'email amministrativa.
     
     Args:
         email: Email dell'utente (collegata al software del Prep Center)
@@ -150,6 +154,17 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
             email=email,
             is_active=True
         )
+        
+        # Aggiungi anche gli utenti dell'email amministrativa (se diversa)
+        if email != ADMIN_EMAIL:
+            admin_users = TelegramNotification.objects.filter(
+                email=ADMIN_EMAIL,
+                is_active=True
+            )
+            telegram_users = telegram_users.union(admin_users)
+            
+            if admin_users.exists():
+                logger.info(f"Aggiunta notifica anche per email amministrativa: {ADMIN_EMAIL}")
         
         if not telegram_users.exists():
             logger.warning(f"Nessun utente Telegram trovato per email: {email}")
@@ -170,6 +185,12 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
                         shipment_data=shipment_data,
                         user_language=user_language
                     )
+                    
+                    # Se questo è l'admin e non è il cliente originale, aggiungi info sul cliente
+                    if telegram_user.email == ADMIN_EMAIL and email != ADMIN_EMAIL:
+                        admin_prefix = f"📧 <b>Cliente:</b> {email}\n\n" if user_language == 'it' else f"📧 <b>Customer:</b> {email}\n\n"
+                        user_message = admin_prefix + user_message
+                        
                 elif message is None:
                     # Se non abbiamo i dati per formattare, usa un messaggio generico
                     user_message = "Aggiornamento dal Prep Center"
@@ -388,7 +409,8 @@ def verify_email_in_prepbusiness(email):
             "contact@hrtretail.com",
             "protsenkoyuliia2@gmail.com",
             "info@flogastore.it",
-            "zunan.javid@novus-trade.fr"
+            "zunan.javid@novus-trade.fr",
+            "info@fbaprepcenteritaly.com"  # Email amministrativa che riceve tutte le notifiche
         ]
         
         # Verifica case-insensitive
