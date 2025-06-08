@@ -304,24 +304,25 @@ def register_telegram_user(chat_id, email, user_info=None):
                 'language_code': user_info.get('language_code', 'it')
             })
         
-        # Controlla se questo chat_id è già registrato con un'altra email
+        # Controlla se questo chat_id è già registrato (anche con email temporanea)
         existing_chat = TelegramNotification.objects.filter(chat_id=chat_id).first()
-        if existing_chat and existing_chat.email != email:
-            # Aggiorna l'email esistente invece di creare nuovo record
+        if existing_chat:
+            # Se esiste già un record per questo chat_id, aggiornalo
             existing_chat.email = email
+            existing_chat.is_active = True  # Attiva l'utente
             for key, value in user_data.items():
-                if key != 'chat_id':  # Non sovrascrivere chat_id
+                if key != 'chat_id' and value is not None:  # Non sovrascrivere chat_id e valori None
                     setattr(existing_chat, key, value)
             existing_chat.save()
             telegram_user = existing_chat
             created = False
         else:
-            # Crea nuovo record o aggiorna esistente per questa combinazione email+chat_id
-            telegram_user, created = TelegramNotification.objects.update_or_create(
+            # Crea nuovo record
+            telegram_user = TelegramNotification.objects.create(
                 email=email,
-                chat_id=chat_id,
-                defaults={k: v for k, v in user_data.items() if k != 'chat_id'}
+                **user_data
             )
+            created = True
         
         action = "registrato" if created else "aggiornato"
         success_msg = f"Account {action} con successo per {email}!"

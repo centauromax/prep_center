@@ -1070,6 +1070,10 @@ def telegram_webhook(request):
             if text.startswith('/start'):
                 handle_start_command(chat_id, user_info)
             
+            # Gestisci scelta lingua
+            elif text.lower().strip() in ['i', 'e']:
+                handle_language_selection(chat_id, text.lower().strip(), user_info)
+            
             # Controlla se è una email (registrazione)
             elif '@' in text and '.' in text:
                 handle_email_registration(chat_id, text.strip(), user_info)
@@ -1086,6 +1090,10 @@ def telegram_webhook(request):
             elif text.lower() in ['/status', 'status']:
                 handle_status_command(chat_id)
             
+            # Comando per cambiare lingua
+            elif text.lower() in ['/language', '/lingua', 'language', 'lingua']:
+                handle_language_command(chat_id)
+            
             else:
                 # Messaggio non riconosciuto
                 send_unknown_command_message(chat_id)
@@ -1100,18 +1108,10 @@ def telegram_webhook(request):
 def handle_start_command(chat_id, user_info):
     """Gestisce il comando /start del bot."""
     from .services import telegram_service
+    from .translations import get_text
     
-    welcome_message = """
-🤖 <b>Benvenuto al FBA Prep Center Italy Bot!</b>
-
-Per ricevere notifiche sui tuoi ordini e spedizioni, devi registrarti su questo bot.
-
-📧 Inserisci l'email con cui ti sei registrato sul software del Prep Center.
-
-Esempio: <code>mario.rossi@example.com</code>
-
-ℹ️ Usa /help per vedere tutti i comandi disponibili.
-    """
+    # Invia messaggio bilingue per scelta lingua
+    welcome_message = get_text('welcome_bilingual')
     
     try:
         telegram_service.send_message(chat_id, welcome_message)
@@ -1123,14 +1123,14 @@ def handle_email_registration(chat_id, email, user_info):
     """Gestisce la registrazione dell'email."""
     try:
         from .services import register_telegram_user, telegram_service
+        from .translations import get_text, get_user_language
+        
+        # Ottieni la lingua dell'utente
+        user_lang = get_user_language(chat_id)
         
         # Validazione email di base
         if not email or '@' not in email or '.' not in email:
-            error_message = """
-❌ <b>Email non valida</b>
-
-Invia una email valida nel formato: <code>nome@dominio.com</code>
-            """
+            error_message = get_text('invalid_email', lang=user_lang)
             telegram_service.send_message(chat_id, error_message)
             return
         
@@ -1139,84 +1139,110 @@ Invia una email valida nel formato: <code>nome@dominio.com</code>
     except Exception as e:
         logger.error(f"Errore nella registrazione email {email}: {str(e)}")
         from .services import telegram_service
-        error_message = """
-❌ <b>Errore del sistema</b>
-
-Si è verificato un errore durante la registrazione. Riprova più tardi o contatta il supporto.
-        """
+        from .translations import get_text, get_user_language
+        
+        user_lang = get_user_language(chat_id)
+        error_message = get_text('system_error', lang=user_lang)
         telegram_service.send_message(chat_id, error_message)
         return
     
     if success:
-        success_message = f"""
-✅ <b>Registrazione completata!</b>
-
-📧 Email: <code>{email}</code>
-🆔 Chat ID: <code>{chat_id}</code>
-
-Ora riceverai notifiche automatiche su:
-• 📦 Spedizioni in entrata ricevute
-• 📤 Spedizioni in uscita create/spedite/chiuse
-• 🛒 Nuovi ordini
-• 📋 Altri aggiornamenti importanti
-
-🔔 Le notifiche sono <b>attive</b>. Usa /help per vedere altri comandi.
-        """
+        # Aggiorna la lingua se era un utente temporaneo
+        if user:
+            user.language_code = user_lang
+            user.save()
+        
+        success_message = get_text('registration_success', lang=user_lang, email=email, chat_id=chat_id)
         telegram_service.send_message(chat_id, success_message)
         
         # Invia un messaggio di test
-        test_message = """
-🔧 <b>Messaggio di test</b>
-
-Se ricevi questo messaggio, la configurazione è avvenuta con successo! 🎉
-
-Da ora in poi riceverai qui tutte le notifiche relative ai tuoi ordini e spedizioni.
-        """
+        test_message = get_text('registration_test', lang=user_lang)
         telegram_service.send_message(chat_id, test_message)
         
     else:
-        error_message = f"""
-❌ <b>Errore nella registrazione</b>
-
-{message}
-
-Per registrarti devi utilizzare l'email con cui hai attivato il tuo account sul software del Prep Center.
-
-💡 <b>Suggerimenti:</b>
-• Verifica di aver scritto correttamente l'email
-• Controlla che sia la stessa email del tuo account sul software del Prep Center
-• Contatta il supporto se il problema persiste
-        """
+        error_message = get_text('registration_error', lang=user_lang, message=message)
         telegram_service.send_message(chat_id, error_message)
+
+
+def handle_language_selection(chat_id, language_choice, user_info):
+    """Gestisce la selezione della lingua dell'utente."""
+    from .services import telegram_service
+    from .translations import get_text
+    
+    try:
+        # Mappa scelta lingua al codice
+        language_map = {'i': 'it', 'e': 'en'}
+        
+        if language_choice not in language_map:
+            # Scelta non valida
+            error_message = get_text('invalid_language_choice')
+            telegram_service.send_message(chat_id, error_message)
+            return
+        
+        language_code = language_map[language_choice]
+        
+        # Imposta la lingua nell'utente se già registrato
+        from .models import TelegramNotification
+        users = TelegramNotification.objects.filter(chat_id=chat_id)
+        if users.exists():
+            users.update(language_code=language_code)
+        
+        # Invia messaggio di conferma e istruzioni per la registrazione
+        confirmation_message = get_text('language_selected', lang=language_code)
+        telegram_service.send_message(chat_id, confirmation_message)
+        
+        # Memorizza la lingua per i nuovi utenti (useremo session temporanea)
+        # Per ora salviamo nel database anche senza registrazione completa
+        if not users.exists():
+            # Crea record temporaneo per memorizzare la lingua
+            temp_user, created = TelegramNotification.objects.get_or_create(
+                chat_id=chat_id,
+                defaults={
+                    'email': f'temp_{chat_id}@temp.com',  # Email temporanea
+                    'language_code': language_code,
+                    'is_active': False,  # Non attivo finché non si registra veramente
+                    'username': user_info.get('username'),
+                    'first_name': user_info.get('first_name'),
+                    'last_name': user_info.get('last_name'),
+                }
+            )
+            if not created:
+                temp_user.language_code = language_code
+                temp_user.save()
+        
+        logger.info(f"Lingua impostata a {language_code} per chat_id {chat_id}")
+        
+    except Exception as e:
+        logger.error(f"Errore nella selezione lingua per {chat_id}: {str(e)}")
+        from .services import telegram_service
+        error_message = get_text('system_error')
+        telegram_service.send_message(chat_id, error_message)
+
+
+def handle_language_command(chat_id):
+    """Gestisce il comando /language per cambiare lingua."""
+    from .services import telegram_service
+    from .translations import get_text, get_user_language
+    
+    try:
+        # Ottieni la lingua attuale dell'utente
+        current_lang = get_user_language(chat_id)
+        
+        # Invia messaggio per cambiare lingua
+        language_message = get_text('language_command', lang=current_lang)
+        telegram_service.send_message(chat_id, language_message)
+        
+    except Exception as e:
+        logger.error(f"Errore nel comando language per {chat_id}: {str(e)}")
 
 
 def handle_help_command(chat_id):
     """Gestisce il comando di aiuto."""
     from .services import telegram_service
+    from .translations import get_text, get_user_language
     
-    help_message = """
-🤖 <b>FBA Prep Center Italy Bot - Aiuto</b>
-
-<b>Comandi disponibili:</b>
-• <code>/start</code> - Avvia il bot e ottieni istruzioni
-• <code>/help</code> - Mostra questo messaggio di aiuto
-• <code>/test</code> - Invia un messaggio di test
-• <code>/status</code> - Controlla lo stato della tua registrazione
-
-<b>Per registrarti:</b>
-1. Invia la tua email del Prep Center
-2. Conferma la registrazione
-3. Inizia a ricevere notifiche!
-
-<b>Tipi di notifiche:</b>
-📦 Spedizioni in entrata
-📤 Spedizioni in uscita
-🛒 Ordini
-📋 Aggiornamenti generali
-
-<b>Supporto:</b>
-Per problemi o domande, contatta il supporto FBA Prep Center Italy.
-    """
+    user_lang = get_user_language(chat_id)
+    help_message = get_text('help', lang=user_lang)
     
     try:
         telegram_service.send_message(chat_id, help_message)
@@ -1228,22 +1254,20 @@ def handle_test_command(chat_id):
     """Gestisce il comando di test."""
     from .services import telegram_service
     from .models import TelegramNotification
+    from .translations import get_text, get_user_language
+    
+    user_lang = get_user_language(chat_id)
     
     try:
         # Controlla se l'utente è registrato
         telegram_user = TelegramNotification.objects.get(chat_id=chat_id, is_active=True)
         
-        test_message = f"""
-✅ <b>Test di connessione riuscito!</b>
-
-👤 <b>Utente:</b> {telegram_user.get_full_name()}
-📧 <b>Email:</b> {telegram_user.email}
-🆔 <b>Chat ID:</b> {chat_id}
-📊 <b>Notifiche inviate:</b> {telegram_user.total_notifications_sent}
-📅 <b>Registrato il:</b> {telegram_user.created_at.strftime('%d/%m/%Y alle %H:%M')}
-
-🔔 Le notifiche sono <b>attive</b> e funzionanti!
-        """
+        test_message = get_text('test_success', lang=user_lang,
+                               full_name=telegram_user.get_full_name(),
+                               email=telegram_user.email,
+                               chat_id=chat_id,
+                               notifications_sent=telegram_user.total_notifications_sent,
+                               registration_date=telegram_user.created_at.strftime('%d/%m/%Y alle %H:%M'))
         
         telegram_service.send_message(chat_id, test_message)
         
@@ -1251,15 +1275,7 @@ def handle_test_command(chat_id):
         telegram_user.increment_notification_count()
         
     except TelegramNotification.DoesNotExist:
-        not_registered_message = """
-❌ <b>Utente non registrato</b>
-
-Per utilizzare questo bot devi prima registrarti inviando la tua email del Prep Center.
-
-Esempio: <code>mario.rossi@example.com</code>
-
-Usa /start per le istruzioni complete.
-        """
+        not_registered_message = get_text('test_not_registered', lang=user_lang)
         telegram_service.send_message(chat_id, not_registered_message)
         
     except Exception as e:
@@ -1272,7 +1288,10 @@ def handle_status_command(chat_id):
     """Gestisce il comando /status - mostra informazioni sulla registrazione."""
     from .services import telegram_service
     from .models import TelegramNotification
+    from .translations import get_text, get_user_language
     import pytz
+    
+    user_lang = get_user_language(chat_id)
     
     try:
         # Controlla se l'utente è registrato
@@ -1282,46 +1301,25 @@ def handle_status_command(chat_id):
         rome_tz = pytz.timezone('Europe/Rome')
         created_at_local = telegram_user.created_at.astimezone(rome_tz)
         
-        last_notification = ""
         if telegram_user.last_notification_at:
             last_notification_local = telegram_user.last_notification_at.astimezone(rome_tz)
-            last_notification = f"📬 <b>Ultima notifica:</b> {last_notification_local.strftime('%d/%m/%Y alle %H:%M')}\n"
+            last_notification = get_text('last_notification', lang=user_lang, 
+                                       date=last_notification_local.strftime('%d/%m/%Y alle %H:%M'))
         else:
-            last_notification = "📬 <b>Ultima notifica:</b> Nessuna notifica ricevuta ancora\n"
+            last_notification = get_text('no_notifications', lang=user_lang)
         
-        status_message = f"""
-📊 <b>Stato della tua registrazione</b>
-
-✅ <b>Stato:</b> Registrato e attivo
-👤 <b>Nome:</b> {telegram_user.get_full_name()}
-📧 <b>Email:</b> {telegram_user.email}
-🆔 <b>Chat ID:</b> {chat_id}
-📅 <b>Registrato il:</b> {created_at_local.strftime('%d/%m/%Y alle %H:%M')}
-📊 <b>Notifiche ricevute:</b> {telegram_user.total_notifications_sent}
-{last_notification}
-🔔 <b>Notifiche:</b> Attive
-
-<b>Eventi monitorati:</b>
-• 📦 Spedizioni in entrata (create/ricevute/spedite)
-• 📤 Spedizioni in uscita (create/spedite/chiuse) 
-• 🛒 Ordini (creati/spediti)
-
-Usa /test per inviare una notifica di prova.
-        """
+        status_message = get_text('status', lang=user_lang,
+                                full_name=telegram_user.get_full_name(),
+                                email=telegram_user.email,
+                                chat_id=chat_id,
+                                registration_date=created_at_local.strftime('%d/%m/%Y alle %H:%M'),
+                                notifications_sent=telegram_user.total_notifications_sent,
+                                last_notification=last_notification)
         
         telegram_service.send_message(chat_id, status_message)
         
     except TelegramNotification.DoesNotExist:
-        not_registered_message = """
-❌ <b>Utente non registrato</b>
-
-Non risulti registrato nel sistema di notifiche.
-
-📧 <b>Per registrarti:</b>
-Invia la tua email del Prep Center (es: mario.rossi@example.com)
-
-ℹ️ Usa /start per le istruzioni complete.
-        """
+        not_registered_message = get_text('status_not_registered', lang=user_lang)
         telegram_service.send_message(chat_id, not_registered_message)
         
     except Exception as e:
@@ -1333,19 +1331,10 @@ Invia la tua email del Prep Center (es: mario.rossi@example.com)
 def send_unknown_command_message(chat_id):
     """Invia un messaggio per comando non riconosciuto."""
     from .services import telegram_service
+    from .translations import get_text, get_user_language
     
-    unknown_message = """
-❓ <b>Comando non riconosciuto</b>
-
-Se vuoi registrarti, invia la tua email del Prep Center.
-Se hai bisogno di aiuto, usa il comando /help.
-
-<b>Comandi disponibili:</b>
-• /help - Aiuto
-• /test - Test connessione
-• /status - Stato registrazione
-• /start - Riavvia bot
-    """
+    user_lang = get_user_language(chat_id)
+    unknown_message = get_text('unknown_command', lang=user_lang)
     
     try:
         telegram_service.send_message(chat_id, unknown_message)
