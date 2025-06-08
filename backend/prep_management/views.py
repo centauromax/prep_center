@@ -1428,7 +1428,7 @@ def telegram_debug(request):
         
         # Utenti Telegram registrati
         telegram_users = list(TelegramNotification.objects.values(
-            'email', 'chat_id', 'is_active', 'created_at', 'notification_count'
+            'email', 'chat_id', 'is_active', 'created_at', 'total_notifications_sent'
         ))
         
         # Messaggi Telegram recenti
