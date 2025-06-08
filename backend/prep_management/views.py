@@ -1169,7 +1169,12 @@ Da ora in poi riceverai qui tutte le notifiche relative ai tuoi ordini e spedizi
 
 {message}
 
-Riprova con una email valida utilizzata sul software del Prep Center.
+Per registrarti devi utilizzare l'email con cui hai attivato il tuo account PrepBusiness.
+
+💡 <b>Suggerimenti:</b>
+• Verifica di aver scritto correttamente l'email
+• Controlla che sia la stessa email del tuo account PrepBusiness
+• Contatta il supporto se il problema persiste
         """
         telegram_service.send_message(chat_id, error_message)
 
@@ -1482,6 +1487,50 @@ def create_admin_user(request):
             'email': 'admin@prepcenter.com'
         }
     })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def telegram_merchants_debug(request):
+    """
+    Endpoint di debug per vedere tutte le email dei merchant disponibili in PrepBusiness.
+    Utile per troubleshooting delle registrazioni Telegram.
+    """
+    try:
+        from .utils.clients import get_client
+        
+        # Ottieni client PrepBusiness
+        client = get_client()
+        
+        # Ottieni tutti i merchant
+        merchants_response = client.get_merchants()
+        merchants = merchants_response.data if merchants_response else []
+        
+        # Estrai info merchant
+        merchant_info = []
+        for merchant in merchants:
+            email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+            merchant_info.append({
+                'id': merchant.id,
+                'name': merchant.name,
+                'email': email,
+                'enabled': getattr(merchant, 'enabled', 'N/A')
+            })
+        
+        return Response({
+            'success': True,
+            'total_merchants': len(merchants),
+            'merchants': merchant_info,
+            'emails': [m['email'] for m in merchant_info if m['email']],
+            'message': f'Trovati {len(merchants)} merchant in PrepBusiness'
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore nel recupero dei merchant da PrepBusiness'
+        }, status=500)
+
 
 def telegram_debug(request):
     """

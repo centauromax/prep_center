@@ -27,6 +27,7 @@ urlpatterns = [
     path('telegram/bot-info/', views.telegram_bot_info, name='telegram_bot_info'),
     path('telegram/set-webhook/', views.set_telegram_webhook, name='set_telegram_webhook'),
     path('telegram/debug/', views.telegram_debug, name='telegram_debug'),
+    path('telegram/merchants-debug/', views.telegram_merchants_debug, name='telegram_merchants_debug'),
     
     # URL per creare admin
     path('create-admin/', views.create_admin_user, name='create_admin_user'),

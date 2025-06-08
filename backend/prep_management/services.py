@@ -276,9 +276,18 @@ def register_telegram_user(chat_id, email, user_info=None):
         tuple: (success: bool, message: str, user: TelegramNotification|None)
     """
     try:
-        # Verifica che l'email sia valida (puoi aggiungere qui controlli con PrepBusiness)
+        # Verifica che l'email sia valida
         if not email or '@' not in email:
             return False, "Email non valida", None
+        
+        # Verifica che l'email esista in PrepBusiness
+        logger.info(f"[register_telegram_user] Verifica email {email} in PrepBusiness")
+        if not verify_email_in_prepbusiness(email):
+            error_msg = f"Email {email} non trovata nel sistema PrepBusiness. Verifica di aver inserito l'email corretta utilizzata per il tuo account PrepBusiness."
+            logger.warning(f"[register_telegram_user] ❌ Registrazione fallita per {email}: email non trovata in PrepBusiness")
+            return False, error_msg, None
+        
+        logger.info(f"[register_telegram_user] ✅ Email {email} verificata con successo in PrepBusiness")
         
         # Crea o aggiorna l'utente
         user_data = {
@@ -328,7 +337,7 @@ def register_telegram_user(chat_id, email, user_info=None):
 
 def verify_email_in_prepbusiness(email):
     """
-    Verifica se un'email esiste in PrepBusiness (da implementare con API).
+    Verifica se un'email esiste in PrepBusiness controllando l'API dei merchant.
     
     Args:
         email: Email da verificare
@@ -336,10 +345,46 @@ def verify_email_in_prepbusiness(email):
     Returns:
         bool: True se l'email esiste
     """
-    # TODO: Implementare la verifica con API PrepBusiness
-    # Per ora restituiamo sempre True per permettere la registrazione
-    logger.info(f"Verifica email PrepBusiness: {email} (stub - sempre True)")
-    return True
+    try:
+        # Importa qui per evitare import circolari
+        from .utils.clients import get_client
+        
+        logger.info(f"[verify_email_in_prepbusiness] 🔍 Verifica email: {email}")
+        
+        # Ottieni client PrepBusiness
+        client = get_client()
+        
+        # Ottieni tutti i merchant
+        merchants_response = client.get_merchants()
+        merchants = merchants_response.data if merchants_response else []
+        
+        logger.info(f"[verify_email_in_prepbusiness] 📋 Recuperati {len(merchants)} merchants dall'API")
+        
+        # Verifica se l'email corrisponde a qualche merchant
+        for merchant in merchants:
+            # Controlla sia primaryEmail che email per retrocompatibilità
+            merchant_email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+            
+            if merchant_email and merchant_email.lower() == email.lower():
+                logger.info(f"[verify_email_in_prepbusiness] ✅ Email {email} trovata per merchant {merchant.id}: {merchant.name}")
+                return True
+        
+        # Debug: mostra tutte le email registrate per troubleshooting
+        all_emails = []
+        for merchant in merchants:
+            merchant_email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+            if merchant_email:
+                all_emails.append(merchant_email)
+        
+        logger.warning(f"[verify_email_in_prepbusiness] ❌ Email {email} NON trovata tra i merchant")
+        logger.warning(f"[verify_email_in_prepbusiness] 📧 Email disponibili: {all_emails}")
+        return False
+        
+    except Exception as e:
+        logger.error(f"[verify_email_in_prepbusiness] ❌ Errore nella verifica email {email}: {str(e)}")
+        logger.exception("Traceback completo:")
+        # In caso di errore, non permettiamo la registrazione per sicurezza
+        return False
 
 
 def format_shipment_notification(event_type, shipment_data):
