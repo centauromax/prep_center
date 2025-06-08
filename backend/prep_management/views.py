@@ -1121,20 +1121,31 @@ Esempio: <code>mario.rossi@example.com</code>
 
 def handle_email_registration(chat_id, email, user_info):
     """Gestisce la registrazione dell'email."""
-    from .services import register_telegram_user, telegram_service
-    
-    # Validazione email di base
-    if not email or '@' not in email or '.' not in email:
-        error_message = """
+    try:
+        from .services import register_telegram_user, telegram_service
+        
+        # Validazione email di base
+        if not email or '@' not in email or '.' not in email:
+            error_message = """
 ❌ <b>Email non valida</b>
 
 Invia una email valida nel formato: <code>nome@dominio.com</code>
+            """
+            telegram_service.send_message(chat_id, error_message)
+            return
+        
+        # Registra l'utente
+        success, message, user = register_telegram_user(chat_id, email, user_info)
+    except Exception as e:
+        logger.error(f"Errore nella registrazione email {email}: {str(e)}")
+        from .services import telegram_service
+        error_message = """
+❌ <b>Errore del sistema</b>
+
+Si è verificato un errore durante la registrazione. Riprova più tardi o contatta il supporto.
         """
         telegram_service.send_message(chat_id, error_message)
         return
-    
-    # Registra l'utente
-    success, message, user = register_telegram_user(chat_id, email, user_info)
     
     if success:
         success_message = f"""
