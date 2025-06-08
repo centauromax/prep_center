@@ -857,19 +857,6 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <!-- END Header -->
 
-    <!-- Sidebar -->
-    {% block nav-sidebar %}
-    <nav id="nav-sidebar">
-        {% block sidebar %}
-        <div class="app-admin">
-            <div class="module">
-                <caption><a href="{% url 'admin:index' %}">{% trans 'Home' %}</a></caption>
-            </div>
-        </div>
-        {% endblock %}
-    </nav>
-    {% endblock %}
-
     <!-- Main content -->
     <div class="main" id="main">
         {% if not is_popup and is_nav_sidebar_enabled %}
@@ -913,4 +900,4 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- END Container -->
 
 </body>
-</html>{% endblock %} 
+</html> 
