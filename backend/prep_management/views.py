@@ -1082,6 +1082,10 @@ def telegram_webhook(request):
             elif text.lower() in ['/test', 'test']:
                 handle_test_command(chat_id)
             
+            # Comando per status
+            elif text.lower() in ['/status', 'status']:
+                handle_status_command(chat_id)
+            
             else:
                 # Messaggio non riconosciuto
                 send_unknown_command_message(chat_id)
@@ -1248,6 +1252,68 @@ Usa /start per le istruzioni complete.
         telegram_service.send_message(chat_id, error_message)
 
 
+def handle_status_command(chat_id):
+    """Gestisce il comando /status - mostra informazioni sulla registrazione."""
+    from .services import telegram_service
+    from .models import TelegramNotification
+    import pytz
+    
+    try:
+        # Controlla se l'utente è registrato
+        telegram_user = TelegramNotification.objects.get(chat_id=chat_id, is_active=True)
+        
+        # Formatta date con timezone italiano
+        rome_tz = pytz.timezone('Europe/Rome')
+        created_at_local = telegram_user.created_at.astimezone(rome_tz)
+        
+        last_notification = ""
+        if telegram_user.last_notification_at:
+            last_notification_local = telegram_user.last_notification_at.astimezone(rome_tz)
+            last_notification = f"📬 <b>Ultima notifica:</b> {last_notification_local.strftime('%d/%m/%Y alle %H:%M')}\n"
+        else:
+            last_notification = "📬 <b>Ultima notifica:</b> Nessuna notifica ricevuta ancora\n"
+        
+        status_message = f"""
+📊 <b>Stato della tua registrazione</b>
+
+✅ <b>Stato:</b> Registrato e attivo
+👤 <b>Nome:</b> {telegram_user.get_full_name()}
+📧 <b>Email:</b> {telegram_user.email}
+🆔 <b>Chat ID:</b> {chat_id}
+📅 <b>Registrato il:</b> {created_at_local.strftime('%d/%m/%Y alle %H:%M')}
+📊 <b>Notifiche ricevute:</b> {telegram_user.total_notifications_sent}
+{last_notification}
+🔔 <b>Notifiche:</b> Attive
+
+<b>Eventi monitorati:</b>
+• 📦 Spedizioni in entrata (create/ricevute/spedite)
+• 📤 Spedizioni in uscita (create/spedite/chiuse) 
+• 🛒 Ordini (creati/spediti)
+
+Usa /test per inviare una notifica di prova.
+        """
+        
+        telegram_service.send_message(chat_id, status_message)
+        
+    except TelegramNotification.DoesNotExist:
+        not_registered_message = """
+❌ <b>Utente non registrato</b>
+
+Non risulti registrato nel sistema di notifiche.
+
+📧 <b>Per registrarti:</b>
+Invia la tua email PrepBusiness (es: mario.rossi@example.com)
+
+ℹ️ Usa /start per le istruzioni complete.
+        """
+        telegram_service.send_message(chat_id, not_registered_message)
+        
+    except Exception as e:
+        logger.error(f"Errore nel comando status: {str(e)}")
+        error_message = "❌ Errore nel recupero del tuo status. Riprova più tardi."
+        telegram_service.send_message(chat_id, error_message)
+
+
 def send_unknown_command_message(chat_id):
     """Invia un messaggio per comando non riconosciuto."""
     from .services import telegram_service
@@ -1261,6 +1327,7 @@ Se hai bisogno di aiuto, usa il comando /help.
 <b>Comandi disponibili:</b>
 • /help - Aiuto
 • /test - Test connessione
+• /status - Stato registrazione
 • /start - Riavvia bot
     """
     
