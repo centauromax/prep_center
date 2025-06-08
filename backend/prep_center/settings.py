@@ -160,8 +160,8 @@ USE_TZ = True
 # URL del dominio React fornito da Railway
 REACT_DOMAIN = os.getenv("REACT_DOMAIN", "")
 
-# STATIC_URL punta al servizio React se definito
-STATIC_URL = f"{REACT_DOMAIN}/" if REACT_DOMAIN else "/static/"
+# STATIC_URL deve puntare sempre al backend Django per l'admin
+STATIC_URL = "/static/"
 
 # Directory per i file statici del backend (admin, etc.)
 STATIC_ROOT = BASE_DIR / "staticfiles"

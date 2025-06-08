@@ -3,6 +3,8 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.i18n import i18n_patterns
+from django.conf import settings
+from django.conf.urls.static import static
 from . import views
 import logging
 
@@ -34,3 +36,7 @@ urlpatterns += i18n_patterns(
     
     prefix_default_language=False  # Non aggiunge il prefisso della lingua di default all'URL
 )
+
+# Servizio dei file statici per Django admin
+if settings.DEBUG or True:  # In produzione serviamo comunque i file statici per l'admin
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
