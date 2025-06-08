@@ -447,10 +447,6 @@ Choose your language:
             'it': 'Note',
             'en': 'Notes'
         },
-        'update_time': {
-            'it': 'Aggiornamento del',
-            'en': 'Updated on'
-        },
         'default_title': {
             'it': 'Aggiornamento spedizione',
             'en': 'Shipment update'

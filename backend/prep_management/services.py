@@ -464,21 +464,6 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
         notes_label = get_text('notification_labels', lang=user_language, subkey='notes')
         message += f"\n💬 <b>{notes_label}:</b>\n{shipment_data['notes']}\n"
     
-    # Usa il timezone di Roma configurato nelle settings
-    from django.conf import settings
-    import pytz
-    
-    # Ottieni il timezone di Roma
-    rome_tz = pytz.timezone('Europe/Rome')
-    local_time = timezone.now().astimezone(rome_tz)
-    
-    # Formatta la data in base alla lingua
-    if user_language == 'en':
-        time_format = local_time.strftime('%m/%d/%Y at %H:%M')
-    else:
-        time_format = local_time.strftime('%d/%m/%Y alle %H:%M')
-    
-    update_label = get_text('notification_labels', lang=user_language, subkey='update_time')
-    message += f"\n🕒 <i>{update_label} {time_format}</i>"
+    # Rimuovo il timestamp dalle notifiche come richiesto
     
     return message
