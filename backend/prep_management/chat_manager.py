@@ -112,9 +112,12 @@ class ChatManager:
             }
         except Exception as e:
             logger.error(f"Errore gestione messaggio cliente {chat_id}: {str(e)}")
+            # Log traceback per debug
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': 'Errore del sistema'
             }
     
     def handle_admin_message(self, admin_chat_id: int, message_text: str) -> Dict:
@@ -242,17 +245,20 @@ class ChatManager:
     ) -> str:
         """Formatta un messaggio per l'admin con contesto."""
         
-        alias = conversation.get_customer_alias()
+        try:
+            alias = conversation.get_customer_alias()
+        except Exception:
+            alias = 'X'
         
-        formatted = f"""
-🔔 <b>Nuovo messaggio Cliente {alias}</b>
+        # Limita lunghezza messaggio per evitare problemi
+        display_message = message_text[:200] + "..." if len(message_text) > 200 else message_text
+        
+        formatted = f"""🔔 <b>Nuovo messaggio Cliente {alias}</b>
 📧 {customer_email}
-🆔 Thread: {conversation.thread_id}
 
-💬 "{message_text}"
+💬 "{display_message}"
 
-📝 <i>Rispondi normalmente o usa @{alias} per rispondere direttamente</i>
-        """.strip()
+📝 <i>Rispondi normalmente o usa @{alias}</i>"""
         
         return formatted
     
@@ -436,18 +442,19 @@ class ChatManager:
     def get_conversation_by_alias(self, alias: str) -> Optional[TelegramConversation]:
         """Trova una conversazione attiva per alias."""
         
-        # Per ora, usa un mapping semplice basato sull'ordine di creazione
-        conversations = TelegramConversation.objects.filter(
-            is_active=True
-        ).order_by('created_at')
-        
-        # Converte l'alias in indice (A=0, B=1, etc.)
         try:
+            # Per ora, usa un mapping semplice basato sull'ordine di creazione
+            conversations = TelegramConversation.objects.filter(
+                is_active=True
+            ).order_by('created_at')
+            
+            # Converte l'alias in indice (A=0, B=1, etc.)
             index = ord(alias.upper()) - 65  # A=0, B=1, C=2, etc.
-            if 0 <= index < len(conversations):
+            if 0 <= index < conversations.count():
                 return conversations[index]
-        except (ValueError, IndexError):
-            pass
+            
+        except (ValueError, IndexError, AttributeError):
+            logger.warning(f"Errore nel trovare conversazione per alias {alias}")
         
         return None
     

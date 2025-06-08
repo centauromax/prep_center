@@ -362,13 +362,23 @@ class TelegramConversation(models.Model):
     
     def get_customer_alias(self):
         """Genera un alias breve per il cliente (A, B, C...)"""
-        # Semplice mapping basato sull'ordine di creazione
-        conversations = TelegramConversation.objects.filter(
-            created_at__lte=self.created_at
-        ).order_by('created_at')
-        
-        index = list(conversations.values_list('id', flat=True)).index(self.id)
-        return chr(65 + (index % 26))  # A, B, C, ..., Z
+        try:
+            # Semplice mapping basato sull'ordine di creazione
+            conversations = TelegramConversation.objects.filter(
+                created_at__lte=self.created_at,
+                is_active=True
+            ).order_by('created_at')
+            
+            # Usa enumerate per evitare errori di index
+            for index, conv in enumerate(conversations):
+                if conv.id == self.id:
+                    return chr(65 + (index % 26))  # A, B, C, ..., Z
+            
+            # Fallback se non trovato
+            return 'X'
+        except Exception:
+            # Fallback sicuro in caso di errore
+            return 'X'
 
 
 class TelegramChatMessage(models.Model):
