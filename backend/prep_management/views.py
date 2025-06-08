@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import PrepBusinessAPI
 from .utils.merchants import get_merchants
-from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification
+from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification, TelegramMessage
 from .serializers import OutgoingMessageSerializer, IncomingMessageSerializer
 import logging
 import requests
@@ -1365,35 +1365,115 @@ def set_telegram_webhook(request):
         }, status=500)
 
 def create_admin_user(request):
-    """Crea/aggiorna l'utente admin via web"""
-    try:
-        username = 'admin'
-        email = 'admin@fbaprepcenteritaly.com'
-        password = 'FbaPrepAdmin2024!'
+    """
+    Vista per creare rapidamente un utente admin per test.
+    """
+    from django.contrib.auth.models import User
+    
+    if request.method == 'POST':
+        try:
+            username = request.POST.get('username', 'admin')
+            password = request.POST.get('password', 'admin123')
+            email = request.POST.get('email', 'admin@preprocenter.com')
+            
+            # Controlla se l'utente esiste già
+            if User.objects.filter(username=username).exists():
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Utente {username} esiste già'
+                })
+            
+            # Crea l'utente admin
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password
+            )
+            user.is_staff = True
+            user.is_superuser = True
+            user.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Utente admin {username} creato con successo',
+                'username': username,
+                'password': password
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': f'Errore nella creazione admin: {str(e)}'
+            })
+    
+    # GET request - mostra form
+    return JsonResponse({
+        'message': 'Invia POST con username, password, email per creare admin',
+        'example': {
+            'username': 'admin',
+            'password': 'admin123',
+            'email': 'admin@prepcenter.com'
+        }
+    })
 
-        # Elimina l'utente se esiste
-        User.objects.filter(username=username).delete()
+def telegram_debug(request):
+    """
+    Vista di debug per controllare lo stato del sistema Telegram.
+    """
+    try:
+        # Eventi recenti
+        recent_events = list(ShipmentStatusUpdate.objects.order_by('-created_at')[:10].values(
+            'id', 'event_type', 'shipment_id', 'processed', 'created_at', 'merchant_id', 'process_success'
+        ))
         
-        # Crea nuovo superuser
-        user = User.objects.create_superuser(
-            username=username,
-            email=email,
-            password=password
-        )
+        # Utenti Telegram registrati
+        telegram_users = list(TelegramNotification.objects.values(
+            'email', 'chat_id', 'is_active', 'created_at', 'notification_count'
+        ))
+        
+        # Messaggi Telegram recenti
+        telegram_messages = list(TelegramMessage.objects.select_related('telegram_user').order_by('-created_at')[:10].values(
+            'id', 'telegram_user__email', 'status', 'event_type', 'shipment_id', 'created_at', 'sent_at', 'error_message'
+        ))
+        
+        # Statistiche
+        stats = {
+            'total_events': ShipmentStatusUpdate.objects.count(),
+            'processed_events': ShipmentStatusUpdate.objects.filter(processed=True).count(),
+            'failed_events': ShipmentStatusUpdate.objects.filter(processed=True, process_success=False).count(),
+            'total_telegram_users': TelegramNotification.objects.count(),
+            'active_telegram_users': TelegramNotification.objects.filter(is_active=True).count(),
+            'total_telegram_messages': TelegramMessage.objects.count(),
+            'sent_messages': TelegramMessage.objects.filter(status='sent').count(),
+            'failed_messages': TelegramMessage.objects.filter(status='failed').count(),
+        }
+        
+        # Info configurazione
+        config_info = {
+            'telegram_bot_token_configured': bool(settings.TELEGRAM_BOT_TOKEN),
+            'telegram_webhook_url': getattr(settings, 'TELEGRAM_WEBHOOK_URL', None),
+            'prep_business_api_key_configured': bool(getattr(settings, 'PREP_BUSINESS_API_KEY', None) or 
+                                                   os.environ.get('PREP_BUSINESS_API_KEY')),
+        }
         
         return JsonResponse({
             'success': True,
-            'message': f'✅ Superuser "{username}" creato con successo!',
-            'credentials': {
-                'username': username,
-                'email': email,
-                'password': password,
-                'user_id': user.id
-            }
+            'stats': stats,
+            'config': config_info,
+            'recent_events': recent_events,
+            'telegram_users': telegram_users,
+            'telegram_messages': telegram_messages,
+            'debug_notes': [
+                'Controlla che ci siano eventi recenti',
+                'Verifica che gli utenti Telegram siano registrati',
+                'Controlla se i messaggi vengono inviati o falliscono',
+                'Eventi processati ma non inviati indicano un problema nel codice di notifica'
+            ]
         })
         
     except Exception as e:
         return JsonResponse({
             'success': False,
-            'error': str(e)
-        }, status=500)
+            'error': str(e),
+            'message': 'Errore nel recupero dati debug'
+        })
