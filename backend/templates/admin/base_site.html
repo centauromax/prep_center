@@ -17,8 +17,7 @@
 {% block extrahead %}
 {{ block.super }}
 
-<!-- FORZA CSS DJANGO ADMIN BASE -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+<!-- CSS Django Admin base inline - NO CDN esterni -->
 <style>
     /* CSS Django Admin base inline */
     .main {
@@ -81,6 +80,70 @@
     #nav-sidebar .current-app {
         background: #047ea7 !important;
         color: white !important;
+    }
+    
+    /* Layout responsivo completo */
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        margin: 0 !important;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+    }
+    
+    #container {
+        display: flex !important;
+        min-height: 100vh !important;
+    }
+    
+    .main {
+        flex: 1 !important;
+        margin-left: 280px !important;
+        background: #f8f9fa !important;
+        padding: 20px !important;
+    }
+    
+    /* Form elements */
+    input, select, textarea {
+        padding: 8px 12px !important;
+        border: 1px solid #ddd !important;
+        border-radius: 4px !important;
+        font-size: 14px !important;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+        border-color: #047ea7 !important;
+        outline: none !important;
+        box-shadow: 0 0 0 2px rgba(4, 126, 167, 0.2) !important;
+    }
+    
+    /* Buttons */
+    .button, input[type="submit"], .submit-row input {
+        background: #047ea7 !important;
+        color: white !important;
+        border: none !important;
+        padding: 10px 20px !important;
+        border-radius: 4px !important;
+        cursor: pointer !important;
+        font-weight: 500 !important;
+    }
+    
+    .button:hover, input[type="submit"]:hover {
+        background: #0056b3 !important;
+    }
+    
+    /* Messages */
+    .messages {
+        list-style: none !important;
+        padding: 0 !important;
+        margin: 20px 0 !important;
+    }
+    
+    .messages li {
+        padding: 12px 16px !important;
+        margin-bottom: 10px !important;
+        border-radius: 4px !important;
+        background: #d4edda !important;
+        border: 1px solid #c3e6cb !important;
+        color: #155724 !important;
     }
 
 <style>
