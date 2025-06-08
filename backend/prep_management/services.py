@@ -132,10 +132,10 @@ telegram_service = TelegramService()
 def send_telegram_notification(email, message, event_type=None, shipment_id=None):
     """
     Invia una notifica Telegram a TUTTI gli utenti registrati con la stessa email.
-    Supporta più dipendenti aziendali con la stessa email PrepBusiness.
+    Supporta più dipendenti aziendali con la stessa email del Prep Center.
     
     Args:
-        email: Email dell'utente (collegata a PrepBusiness)
+        email: Email dell'utente (collegata al software del Prep Center)
         message: Testo del messaggio
         event_type: Tipo di evento (opzionale)
         shipment_id: ID spedizione (opzionale)
@@ -265,7 +265,7 @@ def retry_telegram_message(telegram_message):
 
 def register_telegram_user(chat_id, email, user_info=None):
     """
-    Registra un utente Telegram collegandolo alla sua email PrepBusiness.
+    Registra un utente Telegram collegandolo alla sua email del Prep Center.
     
     Args:
         chat_id: ID chat Telegram
@@ -280,14 +280,14 @@ def register_telegram_user(chat_id, email, user_info=None):
         if not email or '@' not in email:
             return False, "Email non valida", None
         
-        # Verifica che l'email esista in PrepBusiness
-        logger.info(f"[register_telegram_user] Verifica email {email} in PrepBusiness")
+        # Verifica che l'email esista nel software del Prep Center
+        logger.info(f"[register_telegram_user] Verifica email {email} nel software del Prep Center")
         if not verify_email_in_prepbusiness(email):
-            error_msg = f"Email {email} non trovata nel sistema PrepBusiness. Verifica di aver inserito l'email corretta utilizzata per il tuo account PrepBusiness."
-            logger.warning(f"[register_telegram_user] ❌ Registrazione fallita per {email}: email non trovata in PrepBusiness")
+            error_msg = f"Email {email} non trovata nel software del Prep Center. Verifica di aver inserito l'email corretta utilizzata per il tuo account sul software del Prep Center."
+            logger.warning(f"[register_telegram_user] ❌ Registrazione fallita per {email}: email non trovata nel software del Prep Center")
             return False, error_msg, None
         
-        logger.info(f"[register_telegram_user] ✅ Email {email} verificata con successo in PrepBusiness")
+        logger.info(f"[register_telegram_user] ✅ Email {email} verificata con successo nel software del Prep Center")
         
         # Crea o aggiorna l'utente
         user_data = {
@@ -337,7 +337,7 @@ def register_telegram_user(chat_id, email, user_info=None):
 
 def verify_email_in_prepbusiness(email):
     """
-    Verifica se un'email esiste in PrepBusiness controllando l'API dei merchant.
+    Verifica se un'email esiste nel software del Prep Center controllando la lista dei merchant autorizzati.
     
     Args:
         email: Email da verificare

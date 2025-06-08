@@ -1180,11 +1180,11 @@ Da ora in poi riceverai qui tutte le notifiche relative ai tuoi ordini e spedizi
 
 {message}
 
-Per registrarti devi utilizzare l'email con cui hai attivato il tuo account PrepBusiness.
+Per registrarti devi utilizzare l'email con cui hai attivato il tuo account sul software del Prep Center.
 
 💡 <b>Suggerimenti:</b>
 • Verifica di aver scritto correttamente l'email
-• Controlla che sia la stessa email del tuo account PrepBusiness
+• Controlla che sia la stessa email del tuo account sul software del Prep Center
 • Contatta il supporto se il problema persiste
         """
         telegram_service.send_message(chat_id, error_message)
@@ -1503,7 +1503,7 @@ def create_admin_user(request):
 @permission_classes([AllowAny])
 def telegram_merchants_debug(request):
     """
-    Endpoint di debug per vedere tutte le email dei merchant disponibili in PrepBusiness.
+    Endpoint di debug per vedere tutte le email dei merchant disponibili nel software del Prep Center.
     Utile per troubleshooting delle registrazioni Telegram.
     """
     try:
@@ -1518,7 +1518,7 @@ def telegram_merchants_debug(request):
             return Response({
                 'success': False,
                 'error': 'PREP_BUSINESS_API_KEY non configurata',
-                'message': 'Configurazione API PrepBusiness mancante'
+                'message': 'Configurazione API Prep Center mancante'
             }, status=500)
         
         # Estrai dominio dall'URL
@@ -1550,14 +1550,14 @@ def telegram_merchants_debug(request):
             'total_merchants': len(merchants),
             'merchants': merchant_info,
             'emails': [m['email'] for m in merchant_info if m['email']],
-            'message': f'Trovati {len(merchants)} merchant in PrepBusiness'
+            'message': f'Trovati {len(merchants)} merchant nel software del Prep Center'
         })
         
     except Exception as e:
         return Response({
             'success': False,
             'error': str(e),
-            'message': 'Errore nel recupero dei merchant da PrepBusiness'
+            'message': 'Errore nel recupero dei merchant dal software del Prep Center'
         }, status=500)
 
 

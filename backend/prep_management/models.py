@@ -178,11 +178,11 @@ class SearchResultItem(models.Model):
 class TelegramNotification(models.Model):
     """
     Modello per gestire le notifiche Telegram dei clienti.
-    Collega l'email PrepBusiness con il chat_id Telegram.
+    Collega l'email del software Prep Center con il chat_id Telegram.
     """
     email = models.EmailField(
-        verbose_name="Email PrepBusiness", 
-        help_text="Email utilizzata nell'account PrepBusiness del cliente"
+        verbose_name="Email Prep Center", 
+        help_text="Email utilizzata nell'account del cliente sul software del Prep Center"
     )
     chat_id = models.BigIntegerField(
         verbose_name="Chat ID Telegram", 
