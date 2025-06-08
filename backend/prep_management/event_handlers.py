@@ -365,15 +365,13 @@ class WebhookEventProcessor:
                 'new_status': update.new_status
             }
             
-            # Formatta il messaggio
-            message = format_shipment_notification(update.event_type, shipment_data)
-            
-            # Invia la notifica
+            # Invia la notifica (la formattazione del messaggio sarà gestita internamente)
             success = send_telegram_notification(
                 email=merchant_email,
-                message=message,
+                message=None,  # Verrà formattato internamente
                 event_type=update.event_type,
-                shipment_id=update.shipment_id
+                shipment_id=update.shipment_id,
+                shipment_data=shipment_data  # Passiamo i dati per la formattazione
             )
             
             if success:

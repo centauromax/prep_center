@@ -129,16 +129,17 @@ class TelegramService:
 telegram_service = TelegramService()
 
 
-def send_telegram_notification(email, message, event_type=None, shipment_id=None):
+def send_telegram_notification(email, message, event_type=None, shipment_id=None, shipment_data=None):
     """
     Invia una notifica Telegram a TUTTI gli utenti registrati con la stessa email.
     Supporta più dipendenti aziendali con la stessa email del Prep Center.
     
     Args:
         email: Email dell'utente (collegata al software del Prep Center)
-        message: Testo del messaggio
+        message: Testo del messaggio (se None, verrà formattato internamente)
         event_type: Tipo di evento (opzionale)
         shipment_id: ID spedizione (opzionale)
+        shipment_data: Dati spedizione per formattazione (opzionale)
         
     Returns:
         bool: True se almeno un messaggio è stato inviato con successo
@@ -159,10 +160,24 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
         # Invia a tutti gli utenti con questa email
         for telegram_user in telegram_users:
             try:
+                # Formatta il messaggio nella lingua dell'utente se necessario
+                user_message = message
+                if message is None and event_type and shipment_data:
+                    # Ottieni la lingua dell'utente (default italiano)
+                    user_language = telegram_user.language_code or 'it'
+                    user_message = format_shipment_notification(
+                        event_type=event_type,
+                        shipment_data=shipment_data,
+                        user_language=user_language
+                    )
+                elif message is None:
+                    # Se non abbiamo i dati per formattare, usa un messaggio generico
+                    user_message = "Aggiornamento dal Prep Center"
+                
                 # Crea il record del messaggio
                 telegram_message = TelegramMessage.objects.create(
                     telegram_user=telegram_user,
-                    message_text=message,
+                    message_text=user_message,
                     event_type=event_type,
                     shipment_id=shipment_id,
                     status='pending'
@@ -171,7 +186,7 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
                 # Invia il messaggio
                 response = telegram_service.send_message(
                     chat_id=telegram_user.chat_id,
-                    text=message
+                    text=user_message
                 )
                 
                 # Aggiorna il messaggio con risultato
@@ -394,17 +409,20 @@ def verify_email_in_prepbusiness(email):
         return False
 
 
-def format_shipment_notification(event_type, shipment_data):
+def format_shipment_notification(event_type, shipment_data, user_language='it'):
     """
-    Formatta un messaggio di notifica per una spedizione.
+    Formatta un messaggio di notifica per una spedizione nella lingua dell'utente.
     
     Args:
         event_type: Tipo di evento
         shipment_data: Dati della spedizione
+        user_language: Lingua dell'utente ('it' o 'en')
         
     Returns:
         str: Messaggio formattato
     """
+    from .translations import get_text
+    
     icons = {
         'inbound_shipment.created': '📦',
         'inbound_shipment.received': '✅',
@@ -416,36 +434,35 @@ def format_shipment_notification(event_type, shipment_data):
         'order.shipped': '📮'
     }
     
-    messages = {
-        'inbound_shipment.created': 'Nuova spedizione in entrata creata',
-        'inbound_shipment.received': 'Spedizione in entrata ricevuta',
-        'inbound_shipment.shipped': 'Spedizione in entrata in transito',
-        'outbound_shipment.created': 'Nuova spedizione in uscita creata',
-        'outbound_shipment.shipped': 'Spedizione in uscita spedita',
-        'outbound_shipment.closed': 'Spedizione in uscita completata',
-        'order.created': 'Nuovo ordine creato',
-        'order.shipped': 'Ordine spedito'
-    }
-    
     icon = icons.get(event_type, '📋')
-    title = messages.get(event_type, 'Aggiornamento spedizione')
+    
+    # Ottieni il titolo tradotto
+    title = get_text('notifications', lang=user_language, subkey=event_type)
+    if title.startswith('[MISSING'):
+        # Fallback al titolo generico se l'evento non è trovato
+        title = get_text('notification_labels', lang=user_language, subkey='default_title')
     
     message = f"{icon} <b>{title}</b>\n\n"
     
     if shipment_data.get('shipment_id'):
-        message += f"🆔 <b>ID:</b> {shipment_data['shipment_id']}\n"
+        id_label = get_text('notification_labels', lang=user_language, subkey='id')
+        message += f"🆔 <b>{id_label}:</b> {shipment_data['shipment_id']}\n"
     
     if shipment_data.get('shipment_name'):
-        message += f"📝 <b>Nome:</b> {shipment_data['shipment_name']}\n"
+        name_label = get_text('notification_labels', lang=user_language, subkey='name')
+        message += f"📝 <b>{name_label}:</b> {shipment_data['shipment_name']}\n"
         
     if shipment_data.get('tracking_number'):
-        message += f"🔍 <b>Tracking:</b> {shipment_data['tracking_number']}\n"
+        tracking_label = get_text('notification_labels', lang=user_language, subkey='tracking')
+        message += f"🔍 <b>{tracking_label}:</b> {shipment_data['tracking_number']}\n"
         
     if shipment_data.get('carrier'):
-        message += f"🚛 <b>Corriere:</b> {shipment_data['carrier']}\n"
+        carrier_label = get_text('notification_labels', lang=user_language, subkey='carrier')
+        message += f"🚛 <b>{carrier_label}:</b> {shipment_data['carrier']}\n"
     
     if shipment_data.get('notes'):
-        message += f"\n💬 <b>Note:</b>\n{shipment_data['notes']}\n"
+        notes_label = get_text('notification_labels', lang=user_language, subkey='notes')
+        message += f"\n💬 <b>{notes_label}:</b>\n{shipment_data['notes']}\n"
     
     # Usa il timezone di Roma configurato nelle settings
     from django.conf import settings
@@ -455,6 +472,13 @@ def format_shipment_notification(event_type, shipment_data):
     rome_tz = pytz.timezone('Europe/Rome')
     local_time = timezone.now().astimezone(rome_tz)
     
-    message += f"\n🕒 <i>Aggiornamento del {local_time.strftime('%d/%m/%Y alle %H:%M')}</i>"
+    # Formatta la data in base alla lingua
+    if user_language == 'en':
+        time_format = local_time.strftime('%m/%d/%Y at %H:%M')
+    else:
+        time_format = local_time.strftime('%d/%m/%Y alle %H:%M')
+    
+    update_label = get_text('notification_labels', lang=user_language, subkey='update_time')
+    message += f"\n🕒 <i>{update_label} {time_format}</i>"
     
     return message

@@ -387,16 +387,85 @@ Choose your language:
 • Type <b>"e"</b> for English
 • Scrivi <b>"i"</b> per Italiano
         """
+    },
+    
+    # Notifiche spedizioni
+    'notifications': {
+        'inbound_shipment.created': {
+            'it': 'Nuova spedizione in entrata creata',
+            'en': 'New inbound shipment created'
+        },
+        'inbound_shipment.received': {
+            'it': 'Spedizione in entrata ricevuta',
+            'en': 'Inbound shipment received'
+        },
+        'inbound_shipment.shipped': {
+            'it': 'Spedizione in entrata in transito',
+            'en': 'Inbound shipment in transit'
+        },
+        'outbound_shipment.created': {
+            'it': 'Nuova spedizione in uscita creata',
+            'en': 'New outbound shipment created'
+        },
+        'outbound_shipment.shipped': {
+            'it': 'Spedizione in uscita spedita',
+            'en': 'Outbound shipment shipped'
+        },
+        'outbound_shipment.closed': {
+            'it': 'Spedizione in uscita completata',
+            'en': 'Outbound shipment completed'
+        },
+        'order.created': {
+            'it': 'Nuovo ordine creato',
+            'en': 'New order created'
+        },
+        'order.shipped': {
+            'it': 'Ordine spedito',
+            'en': 'Order shipped'
+        }
+    },
+    
+    # Labels per campi notifiche
+    'notification_labels': {
+        'id': {
+            'it': 'ID',
+            'en': 'ID'
+        },
+        'name': {
+            'it': 'Nome',
+            'en': 'Name'
+        },
+        'tracking': {
+            'it': 'Tracking',
+            'en': 'Tracking'
+        },
+        'carrier': {
+            'it': 'Corriere',
+            'en': 'Carrier'
+        },
+        'notes': {
+            'it': 'Note',
+            'en': 'Notes'
+        },
+        'update_time': {
+            'it': 'Aggiornamento del',
+            'en': 'Updated on'
+        },
+        'default_title': {
+            'it': 'Aggiornamento spedizione',
+            'en': 'Shipment update'
+        }
     }
 }
 
-def get_text(key, lang='it', **kwargs):
+def get_text(key, lang='it', subkey=None, **kwargs):
     """
     Ottiene il testo tradotto per una chiave e lingua specifica.
     
     Args:
         key: Chiave del messaggio
         lang: Codice lingua ('it' o 'en')
+        subkey: Sottochiave per traduzioni annidate (opzionale)
         **kwargs: Parametri per formattare il messaggio
         
     Returns:
@@ -407,8 +476,15 @@ def get_text(key, lang='it', **kwargs):
     
     translation = TRANSLATIONS[key]
     
+    # Gestisci traduzioni annidate (per notifiche)
+    if subkey and isinstance(translation, dict) and subkey in translation:
+        nested_translation = translation[subkey]
+        if isinstance(nested_translation, dict):
+            text = nested_translation.get(lang, nested_translation.get('it', f"[MISSING: {key}.{subkey}:{lang}]"))
+        else:
+            text = nested_translation
     # Per messaggi bilingue (solo benvenuto)
-    if isinstance(translation, dict) and 'text' in translation:
+    elif isinstance(translation, dict) and 'text' in translation:
         text = translation['text']
     elif isinstance(translation, dict):
         # Prova la lingua richiesta, fallback su italiano
