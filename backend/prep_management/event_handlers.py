@@ -412,17 +412,20 @@ class WebhookEventProcessor:
             
             # Debug: mostra tutti i merchant disponibili
             for m in merchants:
-                logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {m.id}, Name: {getattr(m, 'name', 'N/A')}, Email: {getattr(m, 'email', 'N/A')}")
+                primary_email = getattr(m, 'primaryEmail', getattr(m, 'email', 'N/A'))
+                logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {m.id}, Name: {getattr(m, 'name', 'N/A')}, PrimaryEmail: {primary_email}")
             
             # Trova il merchant con l'ID specificato
             merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
             
             if merchant:
-                if hasattr(merchant, 'email') and merchant.email:
-                    logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {merchant.email}")
-                    return merchant.email
+                # Prova prima primaryEmail, poi email per retrocompatibilità
+                email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+                if email:
+                    logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {email}")
+                    return email
                 else:
-                    logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} trovato ma SENZA email (attributi: {dir(merchant)})")
+                    logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} trovato ma SENZA primaryEmail/email")
                     return None
             else:
                 logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} NON trovato nell'elenco di {len(merchants)} merchants")
