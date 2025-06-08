@@ -164,14 +164,12 @@ REACT_DOMAIN = os.getenv("REACT_DOMAIN", "")
 STATIC_URL = "/static/"
 
 # Directory per i file statici del backend (admin, etc.)
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = BASE_DIR / "static"
 
 # Configurazione WhiteNoise per servire file statici
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-STATICFILES_DIRS = [
-    BASE_DIR / "static",  # static del backend
-]
+STATICFILES_DIRS = []  # Nessuna directory aggiuntiva, tutto va in STATIC_ROOT
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

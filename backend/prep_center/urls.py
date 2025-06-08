@@ -38,5 +38,5 @@ urlpatterns += i18n_patterns(
 )
 
 # Servizio dei file statici per Django admin
-if settings.DEBUG or True:  # In produzione serviamo comunque i file statici per l'admin
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+# if settings.DEBUG or True:  # In produzione serviamo comunque i file statici per l'admin
+#     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
