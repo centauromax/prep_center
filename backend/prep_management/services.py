@@ -347,12 +347,27 @@ def verify_email_in_prepbusiness(email):
     """
     try:
         # Importa qui per evitare import circolari
-        from .utils.clients import get_client
+        from libs.prepbusiness.client import PrepBusinessClient
+        import os
         
         logger.info(f"[verify_email_in_prepbusiness] 🔍 Verifica email: {email}")
         
-        # Ottieni client PrepBusiness
-        client = get_client()
+        # Ottieni configurazione dalle variabili d'ambiente
+        api_url = os.getenv('PREP_BUSINESS_API_URL', 'https://dashboard.fbaprepcenteritaly.com/api')
+        api_key = os.getenv('PREP_BUSINESS_API_KEY', '')
+        
+        if not api_key:
+            logger.error("[verify_email_in_prepbusiness] ❌ PREP_BUSINESS_API_KEY non configurata")
+            return False
+        
+        # Estrai dominio dall'URL
+        company_domain = api_url.split('//')[-1].split('/')[0]
+        
+        # Crea client PrepBusiness
+        client = PrepBusinessClient(
+            api_key=api_key,
+            company_domain=company_domain
+        )
         
         # Ottieni tutti i merchant
         merchants_response = client.get_merchants()
