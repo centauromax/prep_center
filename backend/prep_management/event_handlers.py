@@ -113,6 +113,7 @@ class WebhookEventProcessor:
             logger.info(f"[WebhookEventProcessor.process_event] Risultato salvato per Update ID: {update_id}.")
             
             # Invia notifica Telegram se l'evento lo richiede
+            logger.info(f"[WebhookEventProcessor.process_event] Tentativo invio notifica Telegram per evento {update.event_type}")
             self._send_telegram_notification_if_needed(update)
             
             return result
@@ -324,6 +325,7 @@ class WebhookEventProcessor:
         ]
         
         # Controlla se l'evento richiede una notifica
+        logger.info(f"[_send_telegram_notification_if_needed] Controllo evento {update.event_type}, lista eventi notifica: {notify_events}")
         if update.event_type not in notify_events:
             logger.info(f"[_send_telegram_notification_if_needed] Evento {update.event_type} non richiede notifica Telegram")
             return
