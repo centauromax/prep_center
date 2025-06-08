@@ -34,7 +34,7 @@ urlpatterns += i18n_patterns(
     path('picture_check/', include('picture_check.urls')),
     path('pallet_label/', include('pallet_label.urls')),
     
-    prefix_default_language=False  # Non aggiunge il prefisso della lingua di default all'URL
+    prefix_default_language=False
 )
 
 # Servizio dei file statici per Django admin
