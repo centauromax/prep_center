@@ -410,4 +410,68 @@
         margin-top: 40px !important;
     }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // FORZA styling del contenuto principale con JavaScript
+    console.log('🎨 Applicando styling FBA Prep Center...');
+    
+    // Trova tutti i possibili contenitori del contenuto principale
+    const contentSelectors = [
+        '.main', 
+        '#content', 
+        '#content-main', 
+        '.colM', 
+        '.colMS',
+        '#changelist',
+        '.change-list',
+        '.add-form',
+        '.change-form'
+    ];
+    
+    contentSelectors.forEach(selector => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(el => {
+            if (el && !el.closest('#nav-sidebar')) {
+                console.log(`🎯 Styling applicato a: ${selector}`);
+                el.style.setProperty('background', 'white', 'important');
+                el.style.setProperty('border-radius', '15px', 'important');
+                el.style.setProperty('box-shadow', '0 8px 30px rgba(0,0,0,0.12)', 'important');
+                el.style.setProperty('padding', '30px', 'important');
+                el.style.setProperty('margin', '25px', 'important');
+                el.style.setProperty('border', '1px solid #e1e5e9', 'important');
+            }
+        });
+    });
+    
+    // Forza il contenuto principale se non catturato
+    setTimeout(() => {
+        const main = document.querySelector('.main');
+        if (main) {
+            main.style.setProperty('background', 'white', 'important');
+            main.style.setProperty('border-radius', '15px', 'important');
+            main.style.setProperty('box-shadow', '0 8px 30px rgba(0,0,0,0.12)', 'important');
+            main.style.setProperty('padding', '30px', 'important');
+            main.style.setProperty('margin', '25px', 'important');
+            main.style.setProperty('border', '1px solid #e1e5e9', 'important');
+            console.log('✅ Styling principale forzato!');
+        }
+        
+        // Stila anche i form
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            const parent = form.closest('.main, .colM, .colMS');
+            if (parent) {
+                parent.style.setProperty('background', 'white', 'important');
+                parent.style.setProperty('border-radius', '15px', 'important');
+                parent.style.setProperty('box-shadow', '0 8px 30px rgba(0,0,0,0.12)', 'important');
+                parent.style.setProperty('padding', '30px', 'important');
+                parent.style.setProperty('margin', '25px', 'important');
+            }
+        });
+    }, 100);
+    
+    console.log('🚀 Styling FBA Prep Center completato!');
+});
+</script>
 {% endblock %} 
