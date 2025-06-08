@@ -1104,9 +1104,9 @@ def handle_start_command(chat_id, user_info):
     welcome_message = """
 🤖 <b>Benvenuto al FBA Prep Center Italy Bot!</b>
 
-Per ricevere notifiche sui tuoi ordini e spedizioni, devi registrare la tua email di PrepBusiness.
+Per ricevere notifiche sui tuoi ordini e spedizioni, devi registrarti su questo bot.
 
-📧 <b>Invia la tua email</b> (quella utilizzata su PrepBusiness) per iniziare a ricevere notifiche automatiche.
+📧 Inserisci l'email con cui ti sei registrato sul software del Prep Center.
 
 Esempio: <code>mario.rossi@example.com</code>
 
@@ -1169,7 +1169,7 @@ Da ora in poi riceverai qui tutte le notifiche relative ai tuoi ordini e spedizi
 
 {message}
 
-Riprova con una email valida utilizzata su PrepBusiness.
+Riprova con una email valida utilizzata sul software del Prep Center.
         """
         telegram_service.send_message(chat_id, error_message)
 
@@ -1188,7 +1188,7 @@ def handle_help_command(chat_id):
 • <code>/status</code> - Controlla lo stato della tua registrazione
 
 <b>Per registrarti:</b>
-1. Invia la tua email PrepBusiness
+1. Invia la tua email del Prep Center
 2. Conferma la registrazione
 3. Inizia a ricevere notifiche!
 
@@ -1238,7 +1238,7 @@ def handle_test_command(chat_id):
         not_registered_message = """
 ❌ <b>Utente non registrato</b>
 
-Per utilizzare questo bot devi prima registrarti inviando la tua email PrepBusiness.
+Per utilizzare questo bot devi prima registrarti inviando la tua email del Prep Center.
 
 Esempio: <code>mario.rossi@example.com</code>
 
@@ -1302,7 +1302,7 @@ Usa /test per inviare una notifica di prova.
 Non risulti registrato nel sistema di notifiche.
 
 📧 <b>Per registrarti:</b>
-Invia la tua email PrepBusiness (es: mario.rossi@example.com)
+Invia la tua email del Prep Center (es: mario.rossi@example.com)
 
 ℹ️ Usa /start per le istruzioni complete.
         """
@@ -1321,7 +1321,7 @@ def send_unknown_command_message(chat_id):
     unknown_message = """
 ❓ <b>Comando non riconosciuto</b>
 
-Se vuoi registrarti, invia la tua email PrepBusiness.
+Se vuoi registrarti, invia la tua email del Prep Center.
 Se hai bisogno di aiuto, usa il comando /help.
 
 <b>Comandi disponibili:</b>
@@ -1413,7 +1413,7 @@ def set_telegram_webhook(request):
                 'next_steps': [
                     '1. Testa il bot cercandolo su Telegram',
                     '2. Invia /start per verificare che risponda',
-                    '3. Registra un utente con la sua email PrepBusiness'
+                    '3. Registra un utente con la sua email del Prep Center'
                 ]
             })
         else:
