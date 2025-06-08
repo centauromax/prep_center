@@ -1095,8 +1095,8 @@ def telegram_webhook(request):
                 handle_language_command(chat_id)
             
             else:
-                # Messaggio non riconosciuto
-                send_unknown_command_message(chat_id)
+                # Gestisci messaggio bidirezionale (conversazione)
+                handle_bidirectional_message(chat_id, text)
         
         return JsonResponse({'ok': True})
         
@@ -1329,6 +1329,32 @@ def handle_status_command(chat_id):
     except Exception as e:
         logger.error(f"Errore nel comando status: {str(e)}")
         error_message = "❌ Errore nel recupero del tuo status. Riprova più tardi."
+        telegram_service.send_message(chat_id, error_message)
+
+
+def handle_bidirectional_message(chat_id, message_text):
+    """Gestisce i messaggi bidirezionali delle conversazioni."""
+    from .chat_manager import ChatManager
+    from .services import telegram_service
+    from .translations import get_text, get_user_language
+    
+    try:
+        chat_manager = ChatManager()
+        result = chat_manager.handle_customer_message(chat_id, message_text)
+        
+        if not result.get('success'):
+            # Se c'è un errore, invia messaggio di errore o comando sconosciuto
+            if result.get('error') == 'Utente non registrato':
+                send_unknown_command_message(chat_id)
+            else:
+                user_lang = get_user_language(chat_id)
+                error_message = get_text('system_error', lang=user_lang)
+                telegram_service.send_message(chat_id, error_message)
+                
+    except Exception as e:
+        logger.error(f"Errore gestione messaggio bidirezionale {chat_id}: {str(e)}")
+        user_lang = get_user_language(chat_id)
+        error_message = get_text('system_error', lang=user_lang)
         telegram_service.send_message(chat_id, error_message)
 
 

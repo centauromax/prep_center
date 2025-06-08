@@ -322,3 +322,129 @@ class TelegramMessage(models.Model):
     
     def __str__(self):
         return f"{self.telegram_user.email}: {self.message_text[:50]}..."
+
+
+class TelegramConversation(models.Model):
+    """
+    Modello per gestire le conversazioni bidirezionali tra clienti e admin.
+    """
+    customer_email = models.EmailField(
+        verbose_name="Email Cliente",
+        help_text="Email del cliente partecipante alla conversazione"
+    )
+    thread_id = models.CharField(
+        verbose_name="ID Thread",
+        max_length=50,
+        unique=True,
+        help_text="ID univoco per il thread di conversazione"
+    )
+    is_active = models.BooleanField(
+        verbose_name="Conversazione Attiva",
+        default=True,
+        help_text="Se False, la conversazione è chiusa"
+    )
+    created_at = models.DateTimeField(verbose_name="Data inizio", auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name="Ultimo aggiornamento", auto_now=True)
+    last_message_at = models.DateTimeField(
+        verbose_name="Ultimo messaggio",
+        null=True,
+        blank=True
+    )
+    
+    class Meta:
+        verbose_name = "Conversazione Telegram"
+        verbose_name_plural = "Conversazioni Telegram"
+        ordering = ['-last_message_at', '-updated_at']
+    
+    def __str__(self):
+        status = "Attiva" if self.is_active else "Chiusa"
+        return f"Conversazione {self.thread_id} - {self.customer_email} ({status})"
+    
+    def get_customer_alias(self):
+        """Genera un alias breve per il cliente (A, B, C...)"""
+        # Semplice mapping basato sull'ordine di creazione
+        conversations = TelegramConversation.objects.filter(
+            created_at__lte=self.created_at
+        ).order_by('created_at')
+        
+        index = list(conversations.values_list('id', flat=True)).index(self.id)
+        return chr(65 + (index % 26))  # A, B, C, ..., Z
+
+
+class TelegramChatMessage(models.Model):
+    """
+    Modello per memorizzare i messaggi delle conversazioni bidirezionali.
+    """
+    MESSAGE_TYPES = [
+        ('customer_to_admin', 'Cliente -> Admin'),
+        ('admin_to_customer', 'Admin -> Cliente'),
+        ('admin_broadcast', 'Admin -> Tutti'),
+        ('system', 'Sistema')
+    ]
+    
+    conversation = models.ForeignKey(
+        TelegramConversation,
+        on_delete=models.CASCADE,
+        verbose_name="Conversazione",
+        related_name="messages"
+    )
+    sender_chat_id = models.BigIntegerField(
+        verbose_name="Chat ID Mittente",
+        help_text="Chat ID di chi ha inviato il messaggio"
+    )
+    sender_email = models.EmailField(
+        verbose_name="Email Mittente",
+        help_text="Email di chi ha inviato il messaggio"
+    )
+    message_type = models.CharField(
+        verbose_name="Tipo Messaggio",
+        max_length=20,
+        choices=MESSAGE_TYPES,
+        default='customer_to_admin'
+    )
+    message_text = models.TextField(verbose_name="Testo Messaggio")
+    created_at = models.DateTimeField(verbose_name="Data invio", auto_now_add=True)
+    
+    # Metadati per tracking delivery
+    delivered_to = models.JSONField(
+        verbose_name="Consegnato a",
+        null=True,
+        blank=True,
+        help_text="Lista di chat_id a cui è stato consegnato il messaggio"
+    )
+    
+    class Meta:
+        verbose_name = "Messaggio Chat"
+        verbose_name_plural = "Messaggi Chat"
+        ordering = ['created_at']
+    
+    def __str__(self):
+        return f"{self.conversation.thread_id} - {self.sender_email}: {self.message_text[:50]}..."
+
+
+class AdminActiveConversation(models.Model):
+    """
+    Modello per tracciare le conversazioni attive per ogni admin.
+    """
+    admin_chat_id = models.BigIntegerField(
+        verbose_name="Chat ID Admin",
+        unique=True,
+        help_text="Chat ID dell'admin"
+    )
+    active_conversation = models.ForeignKey(
+        TelegramConversation,
+        on_delete=models.CASCADE,
+        verbose_name="Conversazione Attiva",
+        null=True,
+        blank=True
+    )
+    updated_at = models.DateTimeField(verbose_name="Ultimo aggiornamento", auto_now=True)
+    
+    class Meta:
+        verbose_name = "Conversazione Attiva Admin"
+        verbose_name_plural = "Conversazioni Attive Admin"
+    
+    def __str__(self):
+        if self.active_conversation:
+            return f"Admin {self.admin_chat_id} -> {self.active_conversation.customer_email}"
+        return f"Admin {self.admin_chat_id} (nessuna conversazione attiva)"
