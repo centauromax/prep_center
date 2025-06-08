@@ -16,6 +16,73 @@
 
 {% block extrahead %}
 {{ block.super }}
+
+<!-- FORZA CSS DJANGO ADMIN BASE -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+<style>
+    /* CSS Django Admin base inline */
+    .main {
+        background: #f8f9fa !important;
+        padding: 20px !important;
+    }
+    
+    .colM {
+        background: white !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        padding: 20px !important;
+        margin: 20px !important;
+    }
+    
+    .breadcrumbs {
+        background: white !important;
+        border: 1px solid #dee2e6 !important;
+        border-radius: 6px !important;
+        padding: 10px 15px !important;
+    }
+    
+    .module h2, .module caption {
+        background: #047ea7 !important;
+        color: white !important;
+        padding: 10px 15px !important;
+        margin: 0 !important;
+        font-weight: 600 !important;
+    }
+    
+    .results table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        background: white !important;
+    }
+    
+    .results th {
+        background: #047ea7 !important;
+        color: white !important;
+        padding: 10px !important;
+        text-align: left !important;
+    }
+    
+    .results td {
+        padding: 10px !important;
+        border-bottom: 1px solid #dee2e6 !important;
+    }
+    
+    .results tr:nth-child(even) {
+        background: #f8f9fa !important;
+    }
+    
+    #nav-sidebar {
+        background: white !important;
+        border-right: 1px solid #dee2e6 !important;
+        width: 280px !important;
+        min-height: 100vh !important;
+    }
+    
+    #nav-sidebar .current-app {
+        background: #047ea7 !important;
+        color: white !important;
+    }
+
 <style>
     /* Reset e base */
     * {

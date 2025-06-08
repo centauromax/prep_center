@@ -170,8 +170,12 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",  # static del backend
 ]
 
-# Usiamo lo storage backend semplice dato che i file sono serviti dal frontend
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+# Configurazione WhiteNoise per servire file statici
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Configurazione per Django admin CSS
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
