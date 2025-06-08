@@ -1,22 +1,11 @@
-{% extends "admin/base.html" %}
-{% load static %}
-
-{# Blocca i CSS Django di default che danno 404 #}
-{% block stylesheet %}{% endblock stylesheet %}
-{% block dark-mode-vars %}{% endblock dark-mode-vars %}
-
-{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
-
-{% block branding %}
-<div id="site-name">
-    <a href="{% url 'admin:index' %}">
-        <img src="{% static 'admin/img/logo.svg' %}" alt="FBA Prep Center" style="height: 30px; margin-right: 10px; vertical-align: middle;">
-        <span style="color: #047ea7; font-weight: bold; font-size: 18px;">FBA Prep Center Italy</span>
-    </a>
-</div>
-{% endblock %}
-
-{% block nav-global %}{% endblock %}
+<!DOCTYPE html>
+{% load i18n static %}
+<html lang="{{ LANGUAGE_CODE|default:"en-us" }}" dir="{{ LANGUAGE_BIDI|yesno:'rtl,ltr' }}">
+<head>
+<title>{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | FBA Prep Center Admin{% endblock %}</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="NONE,NOARCHIVE">
 
 {% block extrahead %}
 {{ block.super }}
@@ -42,10 +31,41 @@
     
     /* Header completo */
     #header {
-        background: linear-gradient(to right, #417690, #2a5261) !important;
-        color: #ffc !important;
+        background: linear-gradient(135deg, #047ea7 0%, #0056b3 100%) !important;
+        color: white !important;
         overflow: hidden !important;
         font-weight: bold !important;
+        padding: 10px 20px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 1001 !important;
+        height: 60px !important;
+    }
+    
+    #branding #site-name a {
+        color: white !important;
+        text-decoration: none !important;
+    }
+    
+    #user-tools {
+        color: white !important;
+        font-size: 13px !important;
+    }
+    
+    #user-tools a {
+        color: white !important;
+        text-decoration: none !important;
+        margin: 0 5px !important;
+    }
+    
+    #user-tools a:hover {
+        text-decoration: underline !important;
     }
     
     /* Container layout */
@@ -59,9 +79,18 @@
     /* Main content */
     .main {
         margin-left: 300px !important;
+        margin-top: 60px !important;
         padding: 40px !important;
         background: #f8f9fa !important;
-        min-height: calc(100vh - 120px) !important;
+        min-height: calc(100vh - 60px) !important;
+    }
+    
+    .content {
+        background: white !important;
+        border-radius: 8px !important;
+        padding: 30px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+        margin: 20px 0 !important;
     }
     
     .colM {
@@ -112,7 +141,7 @@
     /* === SIDEBAR COMPLETA === */
     #nav-sidebar {
         position: fixed !important;
-        top: 0 !important;
+        top: 60px !important;
         left: 0 !important;
         bottom: 0 !important;
         width: 300px !important;
@@ -784,4 +813,104 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Styling FBA Prep Center completato!');
 });
 </script>
-{% endblock %} 
+</head>
+
+<body class="{% if is_popup %}popup {% endif %}{% block bodyclass %}{% endblock %}" data-admin-utc-offset="{% now "Z" %}">
+
+<!-- Container -->
+<div id="container">
+
+    <!-- Header -->
+    <div id="header">
+        <div id="branding">
+            <div id="site-name">
+                <a href="{% url 'admin:index' %}">
+                    <span style="color: white; font-weight: bold; font-size: 22px;">🚀 FBA Prep Center Italy</span>
+                </a>
+            </div>
+        </div>
+        
+        {% block usertools %}
+        {% if has_permission %}
+        <div id="user-tools">
+            {% trans 'Welcome,' %}
+            <strong>{% firstof user.get_short_name user.get_username %}</strong>.
+            {% block userlinks %}
+                {% if site_url %}
+                    <a href="{{ site_url }}">{% trans 'View site' %}</a> /
+                {% endif %}
+                {% if user.is_active and user.is_staff %}
+                    {% url 'django-admindocs-docroot' as docsroot %}
+                    {% if docsroot %}
+                        <a href="{{ docsroot }}">{% trans 'Documentation' %}</a> /
+                    {% endif %}
+                {% endif %}
+                {% if user.has_usable_password %}
+                    <a href="{% url 'admin:password_change' %}">{% trans 'Change password' %}</a> /
+                {% endif %}
+                <a href="{% url 'admin:logout' %}">{% trans 'Log out' %}</a>
+            {% endblock %}
+        </div>
+        {% endif %}
+        {% endblock %}
+        {% block nav-global %}{% endblock %}
+    </div>
+    <!-- END Header -->
+
+    <!-- Sidebar -->
+    {% block nav-sidebar %}
+    <nav id="nav-sidebar">
+        {% block sidebar %}
+        <div class="app-admin">
+            <div class="module">
+                <caption><a href="{% url 'admin:index' %}">{% trans 'Home' %}</a></caption>
+            </div>
+        </div>
+        {% endblock %}
+    </nav>
+    {% endblock %}
+
+    <!-- Main content -->
+    <div class="main" id="main">
+        {% if not is_popup and is_nav_sidebar_enabled %}
+        <nav id="nav-sidebar">
+            {% include "admin/nav_sidebar.html" %}
+        </nav>
+        {% endif %}
+        
+        <div class="content">
+            {% block messages %}
+            {% if messages %}
+            <ul class="messagelist">
+                {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|capfirst }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% endblock messages %}
+            
+            <!-- Breadcrumbs -->
+            {% block breadcrumbs %}
+            <div class="breadcrumbs">
+                <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+                {% if title %} &rsaquo; {{ title }}{% endif %}
+            </div>
+            {% endblock %}
+            
+            <div id="content" class="{% block coltype %}colM{% endblock %}">
+                {% block pretitle %}{% endblock %}
+                {% block content_title %}{% if title %}<h1>{{ title }}</h1>{% endif %}{% endblock %}
+                {% block content_subtitle %}{% if subtitle %}<h2>{{ subtitle }}</h2>{% endif %}{% endblock %}
+                {% block content %}
+                    {% block object-tools %}{% endblock %}
+                    {{ content }}
+                {% endblock %}
+                {% block sidebar %}{% endblock %}
+            </div>
+        </div>
+    </div>
+</div>
+<!-- END Container -->
+
+</body>
+</html>{% endblock %} 
