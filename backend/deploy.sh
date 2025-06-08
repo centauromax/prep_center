@@ -1,20 +1,15 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Avvio deploy backend..."
+echo "🚀 Avvio script di release..."
 
-# Migrazione database
 echo "📦 Esecuzione migrazioni database..."
 python manage.py migrate --noinput
 
-# Raccolta file statici Django (CSS admin)
 echo "📁 Raccolta file statici Django..."
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput --clear
 
-# Creazione admin automatica
 echo "👤 Creazione admin automatica..."
 python manage.py create_admin
 
-# Avvio server
-echo "🌐 Avvio server Django..."
-exec python manage.py runserver 0.0.0.0:$PORT 
+echo "✅ Script di release completato con successo." 
