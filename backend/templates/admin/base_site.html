@@ -35,7 +35,16 @@
         text-decoration: none !important;
         display: flex !important;
         align-items: center !important;
-        padding: 10px 0 !important;
+        padding: 15px 20px !important;
+        font-size: 22px !important;
+        font-weight: bold !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
+    }
+    
+    #site-name {
+        background: rgba(255,255,255,0.1) !important;
+        border-radius: 8px !important;
+        margin: 10px 20px !important;
     }
     
     /* Form di login migliorato */
@@ -199,6 +208,18 @@
     }
     
     .app-list .section h2 a {
+        color: white !important;
+        text-decoration: none !important;
+    }
+    
+    /* FORZA testo bianco su tutti i fondi blu */
+    [style*="background"][style*="#047ea7"] *,
+    [style*="background"][style*="rgb(4, 126, 167)"] *,
+    .section h2 *,
+    #nav-sidebar .section h2,
+    #nav-sidebar .section h2 a,
+    #nav-sidebar .module caption,
+    #nav-sidebar .module caption a {
         color: white !important;
         text-decoration: none !important;
     }
@@ -409,6 +430,56 @@
         color: #666 !important;
         margin-top: 40px !important;
     }
+    
+    /* NASCONDI icone rotte e migliora visualizzazione */
+    img[src*="icon"], 
+    img[alt*="Change"], 
+    img[alt*="Add"],
+    img[alt*="View"],
+    .changelink img,
+    .addlink img,
+    .viewlink img {
+        display: none !important;
+    }
+    
+    /* Migliora i link azioni */
+    .changelink::before {
+        content: "✏️ " !important;
+        font-size: 16px !important;
+    }
+    
+    .addlink::before {
+        content: "➕ " !important; 
+        font-size: 16px !important;
+    }
+    
+    .viewlink::before {
+        content: "👁️ " !important;
+        font-size: 16px !important;
+    }
+    
+    /* Migliora dropdown e form elements */
+    select, input[type="text"], input[type="email"], textarea {
+        padding: 8px 12px !important;
+        border: 2px solid #e1e5e9 !important;
+        border-radius: 6px !important;
+        font-size: 14px !important;
+        transition: border-color 0.3s ease !important;
+    }
+    
+    select:focus, input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
+        outline: none !important;
+        border-color: #047ea7 !important;
+        box-shadow: 0 0 0 3px rgba(4, 126, 167, 0.1) !important;
+    }
+    
+    /* Stila le label sui campi form */
+    label {
+        font-weight: 600 !important;
+        color: #333 !important;
+        margin-bottom: 5px !important;
+        display: block !important;
+    }
 </style>
 
 <script>
@@ -470,6 +541,17 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }, 100);
+    
+    // FORZA testo bianco su elementi blu
+    const blueElements = document.querySelectorAll('.section h2, #nav-sidebar .module caption');
+    blueElements.forEach(el => {
+        el.style.setProperty('color', 'white', 'important');
+        const links = el.querySelectorAll('a');
+        links.forEach(link => {
+            link.style.setProperty('color', 'white', 'important');
+            link.style.setProperty('text-decoration', 'none', 'important');
+        });
+    });
     
     console.log('🚀 Styling FBA Prep Center completato!');
 });
