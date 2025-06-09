@@ -147,6 +147,11 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
     try:
         from .utils.clients import get_client
         
+        # Normalizza l'email in minuscolo
+        email = email.lower().strip() if email else None
+        if not email:
+            return None
+        
         # Ottieni tutti i merchants
         client = get_client()
         merchants_response = client.get_merchants()
@@ -156,7 +161,7 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         matching_merchants = []
         for merchant in merchants:
             merchant_email = getattr(merchant, 'primaryEmail', None)
-            if merchant_email and merchant_email.lower() == email.lower():
+            if merchant_email and merchant_email.lower() == email:
                 matching_merchants.append(merchant)
         
         if not matching_merchants:
@@ -227,6 +232,18 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
         bool: True se almeno un messaggio è stato inviato con successo
     """
     try:
+        # Normalizza l'email in minuscolo
+        original_email = email
+        email = email.lower().strip() if email else None
+        
+        # Log della normalizzazione
+        if original_email != email:
+            logger.info(f"[send_telegram_notification] Email normalizzata: '{original_email}' -> '{email}'")
+        
+        if not email:
+            logger.warning("Email vuota fornita a send_telegram_notification")
+            return False
+        
         # Ottieni il nome del cliente per le notifiche admin
         customer_name = get_merchant_name_by_email(email)
         customer_display = customer_name or email
@@ -409,6 +426,14 @@ def register_telegram_user(chat_id, email, user_info=None):
         tuple: (success: bool, message: str, user: TelegramNotification|None)
     """
     try:
+        # Normalizza l'email in minuscolo per evitare problemi di case sensitivity
+        original_email = email
+        email = email.lower().strip() if email else None
+        
+        # Log della normalizzazione
+        if original_email != email:
+            logger.info(f"[register_telegram_user] Email normalizzata: '{original_email}' -> '{email}'")
+        
         # Verifica che l'email sia valida
         if not email or '@' not in email:
             return False, "Email non valida", None
@@ -481,6 +506,14 @@ def verify_email_in_prepbusiness(email):
         bool: True se l'email esiste
     """
     try:
+        # Normalizza l'email in minuscolo
+        original_email = email
+        email = email.lower().strip() if email else None
+        
+        # Log della normalizzazione
+        if original_email != email:
+            logger.info(f"[verify_email_in_prepbusiness] Email normalizzata: '{original_email}' -> '{email}'")
+        
         logger.info(f"[verify_email_in_prepbusiness] 🔍 Verifica email: {email}")
         
         # Per ora, per evitare problemi di import, usiamo un approccio semplificato
@@ -510,12 +543,10 @@ def verify_email_in_prepbusiness(email):
             "info@fbaprepcenteritaly.com"  # Email amministrativa che riceve tutte le notifiche
         ]
         
-        # Verifica case-insensitive
-        email_lower = email.lower()
-        for valid_email in valid_emails:
-            if valid_email.lower() == email_lower:
-                logger.info(f"[verify_email_in_prepbusiness] ✅ Email {email} trovata nella lista valida")
-                return True
+        # Verifica diretta (ora sono tutte già minuscole)
+        if email in valid_emails:
+            logger.info(f"[verify_email_in_prepbusiness] ✅ Email {email} trovata nella lista valida")
+            return True
         
         logger.warning(f"[verify_email_in_prepbusiness] ❌ Email {email} NON trovata nella lista valida")
         logger.warning(f"[verify_email_in_prepbusiness] 📧 Email valide: {valid_emails}")

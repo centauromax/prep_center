@@ -1839,3 +1839,54 @@ def telegram_users_debug(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_email_normalization(request):
+    """
+    Endpoint di test per verificare la normalizzazione delle email.
+    """
+    try:
+        from .services import verify_email_in_prepbusiness, get_merchant_name_by_email
+        
+        test_email = request.data.get('email', 'Info@fbaprepcenteritaly.com')
+        
+        # Test normalizzazione
+        result = {
+            'original_email': test_email,
+            'normalized_email': test_email.lower().strip() if test_email else None,
+            'verify_result': verify_email_in_prepbusiness(test_email),
+            'merchant_name': get_merchant_name_by_email(test_email),
+            'tests': []
+        }
+        
+        # Test varie email con case diverse
+        test_cases = [
+            'Info@fbaprepcenteritaly.com',
+            'INFO@FBAPREPCENTERITALY.COM',
+            'info@fbaprepcenteritaly.com',
+            'Prep@easyavant.com',
+            'PREP@EASYAVANT.COM',
+            'prep@easyavant.com'
+        ]
+        
+        for test_case in test_cases:
+            result['tests'].append({
+                'email': test_case,
+                'normalized': test_case.lower().strip(),
+                'valid': verify_email_in_prepbusiness(test_case),
+                'merchant_name': get_merchant_name_by_email(test_case)
+            })
+        
+        return Response({
+            'success': True,
+            'result': result
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
