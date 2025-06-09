@@ -91,7 +91,7 @@ class ChatManager:
                 # Formatta messaggio diversamente per admin vs cliente
                 if recipient.email == ADMIN_EMAIL:
                     formatted_message = self.format_message_for_admin(
-                        sender.email, message_text, conversation
+                        sender, message_text, conversation
                     )
                     # Imposta questa come conversazione attiva per admin
                     self.set_admin_active_conversation(recipient.chat_id, conversation)
@@ -263,7 +263,7 @@ class ChatManager:
     
     def format_message_for_admin(
         self, 
-        customer_email: str, 
+        sender: TelegramNotification, 
         message_text: str, 
         conversation: TelegramConversation
     ) -> str:
@@ -274,11 +274,14 @@ class ChatManager:
         except Exception:
             alias = 'X'
         
+        # Ottieni il nome del mittente
+        sender_name = sender.get_full_name()
+        
         # Limita lunghezza messaggio per evitare problemi
         display_message = message_text[:200] + "..." if len(message_text) > 200 else message_text
         
         formatted = f"""🔔 <b>Nuovo messaggio Cliente {alias}</b>
-📧 {customer_email}
+👤 {sender_name}
 
 💬 "{display_message}"
 
