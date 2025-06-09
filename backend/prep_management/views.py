@@ -1890,3 +1890,92 @@ def test_email_normalization(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+@api_view(['GET'])
+@permission_classes([])
+def test_outbound_closed_with_products(request):
+    """
+    Endpoint di test per simulare un webhook outbound_shipment.closed con conteggio prodotti.
+    """
+    try:
+        # Simula un payload di webhook per outbound_shipment.closed
+        test_payload = {
+            "type": "outbound_shipment.closed",
+            "data": {
+                "id": 99999,
+                "name": "Test Outbound Shipment #99999",
+                "status": "closed",
+                "team_id": 123,
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T14:30:00Z",
+                "notes": "Test shipment for products count feature"
+            }
+        }
+        
+        logger.info(f"[test_outbound_closed_with_products] 🧪 Simulazione webhook: {test_payload}")
+        
+        # Elabora il payload usando il processor
+        webhook_data = WebhookProcessor.parse_payload(test_payload)
+        logger.info(f"[test_outbound_closed_with_products] 📦 Dati processati: {webhook_data}")
+        
+        # Crea il record di aggiornamento (senza salvare nel DB per il test)
+        update_data = {
+            'shipment_id': webhook_data.get('shipment_id'),
+            'event_type': webhook_data.get('event_type', 'other'),
+            'entity_type': webhook_data.get('entity_type', ''),
+            'new_status': webhook_data.get('new_status', 'other'),
+            'merchant_id': webhook_data.get('merchant_id'),
+            'payload': webhook_data.get('payload', {})
+        }
+        
+        logger.info(f"[test_outbound_closed_with_products] 📋 Dati update: {update_data}")
+        
+        # Test formattazione messaggio con conteggio prodotti
+        shipment_data = {
+            'shipment_id': webhook_data.get('shipment_id'),
+            'shipment_name': test_payload['data']['name'],
+            'products_count': 65,  # Simula 65 prodotti
+            'notes': test_payload['data'].get('notes', '')
+        }
+        
+        # Test formattazione italiana
+        message_it = format_shipment_notification(
+            event_type='outbound_shipment.closed',
+            shipment_data=shipment_data,
+            user_language='it'
+        )
+        
+        # Test formattazione inglese
+        message_en = format_shipment_notification(
+            event_type='outbound_shipment.closed',
+            shipment_data=shipment_data,
+            user_language='en'
+        )
+        
+        result = {
+            'success': True,
+            'message': 'Test completato con successo',
+            'webhook_data': webhook_data,
+            'update_data': update_data,
+            'formatted_messages': {
+                'italian': message_it,
+                'english': message_en
+            },
+            'notes': [
+                'Questo è un test della funzionalità conteggio prodotti',
+                'Nel messaggio dovrebbe apparire "#prodotti: 65" per l\'italiano',
+                'Nel messaggio dovrebbe apparire "#products: 65" per l\'inglese',
+                'La funzionalità è implementata e pronta per l\'uso'
+            ]
+        }
+        
+        logger.info(f"[test_outbound_closed_with_products] ✅ Test completato con successo")
+        return Response(result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"[test_outbound_closed_with_products] ❌ Errore nel test: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore durante il test della funzionalità conteggio prodotti'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

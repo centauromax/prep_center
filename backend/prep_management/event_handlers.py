@@ -365,6 +365,16 @@ class WebhookEventProcessor:
                 'new_status': update.new_status
             }
             
+            # Per outbound_shipment.closed, recupera il numero di prodotti
+            if update.event_type == 'outbound_shipment.closed':
+                logger.info(f"[_send_telegram_notification_if_needed] 📦 Recupero numero prodotti per spedizione {update.shipment_id}")
+                products_count = self._get_outbound_shipment_products_count(update.shipment_id, update.merchant_id)
+                if products_count is not None:
+                    shipment_data['products_count'] = products_count
+                    logger.info(f"[_send_telegram_notification_if_needed] ✅ Numero prodotti trovato: {products_count}")
+                else:
+                    logger.warning(f"[_send_telegram_notification_if_needed] ⚠️ Impossibile recuperare numero prodotti per spedizione {update.shipment_id}")
+            
             # Invia la notifica (la formattazione del messaggio sarà gestita internamente)
             success = send_telegram_notification(
                 email=merchant_email,
@@ -381,6 +391,48 @@ class WebhookEventProcessor:
                 
         except Exception as e:
             logger.error(f"[_send_telegram_notification_if_needed] Errore nell'invio notifica Telegram: {str(e)}")
+    
+    def _get_outbound_shipment_products_count(self, shipment_id: str, merchant_id: str) -> Optional[int]:
+        """
+        Recupera il numero totale di prodotti per una spedizione in uscita.
+        
+        Args:
+            shipment_id: ID della spedizione
+            merchant_id: ID del merchant
+            
+        Returns:
+            int: Numero totale di prodotti o None se errore
+        """
+        try:
+            if not self.client:
+                logger.error(f"[_get_outbound_shipment_products_count] ❌ Client PrepBusiness non inizializzato")
+                return None
+                
+            logger.info(f"[_get_outbound_shipment_products_count] Chiamata API get_outbound_shipment_items per spedizione {shipment_id}")
+            
+            # Recupera gli items della spedizione
+            items_response = self.client.get_outbound_shipment_items(
+                shipment_id=int(shipment_id),
+                merchant_id=int(merchant_id) if merchant_id else None
+            )
+            
+            if not items_response or not hasattr(items_response, 'items'):
+                logger.warning(f"[_get_outbound_shipment_products_count] Nessun item trovato per spedizione {shipment_id}")
+                return None
+            
+            # Calcola il numero totale di prodotti sommando le quantità
+            total_quantity = 0
+            for item in items_response.items:
+                item_quantity = getattr(item, 'quantity', 0)
+                total_quantity += item_quantity
+                logger.debug(f"[_get_outbound_shipment_products_count] Item {item.id}: quantità {item_quantity}")
+            
+            logger.info(f"[_get_outbound_shipment_products_count] ✅ Totale prodotti per spedizione {shipment_id}: {total_quantity}")
+            return total_quantity
+            
+        except Exception as e:
+            logger.error(f"[_get_outbound_shipment_products_count] ❌ Errore nel recupero prodotti per spedizione {shipment_id}: {str(e)}")
+            return None
     
     def _get_merchant_email(self, merchant_id: str) -> Optional[str]:
         """

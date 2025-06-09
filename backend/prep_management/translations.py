@@ -447,6 +447,10 @@ Choose your language:
             'it': 'Note',
             'en': 'Notes'
         },
+        'products_count': {
+            'it': '#prodotti',
+            'en': '#products'
+        },
         'default_title': {
             'it': 'Aggiornamento spedizione',
             'en': 'Shipment update'

@@ -610,6 +610,11 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
         carrier_label = get_text('notification_labels', lang=user_language, subkey='carrier')
         message += f"🚛 <b>{carrier_label}:</b> {shipment_data['carrier']}\n"
     
+    # Aggiungi numero prodotti per spedizione in uscita chiusa
+    if shipment_data.get('products_count') is not None:
+        products_label = get_text('notification_labels', lang=user_language, subkey='products_count')
+        message += f"📦 <b>{products_label}:</b> {shipment_data['products_count']}\n"
+    
     if shipment_data.get('notes'):
         notes_label = get_text('notification_labels', lang=user_language, subkey='notes')
         message += f"\n💬 <b>{notes_label}:</b>\n{shipment_data['notes']}\n"
