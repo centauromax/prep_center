@@ -636,7 +636,7 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
             received_color = "🔴"
         
         message += f"📊 <b>{expected_label}  :</b> {expected_count}\n"
-        message += f"📦 <b>{received_label}:</b> {received_color}<b>{received_count}</b>\n"
+        message += f"📦 <b>{received_label}:</b> <b>{received_count}</b> {received_color}\n"
         
         logger.info(f"[format_shipment_notification] ✅ AGGIUNTI conteggi prodotti inbound - Attesi: {expected_count}, Arrivati: {received_count} ({received_color}) ({user_language})")
     else:
