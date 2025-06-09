@@ -518,18 +518,66 @@ class WebhookEventProcessor:
             
             logger.info(f"[_get_inbound_shipment_products_count] 📦 Trovati {len(items_response.items)} items nella spedizione")
             
+            # Debug: mostra la struttura del primo item se disponibile
+            if len(items_response.items) > 0:
+                first_item = items_response.items[0]
+                logger.info(f"[_get_inbound_shipment_products_count] 🔍 DEBUG primo item - Attributi: {dir(first_item)}")
+                expected_obj = getattr(first_item, 'expected', None)
+                actual_obj = getattr(first_item, 'actual', None)
+                logger.info(f"[_get_inbound_shipment_products_count] 🔍 DEBUG expected: {expected_obj} (tipo: {type(expected_obj)})")
+                if expected_obj and hasattr(expected_obj, '__dict__'):
+                    logger.info(f"[_get_inbound_shipment_products_count] 🔍 DEBUG expected attributi: {vars(expected_obj)}")
+                logger.info(f"[_get_inbound_shipment_products_count] 🔍 DEBUG actual: {actual_obj} (tipo: {type(actual_obj)})")
+                if actual_obj and hasattr(actual_obj, '__dict__'):
+                    logger.info(f"[_get_inbound_shipment_products_count] 🔍 DEBUG actual attributi: {vars(actual_obj)}")
+            
             # Calcola i totali per attesi e arrivati
             total_expected = 0
             total_received = 0
             
             for i, item in enumerate(items_response.items):
-                item_expected = getattr(item, 'expected', 0) or 0
-                item_received = getattr(item, 'actual', 0) or 0
+                # L'oggetto expected potrebbe essere un oggetto complesso, estraiamo il valore numerico
+                item_expected_obj = getattr(item, 'expected', None)
+                if item_expected_obj is not None:
+                    # Se è un oggetto, prova a ottenere la quantity
+                    if hasattr(item_expected_obj, 'quantity'):
+                        item_expected = getattr(item_expected_obj, 'quantity', 0) or 0
+                    elif hasattr(item_expected_obj, 'value'):
+                        item_expected = getattr(item_expected_obj, 'value', 0) or 0
+                    elif isinstance(item_expected_obj, (int, float)):
+                        item_expected = item_expected_obj
+                    else:
+                        # Prova a convertire a intero direttamente
+                        try:
+                            item_expected = int(item_expected_obj)
+                        except (ValueError, TypeError):
+                            item_expected = 0
+                else:
+                    item_expected = 0
+                
+                # L'oggetto actual potrebbe essere un oggetto complesso, estraiamo il valore numerico
+                item_received_obj = getattr(item, 'actual', None)
+                if item_received_obj is not None:
+                    # Se è un oggetto, prova a ottenere la quantity
+                    if hasattr(item_received_obj, 'quantity'):
+                        item_received = getattr(item_received_obj, 'quantity', 0) or 0
+                    elif hasattr(item_received_obj, 'value'):
+                        item_received = getattr(item_received_obj, 'value', 0) or 0
+                    elif isinstance(item_received_obj, (int, float)):
+                        item_received = item_received_obj
+                    else:
+                        # Prova a convertire a intero direttamente
+                        try:
+                            item_received = int(item_received_obj)
+                        except (ValueError, TypeError):
+                            item_received = 0
+                else:
+                    item_received = 0
                 
                 total_expected += item_expected
                 total_received += item_received
                 
-                logger.info(f"[_get_inbound_shipment_products_count] 📦 Item {i+1}/{len(items_response.items)} - ID: {getattr(item, 'id', 'N/A')}, Attesi: {item_expected}, Arrivati: {item_received}")
+                logger.info(f"[_get_inbound_shipment_products_count] 📦 Item {i+1}/{len(items_response.items)} - ID: {getattr(item, 'id', 'N/A')}, Attesi: {item_expected} (tipo: {type(item_expected_obj)}), Arrivati: {item_received} (tipo: {type(item_received_obj)})")
             
             result = {'expected': total_expected, 'received': total_received}
             logger.info(f"[_get_inbound_shipment_products_count] ✅ TOTALI per spedizione {shipment_id}: {result}")
