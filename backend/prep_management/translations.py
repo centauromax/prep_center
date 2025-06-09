@@ -392,19 +392,19 @@ Choose your language:
     # Notifiche spedizioni
     'notifications': {
         'inbound_shipment.created': {
-            'it': 'Nuova spedizione in entrata creata',
+            'it': 'Creata spedizione in entrata',
             'en': 'New inbound shipment created'
         },
         'inbound_shipment.received': {
-            'it': 'Spedizione in entrata ricevuta',
+            'it': 'Verificata spedizione in entrata',
             'en': 'Inbound shipment received'
         },
         'inbound_shipment.shipped': {
-            'it': 'Spedizione in entrata in transito',
+            'it': 'Arrivata spedizione in entrata',
             'en': 'Inbound shipment in transit'
         },
         'outbound_shipment.created': {
-            'it': 'Nuova spedizione in uscita creata',
+            'it': 'Creata spedizione in uscita',
             'en': 'New outbound shipment created'
         },
         'outbound_shipment.shipped': {
@@ -412,7 +412,7 @@ Choose your language:
             'en': 'Outbound shipment shipped'
         },
         'outbound_shipment.closed': {
-            'it': 'Spedizione in uscita completata',
+            'it': 'Pronta spedizione in uscita',
             'en': 'Outbound shipment completed'
         },
         'order.created': {

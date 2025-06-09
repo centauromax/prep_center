@@ -319,7 +319,7 @@ class WebhookEventProcessor:
             'inbound_shipment.received',
             'inbound_shipment.shipped', 
             'outbound_shipment.created',
-            'outbound_shipment.shipped',
+            # 'outbound_shipment.shipped',  # RIMOSSO: Non inviare notifiche per "Spedizione in uscita spedita"
             'outbound_shipment.closed',
             'order.created',
             'order.shipped'
