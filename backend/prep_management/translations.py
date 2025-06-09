@@ -451,6 +451,20 @@ Choose your language:
             'it': 'Aggiornamento spedizione',
             'en': 'Shipment update'
         }
+    },
+    
+    # Messaggi per admin
+    'admin_new_message': {
+        'it': "Nuovo messaggio Cliente {alias}",
+        'en': "New message from Customer {alias}"
+    },
+    'admin_sender_label': {
+        'it': "Da:",
+        'en': "From:"
+    },
+    'admin_reply_instructions': {
+        'it': "Rispondi normalmente o usa @{alias}",
+        'en': "Reply normally or use @{alias}"
     }
 }
 

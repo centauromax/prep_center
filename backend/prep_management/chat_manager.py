@@ -88,10 +88,15 @@ class ChatManager:
                 }
             
             for recipient in valid_recipients:
+                # Verifica se chat_id è valido
+                if not recipient.chat_id or recipient.chat_id == 999999998:
+                    logger.warning(f"Chat_id non valido per {recipient.email}: {recipient.chat_id}")
+                    continue
+                
                 # Formatta messaggio diversamente per admin vs cliente
                 if recipient.email == ADMIN_EMAIL:
                     formatted_message = self.format_message_for_admin(
-                        sender, message_text, conversation
+                        sender, message_text, conversation, recipient.language_code
                     )
                     # Imposta questa come conversazione attiva per admin
                     self.set_admin_active_conversation(recipient.chat_id, conversation)
@@ -265,7 +270,8 @@ class ChatManager:
         self, 
         sender: TelegramNotification, 
         message_text: str, 
-        conversation: TelegramConversation
+        conversation: TelegramConversation,
+        admin_language: str = 'it'
     ) -> str:
         """Formatta un messaggio per l'admin con contesto."""
         
@@ -280,12 +286,18 @@ class ChatManager:
         # Limita lunghezza messaggio per evitare problemi
         display_message = message_text[:200] + "..." if len(message_text) > 200 else message_text
         
-        formatted = f"""🔔 <b>Nuovo messaggio Cliente {alias}</b>
+        # Usa le traduzioni
+        from .translations import get_text
+        new_message_text = get_text('admin_new_message', lang=admin_language, alias=alias)
+        sender_label = get_text('admin_sender_label', lang=admin_language)
+        reply_instructions = get_text('admin_reply_instructions', lang=admin_language, alias=alias)
+        
+        formatted = f"""🔔 <b>{new_message_text}</b>
 👤 {sender_name}
 
 💬 "{display_message}"
 
-📝 <i>Rispondi normalmente o usa @{alias}</i>"""
+📝 <i>{reply_instructions}</i>"""
         
         return formatted
     
@@ -386,6 +398,11 @@ class ChatManager:
             delivered_to = []
             
             for user in customer_users:
+                # Verifica se chat_id è valido
+                if not user.chat_id or user.chat_id == 999999998:
+                    logger.warning(f"Chat_id non valido per {user.email}: {user.chat_id}")
+                    continue
+                
                 # Formatta messaggio per il cliente
                 formatted_message = f"💬 <b>Supporto</b>:\n{message_text}"
                 
@@ -521,6 +538,11 @@ class ChatManager:
             delivered_to = []
             
             for customer in customers:
+                # Verifica se chat_id è valido
+                if not customer.chat_id or customer.chat_id == 999999998:
+                    logger.warning(f"Chat_id non valido per broadcast {customer.email}: {customer.chat_id}")
+                    continue
+                
                 # Formatta messaggio broadcast
                 formatted_message = f"📢 <b>Messaggio dal supporto</b>:\n{message_text}"
                 
