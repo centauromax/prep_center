@@ -451,6 +451,14 @@ Choose your language:
             'it': '#prodotti',
             'en': '#products'
         },
+        'expected_count': {
+            'it': '#attesi',
+            'en': '#expected'
+        },
+        'received_count': {
+            'it': '#arrivati',
+            'en': '#received'
+        },
         'default_title': {
             'it': 'Aggiornamento spedizione',
             'en': 'Shipment update'

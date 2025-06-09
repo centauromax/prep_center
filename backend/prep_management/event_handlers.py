@@ -365,8 +365,9 @@ class WebhookEventProcessor:
                 'new_status': update.new_status
             }
             
-            # Per outbound_shipment.closed, recupera il numero di prodotti
+            # Recupera conteggi prodotti per eventi specifici
             logger.info(f"[_send_telegram_notification_if_needed] 🔍 Controllo evento: {update.event_type}")
+            
             if update.event_type == 'outbound_shipment.closed':
                 logger.info(f"[_send_telegram_notification_if_needed] 📦 EVENTO OUTBOUND_CLOSED RILEVATO! Recupero numero prodotti per spedizione {update.shipment_id}")
                 logger.info(f"[_send_telegram_notification_if_needed] 📋 Parametri: shipment_id={update.shipment_id}, merchant_id={update.merchant_id}")
@@ -382,6 +383,24 @@ class WebhookEventProcessor:
                         logger.warning(f"[_send_telegram_notification_if_needed] ⚠️ Numero prodotti NON disponibile per spedizione {update.shipment_id}")
                 except Exception as e:
                     logger.error(f"[_send_telegram_notification_if_needed] ❌ ERRORE nel recupero prodotti: {str(e)}")
+                    logger.exception("Traceback:")
+                    
+            elif update.event_type == 'inbound_shipment.received':
+                logger.info(f"[_send_telegram_notification_if_needed] 📥 EVENTO INBOUND_RECEIVED RILEVATO! Recupero conteggi prodotti per spedizione {update.shipment_id}")
+                logger.info(f"[_send_telegram_notification_if_needed] 📋 Parametri: shipment_id={update.shipment_id}, merchant_id={update.merchant_id}")
+                
+                try:
+                    products_counts = self._get_inbound_shipment_products_count(update.shipment_id, update.merchant_id)
+                    logger.info(f"[_send_telegram_notification_if_needed] 📊 Risultato chiamata products_counts: {products_counts}")
+                    
+                    if products_counts is not None:
+                        shipment_data['expected_count'] = products_counts['expected']
+                        shipment_data['received_count'] = products_counts['received']
+                        logger.info(f"[_send_telegram_notification_if_needed] ✅ Conteggi prodotti AGGIUNTI ai dati - Attesi: {products_counts['expected']}, Arrivati: {products_counts['received']}")
+                    else:
+                        logger.warning(f"[_send_telegram_notification_if_needed] ⚠️ Conteggi prodotti NON disponibili per spedizione {update.shipment_id}")
+                except Exception as e:
+                    logger.error(f"[_send_telegram_notification_if_needed] ❌ ERRORE nel recupero conteggi prodotti: {str(e)}")
                     logger.exception("Traceback:")
             else:
                 logger.info(f"[_send_telegram_notification_if_needed] ➡️ Evento {update.event_type} non richiede conteggio prodotti")
@@ -457,6 +476,67 @@ class WebhookEventProcessor:
             
         except Exception as e:
             logger.error(f"[_get_outbound_shipment_products_count] ❌ ECCEZIONE nel recupero prodotti per spedizione {shipment_id}: {str(e)}")
+            logger.exception("Traceback completo:")
+            return None
+    
+    def _get_inbound_shipment_products_count(self, shipment_id: str, merchant_id: str) -> Optional[dict]:
+        """
+        Recupera i conteggi dei prodotti attesi e arrivati per una spedizione in entrata.
+        
+        Args:
+            shipment_id: ID della spedizione
+            merchant_id: ID del merchant
+            
+        Returns:
+            dict: {'expected': int, 'received': int} o None se errore
+        """
+        logger.info(f"[_get_inbound_shipment_products_count] 🚀 INIZIO recupero conteggi - shipment_id={shipment_id}, merchant_id={merchant_id}")
+        
+        try:
+            if not self.client:
+                logger.error(f"[_get_inbound_shipment_products_count] ❌ Client PrepBusiness non inizializzato")
+                return None
+                
+            logger.info(f"[_get_inbound_shipment_products_count] 📞 Chiamata API get_inbound_shipment_items per spedizione {shipment_id}")
+            
+            # Recupera gli items della spedizione
+            items_response = self.client.get_inbound_shipment_items(
+                shipment_id=int(shipment_id),
+                merchant_id=int(merchant_id) if merchant_id else None
+            )
+            
+            logger.info(f"[_get_inbound_shipment_products_count] 📥 Risposta API ricevuta: {type(items_response)}")
+            
+            if not items_response:
+                logger.warning(f"[_get_inbound_shipment_products_count] ⚠️ Risposta API vuota per spedizione {shipment_id}")
+                return None
+                
+            if not hasattr(items_response, 'items'):
+                logger.warning(f"[_get_inbound_shipment_products_count] ⚠️ Risposta API senza attributo 'items' per spedizione {shipment_id}")
+                logger.warning(f"[_get_inbound_shipment_products_count] 📋 Attributi disponibili: {dir(items_response)}")
+                return None
+            
+            logger.info(f"[_get_inbound_shipment_products_count] 📦 Trovati {len(items_response.items)} items nella spedizione")
+            
+            # Calcola i totali per attesi e arrivati
+            total_expected = 0
+            total_received = 0
+            
+            for i, item in enumerate(items_response.items):
+                item_expected = getattr(item, 'expected', 0) or 0
+                item_received = getattr(item, 'actual', 0) or 0
+                
+                total_expected += item_expected
+                total_received += item_received
+                
+                logger.info(f"[_get_inbound_shipment_products_count] 📦 Item {i+1}/{len(items_response.items)} - ID: {getattr(item, 'id', 'N/A')}, Attesi: {item_expected}, Arrivati: {item_received}")
+            
+            result = {'expected': total_expected, 'received': total_received}
+            logger.info(f"[_get_inbound_shipment_products_count] ✅ TOTALI per spedizione {shipment_id}: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"[_get_inbound_shipment_products_count] ❌ ECCEZIONE nel recupero conteggi per spedizione {shipment_id}: {str(e)}")
             logger.exception("Traceback completo:")
             return None
     

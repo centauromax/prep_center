@@ -1891,6 +1891,133 @@ def test_email_normalization(request):
             'traceback': traceback.format_exc()
         }, status=500)
 
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_inbound_received_notification(request):
+    """
+    Test per spedizione in entrata ricevuta con conteggi prodotti - numeri uguali (verde)
+    """
+    try:
+        from .services import send_telegram_notification
+        
+        # Dati di test per inbound_shipment.received
+        shipment_data = {
+            'shipment_id': 'INBOUND-12345',
+            'shipment_name': 'Test Spedizione Entrata - Match',
+            'expected_count': 85,
+            'received_count': 85,  # Stesso numero = verde
+            'merchant_name': 'Test Merchant',
+            'new_status': 'received'
+        }
+        
+        success = send_telegram_notification(
+            email="info@fbaprepcenteritaly.com",
+            message=None,  # Formattazione automatica
+            event_type="inbound_shipment.received",
+            shipment_id=shipment_data['shipment_id'],
+            shipment_data=shipment_data
+        )
+        
+        return Response({
+            'success': success,
+            'message': f'Test inbound received (stesso numero - verde) - Success: {success}',
+            'data': shipment_data
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_inbound_received_more(request):  
+    """
+    Test per spedizione in entrata ricevuta con PIÙ prodotti del previsto (blu)
+    """
+    try:
+        from .services import send_telegram_notification
+        
+        # Dati di test per inbound_shipment.received - arrivato di più
+        shipment_data = {
+            'shipment_id': 'INBOUND-67890',
+            'shipment_name': 'Test Spedizione Entrata - Surplus',
+            'expected_count': 85,
+            'received_count': 92,  # Più del previsto = blu
+            'merchant_name': 'Test Merchant',
+            'new_status': 'received'
+        }
+        
+        success = send_telegram_notification(
+            email="info@fbaprepcenteritaly.com",
+            message=None,  # Formattazione automatica
+            event_type="inbound_shipment.received",
+            shipment_id=shipment_data['shipment_id'],
+            shipment_data=shipment_data
+        )
+        
+        return Response({
+            'success': success,
+            'message': f'Test inbound received (arrivato di più - blu) - Success: {success}',
+            'data': shipment_data
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_inbound_received_less(request):
+    """
+    Test per spedizione in entrata ricevuta con MENO prodotti del previsto (rosso)
+    """
+    try:
+        from .services import send_telegram_notification
+        
+        # Dati di test per inbound_shipment.received - arrivato di meno
+        shipment_data = {
+            'shipment_id': 'INBOUND-11111',
+            'shipment_name': 'Test Spedizione Entrata - Shortage',
+            'expected_count': 85,
+            'received_count': 73,  # Meno del previsto = rosso
+            'merchant_name': 'Test Merchant',
+            'new_status': 'received'
+        }
+        
+        success = send_telegram_notification(
+            email="info@fbaprepcenteritaly.com",
+            message=None,  # Formattazione automatica
+            event_type="inbound_shipment.received",
+            shipment_id=shipment_data['shipment_id'],
+            shipment_data=shipment_data
+        )
+        
+        return Response({
+            'success': success,
+            'message': f'Test inbound received (arrivato di meno - rosso) - Success: {success}',
+            'data': shipment_data
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+
 @api_view(['GET'])
 @permission_classes([])
 def test_outbound_closed_with_products(request):

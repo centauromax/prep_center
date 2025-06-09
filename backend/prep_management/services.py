@@ -615,6 +615,30 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
         products_label = get_text('notification_labels', lang=user_language, subkey='products_count')
         message += f"📦 <b>{products_label}:</b> {shipment_data['products_count']}\n"
         logger.info(f"[format_shipment_notification] ✅ AGGIUNTO conteggio prodotti al messaggio: {shipment_data['products_count']} ({user_language})")
+        
+    # Aggiungi conteggi attesi/arrivati per spedizione in entrata ricevuta
+    elif event_type == 'inbound_shipment.received' and shipment_data.get('expected_count') is not None and shipment_data.get('received_count') is not None:
+        expected_count = shipment_data['expected_count']
+        received_count = shipment_data['received_count']
+        
+        expected_label = get_text('notification_labels', lang=user_language, subkey='expected_count')
+        received_label = get_text('notification_labels', lang=user_language, subkey='received_count')
+        
+        # Determina il colore del numero arrivati basato sul confronto
+        if received_count == expected_count:
+            # Verde: tutto corretto
+            received_color = "🟢"
+        elif received_count > expected_count:
+            # Blu: arrivato di più
+            received_color = "🔵"
+        else:
+            # Rosso: arrivato di meno
+            received_color = "🔴"
+        
+        message += f"📊 <b>{expected_label}  :</b> {expected_count}\n"
+        message += f"📦 <b>{received_label}:</b> {received_color}<b>{received_count}</b>\n"
+        
+        logger.info(f"[format_shipment_notification] ✅ AGGIUNTI conteggi prodotti inbound - Attesi: {expected_count}, Arrivati: {received_count} ({received_color}) ({user_language})")
     else:
         logger.info(f"[format_shipment_notification] ℹ️ Conteggio prodotti NON presente nei dati per evento {event_type}")
     
