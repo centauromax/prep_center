@@ -1,4 +1,5 @@
 import requests
+from typing import Optional
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_URL
 
@@ -132,6 +133,37 @@ telegram_service = TelegramService()
 # Email amministrativa che riceve tutte le notifiche
 ADMIN_EMAIL = "info@fbaprepcenteritaly.com"
 
+def get_merchant_name_by_email(email: str) -> Optional[str]:
+    """
+    Ottiene il nome del merchant dall'email utilizzando l'API PrepBusiness.
+    
+    Args:
+        email: Email del merchant
+        
+    Returns:
+        Nome del merchant o None se non trovato
+    """
+    try:
+        from .utils.clients import get_client
+        
+        # Ottieni tutti i merchants
+        client = get_client()
+        merchants_response = client.get_merchants()
+        merchants = getattr(merchants_response, 'data', [])
+        
+        # Cerca il merchant con questa email
+        for merchant in merchants:
+            merchant_email = getattr(merchant, 'primaryEmail', None)
+            if merchant_email and merchant_email.lower() == email.lower():
+                return merchant.name
+        
+        logger.warning(f"Merchant non trovato per email: {email}")
+        return None
+        
+    except Exception as e:
+        logger.error(f"Errore nel recuperare nome merchant per {email}: {str(e)}")
+        return None
+
 def send_telegram_notification(email, message, event_type=None, shipment_id=None, shipment_data=None):
     """
     Invia una notifica Telegram a TUTTI gli utenti registrati con la stessa email.
@@ -149,6 +181,13 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
         bool: True se almeno un messaggio è stato inviato con successo
     """
     try:
+        # Ottieni il nome del cliente per le notifiche admin
+        customer_name = get_merchant_name_by_email(email)
+        customer_display = customer_name or email
+        
+        # Log per debug
+        logger.info(f"[send_telegram_notification] Email: {email}, Nome trovato: {customer_name}, Display: {customer_display}")
+        
         # Trova TUTTI gli utenti Telegram con questa email
         telegram_users = TelegramNotification.objects.filter(
             email=email,
@@ -164,7 +203,7 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
             telegram_users = telegram_users.union(admin_users)
             
             if admin_users.exists():
-                logger.info(f"Aggiunta notifica anche per email amministrativa: {ADMIN_EMAIL}")
+                logger.info(f"Aggiunta notifica anche per email amministrativa: {ADMIN_EMAIL} - {admin_users.count()} admin trovati")
         
         if not telegram_users.exists():
             logger.warning(f"Nessun utente Telegram trovato per email: {email}")
@@ -188,7 +227,7 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
                     
                     # Se questo è l'admin e non è il cliente originale, aggiungi info sul cliente
                     if telegram_user.email == ADMIN_EMAIL and email != ADMIN_EMAIL:
-                        admin_prefix = f"📧 <b>Cliente:</b> {email}\n\n" if user_language == 'it' else f"📧 <b>Customer:</b> {email}\n\n"
+                        admin_prefix = f"📧 <b>Cliente:</b> {customer_display}\n\n" if user_language == 'it' else f"📧 <b>Customer:</b> {customer_display}\n\n"
                         user_message = admin_prefix + user_message
                         
                 elif message is None:

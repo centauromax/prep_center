@@ -262,10 +262,17 @@ class ChatManager:
     def get_conversation_recipients(self, customer_email: str) -> List[TelegramNotification]:
         """Ottiene tutti i destinatari per una conversazione (cliente + admin)."""
         
-        return TelegramNotification.objects.filter(
+        recipients = TelegramNotification.objects.filter(
             Q(email=customer_email) | Q(email=ADMIN_EMAIL),
             is_active=True
         )
+        
+        # Log per debug
+        admin_count = recipients.filter(email=ADMIN_EMAIL).count()
+        customer_count = recipients.filter(email=customer_email).count()
+        logger.info(f"[get_conversation_recipients] Cliente: {customer_email}, Recipients: {recipients.count()} (Admin: {admin_count}, Customer: {customer_count})")
+        
+        return recipients
     
     def format_message_for_admin(
         self, 
@@ -282,8 +289,13 @@ class ChatManager:
         except Exception:
             alias = 'X'
         
-        # Ottieni il nome del mittente
-        sender_name = sender.get_full_name()
+        # Ottieni il nome del cliente invece della email
+        from .services import get_merchant_name_by_email
+        customer_name = get_merchant_name_by_email(sender.email)
+        customer_display = customer_name or sender.email
+        
+        # Log per debug
+        logger.info(f"[format_message_for_admin] Email: {sender.email}, Nome trovato: {customer_name}, Display: {customer_display}")
         
         # Limita lunghezza messaggio per evitare problemi
         display_message = message_text[:200] + "..." if len(message_text) > 200 else message_text
@@ -295,7 +307,7 @@ class ChatManager:
         
         # Costruisci il messaggio base
         formatted = f"""🔔 <b>{new_message_text}</b>
-👤 {sender_name}"""
+👤 {customer_display}"""
         
         # Aggiungi contesto di reply se presente
         if reply_to_message:
@@ -378,8 +390,13 @@ class ChatManager:
             status = "⭐" if conv == current_active else "💬"
             time_ago = self.get_time_ago(conv.last_message_at)
             
+            # Ottieni il nome del cliente
+            from .services import get_merchant_name_by_email
+            customer_name = get_merchant_name_by_email(conv.customer_email)
+            customer_display = customer_name or conv.customer_email
+            
             conv_list.append(
-                f"{status} <b>Cliente {alias}</b> ({conv.customer_email})\n"
+                f"{status} <b>Cliente {alias}</b> ({customer_display})\n"
                 f"   🕒 {time_ago}\n"
                 f"   🆔 {conv.thread_id}\n"
             )
@@ -539,8 +556,13 @@ class ChatManager:
         # Imposta come conversazione attiva
         self.set_admin_active_conversation(admin_chat_id, conversation)
         
+        # Ottieni nome cliente per conferma
+        from .services import get_merchant_name_by_email
+        customer_name = get_merchant_name_by_email(conversation.customer_email)
+        customer_display = customer_name or conversation.customer_email
+        
         # Conferma
-        confirm_msg = f"✅ Conversazione attiva cambiata a Cliente {alias} ({conversation.customer_email})"
+        confirm_msg = f"✅ Conversazione attiva cambiata a Cliente {alias} ({customer_display})"
         self.telegram_service.send_message(admin_chat_id, confirm_msg)
         
         return {'success': True, 'conversation_id': conversation.thread_id}

@@ -1644,3 +1644,147 @@ def telegram_debug(request):
             'error': str(e),
             'message': 'Errore nel recupero dati debug'
         })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def telegram_admin_debug(request):
+    """
+    Endpoint di debug per verificare multiple admin e nomi clienti.
+    """
+    try:
+        from .models import TelegramNotification
+        from .services import get_merchant_name_by_email, ADMIN_EMAIL
+        
+        debug_info = {
+            'admin_email': ADMIN_EMAIL,
+            'admin_users': [],
+            'customer_tests': [],
+            'stats': {}
+        }
+        
+        # 1. Verifica admin registrati
+        admin_users = TelegramNotification.objects.filter(
+            email=ADMIN_EMAIL,
+            is_active=True
+        )
+        
+        for admin in admin_users:
+            debug_info['admin_users'].append({
+                'chat_id': admin.chat_id,
+                'username': admin.username,
+                'first_name': admin.first_name,
+                'language_code': admin.language_code,
+                'created_at': admin.created_at.isoformat() if admin.created_at else None,
+                'is_valid_chat_id': admin.chat_id != 999999998
+            })
+        
+        # 2. Test recupero nomi clienti
+        test_emails = [
+            'prep@easyavant.com',
+            'glomatservice@gmail.com',
+            'alyxsrl@gmail.com',
+            'demo@wifiexpress.it'
+        ]
+        
+        for email in test_emails:
+            customer_name = get_merchant_name_by_email(email)
+            debug_info['customer_tests'].append({
+                'email': email,
+                'name': customer_name,
+                'display': customer_name or email
+            })
+        
+        # 3. Statistiche generali
+        all_users = TelegramNotification.objects.filter(is_active=True)
+        debug_info['stats'] = {
+            'total_active_users': all_users.count(),
+            'admin_users_count': admin_users.count(),
+            'customer_users_count': all_users.exclude(email=ADMIN_EMAIL).count(),
+            'invalid_chat_ids': all_users.filter(chat_id=999999998).count()
+        }
+        
+        # 4. Test simulazione notifica
+        if admin_users.exists():
+            debug_info['simulation'] = {
+                'would_send_to_admin_count': admin_users.count(),
+                'admin_chat_ids': [u.chat_id for u in admin_users if u.chat_id != 999999998]
+            }
+        else:
+            debug_info['simulation'] = {
+                'would_send_to_admin_count': 0,
+                'warning': 'Nessun admin registrato con email ' + ADMIN_EMAIL
+            }
+        
+        return Response({
+            'success': True,
+            'debug_info': debug_info
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_multiple_admin_notification(request):
+    """
+    Endpoint di test per simulare l'invio di notifiche a multiple admin.
+    """
+    try:
+        from .services import send_telegram_notification, ADMIN_EMAIL
+        
+        # Email di test (deve essere un cliente valido)
+        test_email = request.data.get('email', 'prep@easyavant.com')
+        test_message = request.data.get('message', '🧪 Test notifica multiple admin')
+        
+        # Log prima dell'invio
+        logger.info(f"[TEST] Invio notifica test da {test_email} con messaggio: {test_message}")
+        
+        # Invia notifica di test
+        success = send_telegram_notification(
+            email=test_email,
+            message=test_message,
+            event_type='test'
+        )
+        
+        # Verifica quanti admin avrebbero dovuto ricevere
+        from .models import TelegramNotification
+        admin_users = TelegramNotification.objects.filter(
+            email=ADMIN_EMAIL,
+            is_active=True
+        )
+        
+        valid_admin_users = admin_users.exclude(chat_id=999999998)
+        
+        result = {
+            'success': success,
+            'test_email': test_email,
+            'test_message': test_message,
+            'admin_email': ADMIN_EMAIL,
+            'admin_users_total': admin_users.count(),
+            'admin_users_valid': valid_admin_users.count(),
+            'admin_users_invalid': admin_users.filter(chat_id=999999998).count(),
+            'admin_users_details': [
+                {
+                    'chat_id': u.chat_id,
+                    'username': u.username,
+                    'first_name': u.first_name,
+                    'is_valid': u.chat_id != 999999998
+                }
+                for u in admin_users
+            ]
+        }
+        
+        return Response(result)
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
