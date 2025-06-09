@@ -42,4 +42,5 @@ urlpatterns = [
     path('api/telegram/test-multiple-admin/', views.test_multiple_admin, name='test_multiple_admin'),
     path('api/telegram/test-email-normalization/', views.test_email_normalization, name='test_email_normalization'),
     path('api/telegram/test-outbound-closed-products/', views.test_outbound_closed_with_products, name='test_outbound_closed_products'),
+    path('api/telegram/test-outbound-closed-products-full/', views.test_outbound_closed_with_products_full, name='test_outbound_closed_products_full'),
 ]

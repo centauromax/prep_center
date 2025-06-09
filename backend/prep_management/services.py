@@ -614,6 +614,9 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
     if shipment_data.get('products_count') is not None:
         products_label = get_text('notification_labels', lang=user_language, subkey='products_count')
         message += f"📦 <b>{products_label}:</b> {shipment_data['products_count']}\n"
+        logger.info(f"[format_shipment_notification] ✅ AGGIUNTO conteggio prodotti al messaggio: {shipment_data['products_count']} ({user_language})")
+    else:
+        logger.info(f"[format_shipment_notification] ℹ️ Conteggio prodotti NON presente nei dati per evento {event_type}")
     
     if shipment_data.get('notes'):
         notes_label = get_text('notification_labels', lang=user_language, subkey='notes')

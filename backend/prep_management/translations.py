@@ -412,7 +412,7 @@ Choose your language:
             'en': 'Outbound shipment shipped'
         },
         'outbound_shipment.closed': {
-            'it': 'Pronta spedizione in uscita',
+            'it': 'Completata spedizione in uscita',
             'en': 'Outbound shipment completed'
         },
         'order.created': {

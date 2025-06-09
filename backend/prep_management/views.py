@@ -1979,3 +1979,93 @@ def test_outbound_closed_with_products(request):
             'error': str(e),
             'message': 'Errore durante il test della funzionalità conteggio prodotti'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([])
+def test_outbound_closed_with_products_full(request):
+    """
+    Endpoint di test completo per simulare un webhook outbound_shipment.closed reale
+    con salvataggio nel database e elaborazione completa.
+    """
+    try:
+        # Simula un payload di webhook reale per outbound_shipment.closed
+        test_payload = {
+            "type": "outbound_shipment.closed",
+            "data": {
+                "id": 393307,  # Usa lo stesso ID del log reale
+                "name": "test4",  # Usa lo stesso nome del log reale
+                "status": "closed",
+                "team_id": 7812,  # Usa lo stesso team_id del log reale
+                "warehouse_id": 123,
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T14:30:00Z",
+                "notes": "Test spedizione per verifica conteggio prodotti"
+            }
+        }
+        
+        logger.info(f"[test_outbound_closed_with_products_full] 🧪 SIMULAZIONE WEBHOOK COMPLETA: {test_payload}")
+        
+        # Elabora il payload usando il processor (come fa il webhook reale)
+        webhook_data = WebhookProcessor.parse_payload(test_payload)
+        logger.info(f"[test_outbound_closed_with_products_full] 📦 Dati webhook processati: {webhook_data}")
+        
+        # Recupera il nome del merchant (come fa il webhook reale)
+        merchant_id = webhook_data.get('merchant_id')
+        merchant_name = None
+        if merchant_id:
+            try:
+                merchants = get_merchants()
+                merchant = next((m for m in merchants if str(m['id']) == str(merchant_id)), None)
+                if merchant:
+                    merchant_name = merchant['name']
+                    logger.info(f"[test_outbound_closed_with_products_full] 🏢 Merchant trovato: {merchant_name}")
+            except Exception as e:
+                logger.error(f"[test_outbound_closed_with_products_full] Errore nel recupero del nome del merchant: {str(e)}")
+
+        # Crea il record di aggiornamento (come fa il webhook reale)
+        shipment_update = ShipmentStatusUpdate(
+            shipment_id=webhook_data.get('shipment_id'),
+            event_type=webhook_data.get('event_type', 'other'),
+            entity_type=webhook_data.get('entity_type', ''),
+            previous_status=webhook_data.get('previous_status'),
+            new_status=webhook_data.get('new_status', 'other'),
+            merchant_id=merchant_id,
+            merchant_name=merchant_name,
+            tracking_number=webhook_data.get('tracking_number'),
+            carrier=webhook_data.get('carrier'),
+            notes=webhook_data.get('notes'),
+            payload=webhook_data.get('payload', {})
+        )
+        shipment_update.save()
+        logger.info(f"[test_outbound_closed_with_products_full] 💾 ShipmentStatusUpdate salvato con ID: {shipment_update.id}")
+        
+        # Elabora l'evento usando il processor (come fa il webhook reale)
+        processor = WebhookEventProcessor()
+        result = processor.process_event(shipment_update.id)
+        logger.info(f"[test_outbound_closed_with_products_full] ⚙️ Risultato elaborazione: {result}")
+        
+        response_data = {
+            'success': True,
+            'message': 'Test webhook completo completato con successo',
+            'webhook_data': webhook_data,
+            'shipment_update_id': shipment_update.id,
+            'processing_result': result,
+            'notes': [
+                'Questo test simula un webhook reale completo',
+                'Include salvataggio nel database ed elaborazione completa',
+                'Controlla i log per vedere se il conteggio prodotti viene recuperato',
+                'Se tutto funziona, dovresti vedere nei log la chiamata API per recuperare i prodotti'
+            ]
+        }
+        
+        logger.info(f"[test_outbound_closed_with_products_full] ✅ Test completo terminato con successo")
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"[test_outbound_closed_with_products_full] ❌ Errore nel test completo: {str(e)}")
+        logger.exception("Traceback completo:")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore durante il test webhook completo'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
