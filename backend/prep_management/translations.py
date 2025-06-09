@@ -397,7 +397,7 @@ Choose your language:
         },
         'inbound_shipment.received': {
             'it': 'Verificata spedizione in entrata',
-            'en': 'Inbound shipment received'
+            'en': 'Inbound shipment arrived'
         },
         'inbound_shipment.shipped': {
             'it': 'Arrivata spedizione in entrata',
@@ -457,7 +457,7 @@ Choose your language:
         },
         'received_count': {
             'it': '#arrivati',
-            'en': '#received'
+            'en': '#arrived'
         },
         'default_title': {
             'it': 'Aggiornamento spedizione',
