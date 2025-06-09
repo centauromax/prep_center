@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('prep_management', '0006_add_chat_system'),
+        ('prep_management', '0014_telegramconversation_and_more'),
     ]
 
     operations = [
