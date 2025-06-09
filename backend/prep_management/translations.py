@@ -465,6 +465,10 @@ Choose your language:
     'admin_reply_instructions': {
         'it': "Rispondi normalmente o usa @{alias}",
         'en': "Reply normally or use @{alias}"
+    },
+    'admin_reply_context': {
+        'it': "In risposta a:",
+        'en': "In reply to:"
     }
 }
 

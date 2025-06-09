@@ -1066,6 +1066,9 @@ def telegram_webhook(request):
             text = message.get('text', '')
             user_info = message.get('from', {})
             
+            # Estrarre informazioni reply se presente
+            reply_to_message = message.get('reply_to_message')
+            
             # Gestisci il comando /start
             if text.startswith('/start'):
                 handle_start_command(chat_id, user_info)
@@ -1096,7 +1099,7 @@ def telegram_webhook(request):
             
             else:
                 # Gestisci messaggio bidirezionale (conversazione)
-                handle_bidirectional_message(chat_id, text)
+                handle_bidirectional_message(chat_id, text, reply_to_message)
         
         return JsonResponse({'ok': True})
         
@@ -1332,7 +1335,7 @@ def handle_status_command(chat_id):
         telegram_service.send_message(chat_id, error_message)
 
 
-def handle_bidirectional_message(chat_id, message_text):
+def handle_bidirectional_message(chat_id, message_text, reply_to_message=None):
     """Gestisce i messaggi bidirezionali delle conversazioni."""
     from .chat_manager import ChatManager
     from .services import telegram_service
@@ -1340,7 +1343,7 @@ def handle_bidirectional_message(chat_id, message_text):
     
     try:
         chat_manager = ChatManager()
-        result = chat_manager.handle_customer_message(chat_id, message_text)
+        result = chat_manager.handle_customer_message(chat_id, message_text, reply_to_message)
         
         if not result.get('success'):
             # Se c'è un errore, invia messaggio di errore o comando sconosciuto

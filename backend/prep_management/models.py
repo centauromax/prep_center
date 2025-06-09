@@ -423,6 +423,14 @@ class TelegramChatMessage(models.Model):
         help_text="Lista di chat_id a cui è stato consegnato il messaggio"
     )
     
+    # Informazioni di reply (se questo messaggio è una risposta)
+    reply_to_message = models.JSONField(
+        verbose_name="Risposta a messaggio",
+        null=True,
+        blank=True,
+        help_text="Informazioni del messaggio originale a cui si sta rispondendo"
+    )
+    
     class Meta:
         verbose_name = "Messaggio Chat"
         verbose_name_plural = "Messaggi Chat"

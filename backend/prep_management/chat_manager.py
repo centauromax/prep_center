@@ -26,7 +26,7 @@ class ChatManager:
     def __init__(self):
         self.telegram_service = TelegramService()
     
-    def handle_customer_message(self, chat_id: int, message_text: str) -> Dict:
+    def handle_customer_message(self, chat_id: int, message_text: str, reply_to_message: dict = None) -> Dict:
         """
         Gestisce un messaggio in arrivo da un cliente.
         
@@ -51,13 +51,14 @@ class ChatManager:
             # Ottieni o crea conversazione per questo cliente
             conversation = self.get_or_create_conversation(sender.email)
             
-            # Salva il messaggio
+            # Salva il messaggio (con informazioni di reply se presenti)
             chat_message = TelegramChatMessage.objects.create(
                 conversation=conversation,
                 sender_chat_id=chat_id,
                 sender_email=sender.email,
                 message_type='customer_to_admin',
-                message_text=message_text
+                message_text=message_text,
+                reply_to_message=reply_to_message
             )
             
             # Aggiorna timestamp conversazione
@@ -96,7 +97,7 @@ class ChatManager:
                 # Formatta messaggio diversamente per admin vs cliente
                 if recipient.email == ADMIN_EMAIL:
                     formatted_message = self.format_message_for_admin(
-                        sender, message_text, conversation, recipient.language_code
+                        sender, message_text, conversation, recipient.language_code, reply_to_message
                     )
                     # Imposta questa come conversazione attiva per admin
                     self.set_admin_active_conversation(recipient.chat_id, conversation)
@@ -271,7 +272,8 @@ class ChatManager:
         sender: TelegramNotification, 
         message_text: str, 
         conversation: TelegramConversation,
-        admin_language: str = 'it'
+        admin_language: str = 'it',
+        reply_to_message: dict = None
     ) -> str:
         """Formatta un messaggio per l'admin con contesto."""
         
@@ -289,13 +291,35 @@ class ChatManager:
         # Usa le traduzioni
         from .translations import get_text
         new_message_text = get_text('admin_new_message', lang=admin_language, alias=alias)
-        sender_label = get_text('admin_sender_label', lang=admin_language)
         reply_instructions = get_text('admin_reply_instructions', lang=admin_language, alias=alias)
         
+        # Costruisci il messaggio base
         formatted = f"""🔔 <b>{new_message_text}</b>
-👤 {sender_name}
+👤 {sender_name}"""
+        
+        # Aggiungi contesto di reply se presente
+        if reply_to_message:
+            original_text = reply_to_message.get('text', '')
+            if original_text:
+                # Limita il testo originale
+                original_display = original_text[:100] + "..." if len(original_text) > 100 else original_text
+                reply_context = get_text('admin_reply_context', lang=admin_language)
+                formatted += f"""
 
-💬 "{display_message}"
+📎 <i>{reply_context}</i>
+"{original_display}"
+
+💬 <b>Risposta:</b> "{display_message}\""""
+            else:
+                formatted += f"""
+
+💬 "{display_message}\""""
+        else:
+            formatted += f"""
+
+💬 "{display_message}\""""
+        
+        formatted += f"""
 
 📝 <i>{reply_instructions}</i>"""
         
