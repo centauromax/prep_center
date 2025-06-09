@@ -30,6 +30,7 @@ urlpatterns = [
     path('telegram/merchants-debug/', views.telegram_merchants_debug, name='telegram_merchants_debug'),
     path('telegram/admin-debug/', views.telegram_admin_debug, name='telegram_admin_debug'),
     path('telegram/test-multiple-admin/', views.test_multiple_admin_notification, name='test_multiple_admin'),
+    path('telegram/users-debug/', views.telegram_users_debug, name='telegram_users_debug'),
     
     # URL per creare admin
     path('create-admin/', views.create_admin_user, name='create_admin_user'),

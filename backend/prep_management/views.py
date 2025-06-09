@@ -1788,3 +1788,54 @@ def test_multiple_admin_notification(request):
             'error': str(e),
             'traceback': traceback.format_exc()
         }, status=500)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def telegram_users_debug(request):
+    """
+    Endpoint di debug per vedere tutti gli utenti registrati e le loro email.
+    """
+    try:
+        from .models import TelegramNotification
+        from .services import ADMIN_EMAIL
+        
+        users = TelegramNotification.objects.filter(is_active=True).order_by('email', 'created_at')
+        
+        users_info = []
+        admin_count = 0
+        customer_count = 0
+        
+        for user in users:
+            is_admin = user.email == ADMIN_EMAIL
+            if is_admin:
+                admin_count += 1
+            else:
+                customer_count += 1
+            
+            users_info.append({
+                'email': user.email,
+                'chat_id': user.chat_id,
+                'username': user.username,
+                'first_name': user.first_name,
+                'language_code': user.language_code,
+                'is_admin': is_admin,
+                'is_valid_chat_id': user.chat_id != 999999998,
+                'created_at': user.created_at.isoformat() if user.created_at else None
+            })
+        
+        return Response({
+            'success': True,
+            'admin_email': ADMIN_EMAIL,
+            'total_users': len(users_info),
+            'admin_count': admin_count,
+            'customer_count': customer_count,
+            'users': users_info
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)

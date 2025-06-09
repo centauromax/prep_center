@@ -136,6 +136,7 @@ ADMIN_EMAIL = "info@fbaprepcenteritaly.com"
 def get_merchant_name_by_email(email: str) -> Optional[str]:
     """
     Ottiene il nome del merchant dall'email utilizzando l'API PrepBusiness.
+    Sceglie il nome più appropriato se ci sono multipli match.
     
     Args:
         email: Email del merchant
@@ -151,14 +152,59 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         merchants_response = client.get_merchants()
         merchants = getattr(merchants_response, 'data', [])
         
-        # Cerca il merchant con questa email
+        # Cerca tutti i merchants con questa email
+        matching_merchants = []
         for merchant in merchants:
             merchant_email = getattr(merchant, 'primaryEmail', None)
             if merchant_email and merchant_email.lower() == email.lower():
-                return merchant.name
+                matching_merchants.append(merchant)
         
-        logger.warning(f"Merchant non trovato per email: {email}")
-        return None
+        if not matching_merchants:
+            logger.warning(f"Merchant non trovato per email: {email}")
+            return None
+        
+        # Se c'è solo un match, restituiscilo
+        if len(matching_merchants) == 1:
+            return matching_merchants[0].name
+        
+        # Se ci sono multipli match, scegli il più appropriato
+        logger.info(f"Trovati {len(matching_merchants)} merchants per {email}: {[m.name for m in matching_merchants]}")
+        
+        # Priorità di selezione:
+        # 1. Nome senza suffissi tipo "- GERMANIA", "- NO", etc.
+        # 2. Nome più corto
+        # 3. Primo trovato
+        
+        best_merchant = None
+        best_score = -1
+        
+        for merchant in matching_merchants:
+            name = merchant.name
+            score = 0
+            
+            # Penalizza nomi con suffissi geografici o "NO"
+            if not any(suffix in name.upper() for suffix in [' - ', '- ', ' -', 'GERMANIA', 'FRANCIA', 'SPAGNA', ' NO']):
+                score += 100
+            
+            # Preferisci nomi più corti (meno specifici)
+            score += max(0, 50 - len(name))
+            
+            # Preferisci nomi che non contengono caratteri speciali
+            if name.replace(' ', '').replace('.', '').isalnum():
+                score += 10
+            
+            logger.info(f"Merchant {merchant.id}: '{name}' - Score: {score}")
+            
+            if score > best_score:
+                best_score = score
+                best_merchant = merchant
+        
+        if best_merchant:
+            logger.info(f"Selezionato merchant per {email}: '{best_merchant.name}' (Score: {best_score})")
+            return best_merchant.name
+        
+        # Fallback: primo merchant trovato
+        return matching_merchants[0].name
         
     except Exception as e:
         logger.error(f"Errore nel recuperare nome merchant per {email}: {str(e)}")
@@ -200,10 +246,17 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
                 email=ADMIN_EMAIL,
                 is_active=True
             )
+            
+            # Log dettagliato degli admin
+            for admin in admin_users:
+                logger.info(f"Admin trovato: {admin.email}, chat_id: {admin.chat_id}, username: {admin.username}, attivo: {admin.is_active}")
+            
             telegram_users = telegram_users.union(admin_users)
             
             if admin_users.exists():
-                logger.info(f"Aggiunta notifica anche per email amministrativa: {ADMIN_EMAIL} - {admin_users.count()} admin trovati")
+                valid_admin_count = admin_users.exclude(chat_id=999999998).count()
+                invalid_admin_count = admin_users.filter(chat_id=999999998).count()
+                logger.info(f"Aggiunta notifica anche per email amministrativa: {ADMIN_EMAIL} - {admin_users.count()} admin trovati (validi: {valid_admin_count}, non validi: {invalid_admin_count})")
         
         if not telegram_users.exists():
             logger.warning(f"Nessun utente Telegram trovato per email: {email}")
@@ -214,6 +267,11 @@ def send_telegram_notification(email, message, event_type=None, shipment_id=None
         # Invia a tutti gli utenti con questa email
         for telegram_user in telegram_users:
             try:
+                # Salta utenti con chat_id non validi
+                if not telegram_user.chat_id or telegram_user.chat_id == 999999998:
+                    logger.warning(f"Saltato utente {telegram_user.email} con chat_id non valido: {telegram_user.chat_id}")
+                    continue
+                
                 # Formatta il messaggio nella lingua dell'utente se necessario
                 user_message = message
                 if message is None and event_type and shipment_data:
