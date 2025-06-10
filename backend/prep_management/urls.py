@@ -48,4 +48,5 @@ urlpatterns = [
     path('api/telegram/test-inbound-received/', views.test_inbound_received_notification, name='test_inbound_received'),
     path('api/telegram/test-inbound-received-more/', views.test_inbound_received_more, name='test_inbound_received_more'),
     path('api/telegram/test-inbound-received-less/', views.test_inbound_received_less, name='test_inbound_received_less'),
+    path('api/test-residual-inbound/', views.test_residual_inbound_creation, name='test_residual_inbound_creation'),
 ]

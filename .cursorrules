@@ -1,0 +1,831 @@
+# Prep Center - FBA Prep Center Italy
+
+## 🎯 Panoramica del Progetto
+
+**Prep Center** è una piattaforma completa per la gestione di servizi di preparazione FBA (Fulfillment by Amazon) sviluppata per FBA Prep Center Italy. 
+
+### 🚀 **AMBIENTE DI PRODUZIONE: Railway.app**
+L'applicazione è **DEPLOYATA E ATTIVA** su Railway.app con i seguenti domini:
+- **Backend Principale**: `backend.fbaprepcenteritaly.com` - **DOMINIO UNIFICATO PRINCIPALE**
+- **Frontend Picture Check**: `apppc.fbaprepcenteritaly.com` - **Separato perché è implementato in React con servizio Railway separato**
+- **Railway URL**: `prepcenter-production.up.railway.app`
+
+### 🏗️ Il sistema comprende:
+
+- **Backend Django** con API REST per la gestione completa dei servizi
+- **Frontend React** per la verifica delle foto dei prodotti
+- **Bot Telegram multilingua** per notifiche e comunicazioni
+- **Sistema di processamento file** per gestione documenti e backup
+- **Gestione pallet** con etichettatura PDF e tracking
+- **Dashboard unificata** per accesso centralizzato a tutte le app
+- **🆕 Sistema Shared Library** per API calls centralizzate
+- **🆕 Integrazione Prep Business API** per gestione merchants e shipments
+- **🆕 Sistema Webhook** per notifiche real-time da Prep Business
+
+## 🏗️ Architettura del Sistema
+
+### Backend (Django 4.2.13)
+**Posizione**: `/backend/`
+**Entry Point**: `manage.py` (in `/backend/manage.py` non nella root)
+**Settings**: `prep_center.settings`
+
+#### Applicazioni Django
+1. **prep_management** - Core del sistema, gestione preparazione ordini + **🆕 Webhook system**
+2. **picture_check** - Verifica foto prodotti
+3. **return_management** - Gestione resi
+4. **fbasaving** - Gestione file e backup
+5. **pallet_label** - Etichettatura pallet con generazione PDF
+
+#### 🆕 **Sistema Shared Library**
+**Posizione**: `/backend/libs/`
+- **Configurazione centralizzata**: Gestione API keys e configurazioni
+- **Client API riutilizzabili**: Per integrazioni esterne
+- **Utilities condivise**: Funzioni comuni tra app
+- **Gestione errori**: Error handling standardizzato
+
+#### Dipendenze Principali
+```
+Django==4.2.13
+djangorestframework==3.15.1
+django-cors-headers==4.4.0
+celery==5.4.0
+redis==5.0.4
+gunicorn==22.0.0
+whitenoise==6.7.0
+psycopg2-binary==2.9.9
+requests-toolbelt==1.0.0
+pandas==2.2.2
+pytz==2024.1
+reportlab==4.2.2
+Pillow==10.3.0
+python-dotenv==1.0.1  # 🆕 Per gestione environment variables
+requests==2.32.3      # 🆕 Per API calls
+```
+
+### Frontend (React 18.2.0)
+**Posizione**: `/frontend_picture_check/`
+**Scopo**: App React per verifica foto prodotti
+**Build**: I file compilati vengono integrati nel backend Django
+
+#### Caratteristiche
+- Selettore clienti
+- Input per verifica EAN
+- Visualizzazione esito verifica
+- Cronologia EAN verificati
+- Gestione suoni per feedback utente
+
+### Database
+- **🚀 PRODUZIONE (Railway)**: PostgreSQL (Database principale)
+- **💻 Sviluppo locale**: SQLite (`db.sqlite3`) - Solo per testing
+- **ORM**: Django ORM
+- **Migrazioni**: Gestite tramite Django migrations
+
+## 🚀 **DEPLOYMENT ATTIVO SU RAILWAY**
+
+### 🌐 **Ambiente di Produzione (ATTIVO)**
+- **Platform**: Railway.app - **AMBIENTE PRINCIPALE**
+- **Status**: ✅ **DEPLOYATO E ATTIVO**
+- **Database**: PostgreSQL (gestito da Railway)
+- **Static Files**: Serviti da WhiteNoise
+- **Background Tasks**: Celery con Redis
+
+### Railway Configuration
+- **Procfile**: Definisce 3 servizi in produzione
+  - `release`: Deploy script e migrazioni
+  - `web`: Server web Gunicorn (ATTIVO)
+  - `worker`: Worker Celery per task asincroni (ATTIVO)
+- **🌐 Domains ATTIVI**: 
+  - `backend.fbaprepcenteritaly.com` - **DOMINIO PRINCIPALE UNIFICATO**
+  - `apppc.fbaprepcenteritaly.com` - **Compatibilità Picture Check**  
+  - `prepcenter-production.up.railway.app` - **Railway URL**
+
+### Environment Variables (Railway - PRODUZIONE)
+```
+DEBUG=False (✅ ATTIVO in produzione)
+DATABASE_URL=postgresql://... (✅ Railway PostgreSQL)
+REACT_DOMAIN=apppc.fbaprepcenteritaly.com
+RAILWAY_STATIC_URL=backend.fbaprepcenteritaly.com
+TELEGRAM_BOT_TOKEN=... (✅ Bot Telegram ATTIVO)
+PREP_BUSINESS_API_URL=https://dashboard.fbaprepcenteritaly.com/api  # 🆕 API Prep Business
+PREP_BUSINESS_API_KEY=...  # 🆕 API Key Prep Business
+PREP_BUSINESS_WEBHOOK_SECRET=...  # 🆕 Webhook signature verification
+```
+
+### ⚠️ Configurazione Static Files Critica (Railway)
+**IMPORTANTE**: Su Railway (PRODUZIONE), i file statici vengono raccolti in `/backend/static/`, NON in `/backend/staticfiles/`
+
+#### Configurazione Corretta in settings.py:
+```python
+STATIC_ROOT = BASE_DIR / 'static'  # NON 'staticfiles'
+STATICFILES_DIRS = []  # Deve essere vuoto per produzione
+```
+
+#### NON aggiungere URL patterns manuali per static files:
+WhiteNoise gestisce automaticamente il serving dei file statici. Non aggiungere mai:
+```python
+# ❌ NON FARE QUESTO
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+```
+
+## 🏠 **DASHBOARD UNIFICATA**
+
+### Accesso Centralizzato
+- **URL Principale**: `https://backend.fbaprepcenteritaly.com/` - **Dashboard homepage**
+- **Navigazione**: Bootstrap responsive con card per ogni app
+- **Apps Integrate**:
+  - Picture Check: `/picture_check/`
+  - Prep Management: `/prep_management/`
+  - FBA Saving: `/fbasaving/`
+  - Pallet Label: `/pallet_label/`
+  - Return Management: `/return_management/`
+
+### Configurazione Domini
+- **backend.fbaprepcenteritaly.com**: Serve TUTTE le app (funzionante)
+- **apppc.fbaprepcenteritaly.com**: Solo Picture Check (mantenuto per compatibilità)
+
+## 🆕 **SISTEMA SHARED LIBRARY**
+
+### Struttura Libs
+```
+backend/libs/
+├── __init__.py                    # Package initialization
+├── config.py                      # Configurazione centralizzata
+├── api_client/                    # Client API esterni
+│   ├── __init__.py
+│   └── prep_business.py          # Client Prep Business API
+└── utils/                         # Utilities condivise
+    └── __init__.py
+```
+
+### Configurazione API (libs/config.py)
+- **Environment Variables**: Gestione centralizzata con python-dotenv
+- **API URLs**: Configurazione endpoint esterni
+- **Secrets Management**: API keys e tokens sicuri
+- **Fallback Values**: Valori di default per sviluppo
+
+### Client Prep Business API (libs/api_client/prep_business.py)
+#### Funzionalità Complete
+- **PrepBusinessClient**: Client HTTP con retry logic e error handling
+- **Merchants Management**: Lista e dettagli merchants
+- **Shipments Management**: CRUD operations per shipments
+- **Error Handling**: Gestione errori HTTP standardizzata
+- **Logging**: Logging dettagliato per debugging
+- **Timeout Management**: Configurazione timeout personalizzabili
+
+#### Metodi Disponibili
+```python
+# Merchants
+client.get_merchants()                    # Lista merchants
+client.get_merchant(merchant_id)          # Dettaglio merchant
+
+# Shipments  
+client.get_shipments(merchant_id=None)    # Lista shipments
+client.get_shipment(shipment_id)          # Dettaglio shipment
+client.create_shipment(data)              # Crea shipment
+client.update_shipment(shipment_id, data) # Aggiorna shipment
+```
+
+### Database Configuration (PrepBusinessConfig)
+- **Modello Django**: Configurazione API salvata in database
+- **Admin Interface**: Gestione configurazioni via Django admin
+- **Override Environment**: Configurazioni database sovrascrivono environment
+- **Validazione**: Validazione URL e API key
+
+## 🆕 **SISTEMA WEBHOOK PREP BUSINESS**
+
+### Modello ShipmentStatusUpdate
+**Posizione**: `prep_management/models.py`
+
+#### Campi Principali
+```python
+event_type = models.CharField(max_length=50)      # Tipo evento (inbound_shipment.created, etc.)
+entity_type = models.CharField(max_length=50)     # Tipo entità (shipment, order, invoice)
+entity_id = models.CharField(max_length=100)      # ID entità
+merchant_id = models.CharField(max_length=100)    # ID merchant
+status = models.CharField(max_length=50)          # Stato shipment
+notes = models.TextField(blank=True)              # Note aggiuntive
+payload = models.JSONField()                      # Payload completo webhook
+processed = models.BooleanField(default=False)    # Flag elaborazione
+signature_verified = models.BooleanField()       # Verifica firma webhook
+created_at = models.DateTimeField(auto_now_add=True)
+```
+
+### Endpoint Webhook
+- **URL**: `/prep_management/webhook/shipment-status/`
+- **Metodo**: POST
+- **Content-Type**: `application/json`
+- **Signature Verification**: Opzionale con HMAC-SHA256
+- **Response**: JSON con status e message
+
+### Eventi Supportati
+```python
+EVENT_TYPES = [
+    # Inbound Shipments
+    ('inbound_shipment.created', 'Inbound Shipment Created'),
+    ('inbound_shipment.shipped', 'Inbound Shipment Shipped'),
+    ('inbound_shipment.received', 'Inbound Shipment Received'),
+    ('inbound_shipment.notes_updated', 'Inbound Shipment Notes Updated'),
+    
+    # Outbound Shipments
+    ('outbound_shipment.created', 'Outbound Shipment Created'),
+    ('outbound_shipment.shipped', 'Outbound Shipment Shipped'),
+    ('outbound_shipment.notes_updated', 'Outbound Shipment Notes Updated'),
+    ('outbound_shipment.closed', 'Outbound Shipment Closed'),
+    
+    # Orders
+    ('order.created', 'Order Created'),
+    ('order.shipped', 'Order Shipped'),
+    
+    # Invoices
+    ('invoice.created', 'Invoice Created'),
+]
+```
+
+### Dashboard Webhook
+- **URL**: `/prep_management/shipment-updates/`
+- **Funzionalità**:
+  - **Statistiche**: Conteggio eventi per tipo
+  - **Filtri**: Per event_type, status, processed
+  - **Lista**: Tabella paginata con dettagli
+  - **Raw Payloads**: Visualizzazione JSON con copy-to-clipboard
+  - **Badge System**: Colori per diversi tipi di evento
+
+## 🏷️ **APP: Pallet Label**
+
+### Funzionalità Complete
+- **Modello PalletLabel**: Gestione completa dati etichetta
+  - Informazioni mittente/destinatario
+  - Dettagli Amazon warehouse
+  - Dimensioni e peso pallet
+  - Generazione PDF automatica
+- **Form Multipli**:
+  - `PalletLabelForm`: Form completo con tutti i campi
+  - `QuickPalletForm`: Form rapido per creazione veloce
+- **Views CRUD Complete**:
+  - Lista paginata con ricerca
+  - Creazione con validazione
+  - Modifica e dettaglio
+  - Download PDF generato
+- **Generazione PDF**: Usando ReportLab con layout professionale
+- **Templates Bootstrap**: Responsive e moderni
+- **Admin Integration**: Configurazione Django admin
+
+### Struttura Pallet Label
+```
+backend/pallet_label/
+├── models.py          # Modello PalletLabel
+├── forms.py           # PalletLabelForm + QuickPalletForm
+├── views.py           # CRUD views complete
+├── urls.py            # URL routing
+├── admin.py           # Django admin config
+├── services.py        # PDF generation service
+├── templates/pallet_label/
+│   ├── list.html      # Lista paginata
+│   ├── create.html    # Form creazione
+│   ├── edit.html      # Form modifica
+│   └── detail.html    # Dettaglio + download PDF
+└── migrations/        # Database migrations
+```
+
+## 🤖 Bot Telegram Multilingua
+
+### Funzionalità
+- **Lingue supportate**: Italiano, Inglese
+- **Comandi disponibili**:
+  - `/start` - Messaggio benvenuto bilingue
+  - `/help` - Aiuto nella lingua utente
+  - `/test` - Test connessione
+  - `/status` - Stato registrazione utente
+  - `/language` - Cambia lingua
+
+### Caratteristiche Tecniche
+- **Traduzioni**: Sistema centralizzato in `translations.py`
+- **Persistenza**: Lingua salvata nel database
+- **Registrazione**: Via email con validazione
+- **Notifiche**: Automatiche in lingua preferita
+- **Timezone**: Configurato per `Europe/Rome`
+
+### ⚠️ Bug Critici Risolti nelle Notifiche
+
+#### 1. Campo Email Errato
+```python
+# ❌ ERRORE - API non contiene 'email'
+merchant_email = merchant_data.get('email')
+
+# ✅ CORRETTO - API usa 'primaryEmail'
+merchant_email = merchant_data.get('primaryEmail')
+```
+
+#### 2. Eventi Mancanti
+Gli eventi `'inbound_shipment.created'` non erano inclusi nella lista notify_events
+
+#### 3. Timezone Incorretto
+```python
+# ❌ ERRORE - Mostra orario UTC
+created_at = shipment.get('createdAt')
+
+# ✅ CORRETTO - Converte a Europe/Rome
+rome_tz = pytz.timezone('Europe/Rome')
+created_at_utc = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+created_at_rome = created_at_utc.astimezone(rome_tz)
+```
+
+## 📁 Struttura Dettagliata
+
+```
+prep_center/
+├── backend/                    # Backend Django
+│   ├── prep_center/           # Settings e configurazione principale
+│   │   ├── settings.py        # Configurazione Django + libs path
+│   │   ├── urls.py            # URL routing principale + homepage
+│   │   ├── celery.py          # Configurazione Celery
+│   │   ├── views.py           # Homepage dashboard view
+│   │   └── wsgi.py            # WSGI per produzione
+│   ├── libs/                  # 🆕 Sistema Shared Library
+│   │   ├── __init__.py        # Package initialization
+│   │   ├── config.py          # Configurazione centralizzata
+│   │   ├── api_client/        # Client API esterni
+│   │   │   ├── __init__.py
+│   │   │   └── prep_business.py  # Client Prep Business API
+│   │   └── utils/             # Utilities condivise
+│   │       └── __init__.py
+│   ├── prep_management/       # App principale gestione prep
+│   │   ├── models.py          # Modelli database + ShipmentStatusUpdate
+│   │   ├── views.py           # API views + webhook + debug endpoints
+│   │   ├── services.py        # Logica business
+│   │   ├── tasks.py           # Task Celery
+│   │   ├── chat_manager.py    # Gestione bot Telegram
+│   │   ├── translations.py    # Sistema traduzioni
+│   │   ├── event_handlers.py  # Gestione eventi e notifiche
+│   │   ├── admin.py           # Admin config + PrepBusinessConfig
+│   │   ├── templatetags/      # 🆕 Template tags personalizzati
+│   │   │   ├── __init__.py
+│   │   │   └── prep_management_extras.py  # Custom filters
+│   │   └── templates/prep_management/  # 🆕 Templates webhook
+│   │       ├── merchants_list.html     # Lista merchants
+│   │       ├── api_config_debug.html   # Debug API config
+│   │       └── shipment_status_updates.html  # Dashboard webhook
+│   ├── picture_check/         # App verifica foto
+│   ├── return_management/     # App gestione resi
+│   ├── fbasaving/            # App gestione file
+│   ├── pallet_label/         # App etichettatura pallet
+│   │   ├── models.py          # Modello PalletLabel
+│   │   ├── forms.py           # Form multipli
+│   │   ├── views.py           # CRUD views
+│   │   ├── services.py        # PDF generation
+│   │   ├── urls.py            # URL routing
+│   │   ├── admin.py           # Admin config
+│   │   └── templates/         # Templates Bootstrap
+│   ├── templates/            # Template Django + homepage
+│   │   ├── base.html          # Template base con nav
+│   │   └── homepage.html      # Dashboard unificata
+│   ├── static/               # File statici (raccolti qui su Railway)
+│   ├── media/                # File media upload + PDF generati
+│   ├── manage.py             # Django management
+│   └── requirements.txt      # Dipendenze Python aggiornate
+├── frontend_picture_check/    # Frontend React
+│   ├── src/                  # Codice sorgente React
+│   ├── public/               # File pubblici
+│   ├── package.json          # Dipendenze Node.js
+│   └── postbuild.js          # Script post-build
+├── Procfile                  # Configurazione Railway
+├── railway.toml             # Configurazione Railway aggiornata
+└── gunicorn.conf.py         # Configurazione Gunicorn
+```
+
+## 🔧 Comandi di Sviluppo
+
+### Backend
+```bash
+cd backend
+python manage.py runserver 0.0.0.0:8000
+python manage.py migrate
+python manage.py collectstatic
+python manage.py shell
+```
+
+### Frontend
+```bash
+cd frontend_picture_check  
+npm install
+npm start                 # Sviluppo
+npm run build            # Produzione
+```
+
+### Celery
+```bash
+cd backend
+celery -A prep_center worker -l info
+```
+
+### 🔍 Debug e Troubleshooting
+
+#### 🚀 **Comandi Produzione (Railway)**
+```bash
+# Dashboard unificata (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/
+
+# Debug endpoint notifiche Telegram (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/prep_management/telegram/debug/
+
+# 🆕 Debug API Prep Business (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/prep_management/api-debug/
+
+# 🆕 Lista Merchants Prep Business (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/prep_management/merchants/
+
+# 🆕 Dashboard Webhook (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/prep_management/shipment-updates/
+
+# 🆕 Test Webhook Endpoint (PRODUZIONE)
+curl -X POST https://backend.fbaprepcenteritaly.com/prep_management/webhook/shipment-status/ \
+  -H "Content-Type: application/json" \
+  -d '{"event_type": "inbound_shipment.created", "data": {...}}'
+
+# Accesso Django Admin (PRODUZIONE)
+open https://backend.fbaprepcenteritaly.com/admin/
+
+# Test API endpoints (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/api/
+
+# Test Pallet Label app (PRODUZIONE)
+curl https://backend.fbaprepcenteritaly.com/pallet_label/
+```
+
+#### 💻 **Comandi Sviluppo Locale**
+```bash
+# Verifica file statici (locale)
+python manage.py collectstatic --dry-run
+
+# Test connessione database (locale)
+python manage.py dbshell
+
+# Test migrazioni prep_management (locale)
+python manage.py showmigrations prep_management
+
+# 🆕 Test API Prep Business (locale)
+python manage.py shell
+>>> from libs.api_client.prep_business import PrepBusinessClient
+>>> client = PrepBusinessClient()
+>>> merchants = client.get_merchants()
+
+# 🆕 Test configurazione API (locale)
+python manage.py shell
+>>> from libs.config import get_prep_business_config
+>>> config = get_prep_business_config()
+```
+
+## 🎨 Tecnologie e Pattern
+
+### Backend Pattern
+- **REST API**: Usando Django REST Framework
+- **Task Queue**: Celery con Redis
+- **File Storage**: WhiteNoise per file statici
+- **Database**: PostgreSQL in produzione, SQLite in sviluppo
+- **Middleware**: CORS, Security, WhiteNoise
+- **PDF Generation**: ReportLab per etichette pallet
+- **🆕 Shared Libraries**: Pattern per codice riutilizzabile
+- **🆕 API Client Pattern**: Client HTTP standardizzati
+- **🆕 Webhook Pattern**: Gestione eventi real-time
+
+### Frontend Pattern
+- **SPA**: Single Page Application React
+- **API Integration**: Fetch API per chiamate backend
+- **Build Integration**: Compilazione integrata con Django
+- **Routing**: React Router DOM
+- **Dashboard**: Bootstrap responsive per navigazione unificata
+
+### Sicurezza
+- **CSRF Protection**: Token CSRF per form
+- **CORS**: Configurato per domini specifici
+- **Environment**: Variabili ambiente per secrets
+- **Allowed Hosts**: Lista domini autorizzati
+- **Authentication**: Login required per app sensibili
+- **🆕 Webhook Signatures**: Verifica HMAC-SHA256 per webhook
+
+## 📊 Funzionalità Principali
+
+### Gestione Preparazione (prep_management)
+- Gestione ordini e preparazione FBA
+- Chat manager per comunicazioni
+- Sistema di notifiche multilingue
+- Task asincroni per elaborazioni lunghe
+- Gestione eventi e webhook
+- **Endpoint Debug**: `/prep_management/telegram/debug/`
+- **🆕 API Debug**: `/prep_management/api-debug/`
+- **🆕 Merchants List**: `/prep_management/merchants/`
+- **🆕 Webhook Dashboard**: `/prep_management/shipment-updates/`
+- **🆕 Webhook Endpoint**: `/prep_management/webhook/shipment-status/`
+- **Logging avanzato**: Per debugging notifiche e API calls
+
+### Verifica Foto (picture_check)
+- Upload e verifica foto prodotti
+- Matching EAN con database
+- API REST per frontend React
+- Gestione clienti e prodotti
+
+### Gestione Resi (return_management)
+- Processamento resi Amazon
+- Tracking stato resi
+- Integrazione con sistemi esterni
+
+### Gestione File (fbasaving)
+- Upload e backup documenti
+- Processamento automatico file
+- Email notification backup
+- Gestione storage file
+
+### Etichettatura Pallet (pallet_label)
+- **Creazione etichette**: Form completo e rapido
+- **Gestione dati**: Mittente, destinatario, warehouse Amazon
+- **Generazione PDF**: Layout professionale con ReportLab
+- **CRUD completo**: Lista, creazione, modifica, dettaglio
+- **Download PDF**: Etichette scaricabili direttamente
+- **Ricerca e filtri**: Lista paginata con funzionalità di ricerca
+- **Validazione**: Form validation completa
+- **Admin integration**: Gestione via Django admin
+
+### 🆕 **Sistema API Prep Business**
+- **Client HTTP**: Gestione chiamate API centralizzate
+- **Merchants Management**: Lista e dettagli merchants
+- **Shipments Management**: CRUD operations
+- **Error Handling**: Gestione errori standardizzata
+- **Configuration**: Gestione configurazioni via database
+- **Logging**: Logging dettagliato per debugging
+
+### 🆕 **Sistema Webhook**
+- **Real-time Notifications**: Ricezione eventi da Prep Business
+- **Event Processing**: Gestione diversi tipi di evento
+- **Signature Verification**: Verifica autenticità webhook
+- **Dashboard**: Interfaccia per monitoraggio eventi
+- **Raw Payload Viewing**: Debug con visualizzazione JSON
+- **Filtering**: Filtri per tipo evento e stato
+
+## 🌍 Internazionalizzazione
+
+### Sistema Traduzioni
+- **Lingue**: Italiano (default), Inglese
+- **Implementazione**: Dizionario centralizzato in `translations.py`
+- **Scope**: Bot Telegram, messaggi sistema
+- **Fallback**: Automatico su italiano se traduzione mancante
+
+### Configurazione i18n Django
+```python
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'Europe/Rome'  # IMPORTANTE: Timezone italiana
+USE_I18N = True
+USE_TZ = True
+LANGUAGES = [('it', 'Italiano'), ('en', 'English')]
+```
+
+## 🔄 Workflow di Sviluppo
+
+### 🚀 **AMBIENTE PRINCIPALE: Railway (PRODUZIONE)**
+- **Backend ATTIVO**: `https://backend.fbaprepcenteritaly.com` - **DOMINIO UNIFICATO**
+- **Frontend ATTIVO**: `https://apppc.fbaprepcenteritaly.com` - **Compatibilità**
+- **Database**: PostgreSQL (Railway)
+- **Bot Telegram**: ✅ ATTIVO e operativo
+- **🆕 API Prep Business**: ✅ INTEGRATA e funzionante
+- **🆕 Webhook System**: ✅ ATTIVO per notifiche real-time
+
+### 💻 **Ambiente Locale (Solo sviluppo/testing)**
+
+1. **Sviluppo Locale**:
+   - Backend: `cd backend && python manage.py runserver`
+   - Frontend: `cd frontend_picture_check && npm start`
+   - Database: SQLite locale
+
+2. **Testing Locale**:
+   - Test units in ogni app Django
+   - Test bot Telegram con script dedicati
+   - Test traduzioni automatizzati
+   - Test notifiche con endpoint debug
+   - **Test PDF generation**: Verifica generazione etichette
+   - **🆕 Test API Prep Business**: Verifica client API
+   - **🆕 Test Webhook**: Simulazione eventi webhook
+
+3. **Deployment su Railway**:
+   - Push su repository → **Deploy automatico Railway**
+   - Build frontend integrato nel backend
+   - Migrazioni database automatiche su PostgreSQL
+   - Collectstatic automatico per produzione
+
+## 📈 Monitoraggio e Logging
+
+### Logging
+- **Directory**: `/tmp/logs/` (temporanei)
+- **Livelli**: Configurati per debug/info/error
+- **Filtri**: Custom filters in `logging_filters.py`
+- **Telegram**: Logging dettagliato per notifiche
+- **PDF Generation**: Logging per debug generazione etichette
+- **🆕 API Calls**: Logging per chiamate Prep Business API
+- **🆕 Webhook Events**: Logging per eventi webhook ricevuti
+
+### Celery Monitoring
+- Worker status tramite comandi Celery
+- Task monitoring integrato
+
+## 🔐 Configurazione Sicurezza
+
+### Produzione
+```python
+DEBUG = False
+ALLOWED_HOSTS = ['prepcenter-production.up.railway.app', 'backend.fbaprepcenteritaly.com', 'apppc.fbaprepcenteritaly.com']
+CSRF_TRUSTED_ORIGINS = ['https://prepcenter-production.up.railway.app', 'https://backend.fbaprepcenteritaly.com']
+SECRET_KEY = 'django-insecure-...' # Da cambiare in produzione
+```
+
+### CORS
+- Configurato per domini specifici
+- Headers permessi per API calls
+- Credentials support per autenticazione
+
+## 📝 Note Importanti per Sviluppo
+
+1. **File manage.py**: Si trova in `/backend/manage.py`, non nella root
+2. **Frontend Build**: I file React vengono integrati nel backend Django
+3. **Database**: Usare sempre le migrazioni Django
+4. **Static Files**: SEMPRE usare `STATIC_ROOT = BASE_DIR / 'static'` su Railway
+5. **Traduzioni**: Usare sempre il sistema centralizzato
+6. **Tasks**: Preferire Celery per operazioni lunghe
+7. **API**: Seguire pattern REST con DRF
+8. **Logging**: Configurare sempre logging appropriato
+9. **Telegram**: Usare `primaryEmail` non `email` per merchant data
+10. **Timezone**: Sempre convertire a `Europe/Rome` per le notifiche
+11. **PDF Files**: Salvati in `/media/pallet_labels/` con naming univoco
+12. **Dashboard**: Usare `backend.fbaprepcenteritaly.com` come dominio principale
+13. **Migrazioni**: Gestire conflitti con merge migrations quando necessario
+14. **🆕 Libs Path**: Aggiunto `/backend/libs` al Python path in settings.py
+15. **🆕 API Client**: Usare sempre il client centralizzato per Prep Business
+16. **🆕 Environment Variables**: Gestire con python-dotenv per sviluppo locale
+17. **🆕 Webhook Signatures**: Implementare verifica HMAC quando possibile
+18. **🆕 Template Tags**: Caricare custom filters con `{% load prep_management_extras %}`
+19. **🆕 JSON Handling**: Usare `json.dumps()` con `indent=2` per pretty printing
+20. **🆕 Error Handling**: Implementare sempre try/catch per API calls
+
+## 🚨 Troubleshooting Comuni
+
+### Static Files Issues
+1. **Django Admin CSS/JS 404**: 
+   - Verificare `STATIC_ROOT = BASE_DIR / 'static'`
+   - NON usare `STATICFILES_DIRS` in produzione
+   - NON aggiungere URL patterns manuali
+   - Eseguire `python manage.py collectstatic`
+
+2. **WhiteNoise non funziona**: 
+   - Verificare ordine middleware
+   - NON servire static files manualmente
+
+### Telegram Notifications Issues
+3. **Notifiche non arrivano**:
+   - Verificare eventi in `notify_events` list
+   - Controllare campo `primaryEmail` vs `email`
+   - Usare endpoint debug: `/prep_management/telegram/debug/`
+   - Verificare timezone nelle notifiche
+
+4. **Bot comandi non funzionano**:
+   - Verificare tutti i comandi in `telegram_webhook()`
+   - Implementare handler per ogni comando promised
+
+### Migration Issues
+5. **Conflitti migrazioni**:
+   - Creare merge migration: `python manage.py makemigrations --merge`
+   - Verificare dipendenze tra app
+   - Testare migrazioni in locale prima del deploy
+
+### PDF Generation Issues
+6. **PDF non generati**:
+   - Verificare installazione ReportLab e Pillow
+   - Controllare permessi directory `/media/pallet_labels/`
+   - Verificare configurazione MEDIA_URL e MEDIA_ROOT
+
+### Domain Issues
+7. **App non accessibili**:
+   - Usare `backend.fbaprepcenteritaly.com` per tutte le app
+   - `apppc.fbaprepcenteritaly.com` funziona solo per picture_check
+   - Verificare configurazione ALLOWED_HOSTS
+
+### 🆕 **API Issues**
+8. **API Prep Business non risponde**:
+   - Verificare URL: `https://dashboard.fbaprepcenteritaly.com/api`
+   - Controllare API key in environment variables
+   - Usare endpoint debug: `/prep_management/api-debug/`
+   - Verificare logs per errori HTTP
+
+9. **Webhook non ricevuti**:
+   - Verificare endpoint: `/prep_management/webhook/shipment-status/`
+   - Controllare signature verification se abilitata
+   - Verificare logs per errori di parsing JSON
+   - Testare con payload di esempio
+
+### 🆕 **Template Issues**
+10. **Template tags non funzionano**:
+    - Verificare `{% load prep_management_extras %}` all'inizio del template
+    - Controllare che il file `templatetags/__init__.py` esista
+    - Riavviare server Django dopo modifiche ai template tags
+
+11. **JSON non visualizzato**:
+    - Usare filtro `|pprint` per pretty printing JSON
+    - Verificare che il campo sia un dict/list valido
+    - Controllare escape HTML per caratteri speciali
+
+### 🆕 **Shared Library Issues**
+12. **Import errors da libs/**:
+    - Verificare che `/backend/libs` sia nel Python path
+    - Controllare tutti i file `__init__.py` nelle directory libs
+    - Evitare import circolari tra libs e app Django
+
+### General Issues
+13. **manage.py not found**: Assicurarsi di essere in `/backend/`
+14. **CORS errors**: Verificare configurazione domini
+15. **Database errors**: Controllare migrazioni
+16. **Frontend non carica**: Controllare build process
+
+## 🔧 Debugging Tools
+
+### Endpoint Disponibili (PRODUZIONE Railway)
+- `https://backend.fbaprepcenteritaly.com/` - **Dashboard unificata**
+- `https://backend.fbaprepcenteritaly.com/prep_management/telegram/debug/` - Debug notifiche Telegram
+- `https://backend.fbaprepcenteritaly.com/prep_management/api-debug/` - **🆕 Debug API Prep Business**
+- `https://backend.fbaprepcenteritaly.com/prep_management/merchants/` - **🆕 Lista Merchants**
+- `https://backend.fbaprepcenteritaly.com/prep_management/shipment-updates/` - **🆕 Dashboard Webhook**
+- `https://backend.fbaprepcenteritaly.com/prep_management/webhook/shipment-status/` - **🆕 Webhook Endpoint**
+- `https://backend.fbaprepcenteritaly.com/admin/` - Django Admin (richiede superuser)
+- `https://backend.fbaprepcenteritaly.com/api/` - API endpoints principali
+- `https://backend.fbaprepcenteritaly.com/pallet_label/` - App etichettatura pallet
+
+### Comandi Utili (Sviluppo Locale)
+```bash
+# Verifica configurazione (locale)
+python manage.py check
+
+# Test connessione database (locale)
+python manage.py dbshell
+
+# Verifica migrazioni (locale)
+python manage.py showmigrations
+
+# Verifica static files (locale)
+python manage.py collectstatic --dry-run
+
+# Test Celery (locale)
+celery -A prep_center inspect ping
+
+# Test PDF generation (locale)
+python manage.py shell
+>>> from pallet_label.services import generate_pallet_label_pdf
+>>> # Test PDF generation
+
+# 🆕 Test API Prep Business (locale)
+python manage.py shell
+>>> from libs.api_client.prep_business import PrepBusinessClient
+>>> client = PrepBusinessClient()
+>>> merchants = client.get_merchants()
+>>> print(f"Found {len(merchants)} merchants")
+
+# 🆕 Test configurazione API (locale)
+python manage.py shell
+>>> from libs.config import get_prep_business_config
+>>> config = get_prep_business_config()
+>>> print(f"API URL: {config['api_url']}")
+
+# 🆕 Test webhook processing (locale)
+python manage.py shell
+>>> from prep_management.models import ShipmentStatusUpdate
+>>> updates = ShipmentStatusUpdate.objects.all()
+>>> print(f"Total webhook events: {updates.count()}")
+```
+
+### 🚀 **Monitoraggio Produzione Railway**
+- **Railway Dashboard**: Monitoraggio servizi attivi
+- **Logs**: Accessibili via Railway CLI o dashboard
+- **Database**: Gestito automaticamente da Railway
+- **Deploy**: Automatico su push repository
+- **Static Files**: Serviti automaticamente da WhiteNoise
+
+## 🎯 Prossimi Sviluppi
+
+- Espansione lingue supportate
+- Nuove funzionalità prep management
+- Ottimizzazioni performance
+- Miglioramenti UI/UX dashboard unificata
+- Integrazione nuovi servizi esterni
+- Miglioramenti sistema logging
+- Dashboard per monitoraggio notifiche
+- **Miglioramenti Pallet Label**:
+  - Template PDF personalizzabili
+  - Batch generation per più etichette
+  - Integrazione con API Amazon
+  - QR codes per tracking
+  - Export dati in Excel/CSV
+- **🆕 Miglioramenti API System**:
+  - Cache per chiamate API frequenti
+  - Rate limiting per API calls
+  - Retry logic più sofisticato
+  - Monitoring API performance
+- **🆕 Miglioramenti Webhook System**:
+  - Batch processing per eventi multipli
+  - Retry logic per eventi falliti
+  - Dashboard analytics per eventi
+  - Alert system per eventi critici
+  - Webhook replay functionality 

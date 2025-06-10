@@ -107,6 +107,7 @@ class OutgoingMessage(models.Model):
     MESSAGE_TYPES = [
         ('OUTBOUND_WITHOUT_INBOUND', 'Outbound without inbound'),
         ('BOX_SERVICES_REQUEST', 'Box Services Request'),
+        ('RESIDUAL_INBOUND_ERROR', 'Residual Inbound Error'),
     ]
     message_id = models.CharField(verbose_name="Tipo messaggio", max_length=100, choices=MESSAGE_TYPES)
     parameters = models.JSONField(verbose_name="Parametri messaggio", null=True, blank=True)
