@@ -2305,55 +2305,89 @@ def test_residual_inbound_creation(request):
             'message': 'Errore durante test residual creation'
         }, status=500)
 
-@api_view(['GET'])
-@permission_classes([])
+@csrf_exempt
 def test_residual_logic_simple(request):
     """
-    Endpoint GET semplice per testare la logica residual senza parametri.
+    Test semplificato della logica di calcolo residual per debug.
     """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
     try:
-        logger.info("[test_residual_logic_simple] 🧪 Test semplice logica residual")
-        
-        # Test della logica di calcolo con dati mock
+        # Test con dati hardcoded semplici
         inbound_items = [
-            {'item_id': 1, 'title': 'Prodotto Test 1', 'expected_quantity': 10, 'actual_quantity': 10},
-            {'item_id': 2, 'title': 'Prodotto Test 2', 'expected_quantity': 5, 'actual_quantity': 4},
+            {'sku': 'TEST-SKU-1', 'quantity': 10},
+            {'sku': 'TEST-SKU-2', 'quantity': 5},
+            {'sku': 'TEST-SKU-3', 'quantity': 8}
         ]
         
         outbound_items = [
-            {'item_id': 1, 'quantity': 7},
-            {'item_id': 2, 'quantity': 3},
+            {'sku': 'TEST-SKU-1', 'quantity': 7},
+            {'sku': 'TEST-SKU-2', 'quantity': 3}
+            # TEST-SKU-3 non presente in outbound
         ]
         
-        # Importa il processor per testare la logica
-        from .event_handlers import WebhookEventProcessor
         processor = WebhookEventProcessor()
-        
-        # Test del calcolo residual
         residual_items = processor._calculate_residual_items(inbound_items, outbound_items)
-        
-        # Test della generazione nome
-        test_name = processor._generate_residual_name("Test Shipment", "123")
         
         return JsonResponse({
             'success': True,
-            'message': 'Test logica residual completato',
-            'test_data': {
-                'inbound_items': inbound_items,
-                'outbound_items': outbound_items,
-                'residual_items': residual_items,
-                'generated_name': test_name
-            },
-            'client_available': processor.client is not None
+            'inbound_items': inbound_items,
+            'outbound_items': outbound_items,
+            'residual_items': residual_items,
+            'residual_count': len(residual_items),
+            'total_residual_quantity': sum(item['quantity'] for item in residual_items)
         })
         
     except Exception as e:
-        logger.error(f"[test_residual_logic_simple] ❌ Errore: {str(e)}")
-        logger.exception("Traceback:")
+        logger.exception("Errore nel test residual logic:")
         return JsonResponse({
             'success': False,
-            'error': str(e),
-            'message': 'Errore durante test logica residual'
+            'error': str(e)
+        }, status=500)
+
+@csrf_exempt
+def debug_webhook_payload(request, update_id):
+    """
+    Debug endpoint per visualizzare il payload completo di un webhook.
+    """
+    try:
+        update = ShipmentStatusUpdate.objects.get(id=update_id)
+        
+        # Estrai informazioni sui prodotti dal payload
+        payload = update.payload or {}
+        data = payload.get('data', {})
+        
+        # Cerca outbound_items
+        outbound_items = data.get('outbound_items', [])
+        products_info = payload.get('products_info', {})
+        
+        return JsonResponse({
+            'success': True,
+            'update_id': update_id,
+            'shipment_id': update.shipment_id,
+            'event_type': update.event_type,
+            'merchant_id': update.merchant_id,
+            'processed': update.processed,
+            'process_success': update.process_success,
+            'payload': payload,
+            'outbound_items': outbound_items,
+            'outbound_items_count': len(outbound_items),
+            'total_quantity': sum(item.get('quantity', 0) for item in outbound_items),
+            'products_info': products_info,
+            'created_at': update.created_at.isoformat()
+        }, indent=2)
+        
+    except ShipmentStatusUpdate.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': f'Webhook update {update_id} not found'
+        }, status=404)
+    except Exception as e:
+        logger.exception(f"Errore nel debug webhook payload {update_id}:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         }, status=500)
 
 # Debug function removed to fix crash
