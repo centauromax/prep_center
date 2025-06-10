@@ -11,7 +11,7 @@ import time
 from .models import ShipmentStatusUpdate, OutgoingMessage
 from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
-from libs.api_client.prep_business import PrepBusinessClient
+from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import (
     PREP_BUSINESS_API_URL,
     PREP_BUSINESS_API_KEY,
@@ -796,17 +796,20 @@ class WebhookEventProcessor:
         logger.info(f"[_get_outbound_shipment_details] 🚀 Recupero dettagli outbound shipment_id={shipment_id}, merchant_id={merchant_id}")
         
         try:
-            # Usa il metodo generico get_shipment
-            shipment = self.client.get_shipment(shipment_id)
+            # Usa il metodo specifico per outbound shipments
+            shipment = self.client.get_outbound_shipment(
+                shipment_id=int(shipment_id), 
+                merchant_id=int(merchant_id) if merchant_id else None
+            )
             
             if shipment:
                 result = {
-                    'id': shipment.get('id'),
-                    'name': shipment.get('name'),
-                    'status': shipment.get('status', ''),
-                    'warehouse_id': shipment.get('warehouse_id'),
-                    'notes': shipment.get('notes'),
-                    'created_at': shipment.get('created_at', '')
+                    'id': shipment.id,
+                    'name': shipment.name,
+                    'status': shipment.status.value if hasattr(shipment.status, 'value') else str(shipment.status),
+                    'warehouse_id': shipment.warehouse_id,
+                    'notes': shipment.notes,
+                    'created_at': shipment.created_at.isoformat() if hasattr(shipment.created_at, 'isoformat') else str(shipment.created_at)
                 }
                 logger.info(f"[_get_outbound_shipment_details] ✅ Dettagli recuperati: {result}")
                 return result
@@ -1115,7 +1118,7 @@ class WebhookEventProcessor:
                 for item in items:
                     try:
                         # Aggiungi l'item al shipment
-                        self.client.add_item_to_shipment(
+                        add_response = self.client.add_item_to_shipment(
                             shipment_id=shipment_id,
                             item_id=item['item_id'],
                             quantity=item['expected_quantity'],  # Usiamo expected come base
@@ -1133,7 +1136,7 @@ class WebhookEventProcessor:
                                 quantity=item['actual_quantity']
                             )
                             
-                            self.client.update_shipment_item(
+                            update_response = self.client.update_shipment_item(
                                 shipment_id=shipment_id,
                                 item_id=item['item_id'],
                                 expected=expected_update,
