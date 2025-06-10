@@ -44,7 +44,7 @@ urlpatterns = [
     
     # Endpoint per test conteggio prodotti
     path('api/telegram/test-outbound-closed-products/', views.test_outbound_closed_with_products, name='test_outbound_closed_products'),
-    path('api/telegram/test-outbound-closed-products-full/', views.test_outbound_closed_with_products_full, name='test_outbound_closed_products_full'),
+    path('api/telegram/test-outbound-closed-products-full/', views.test_outbound_closed_with_products, name='test_outbound_closed_products_full'),
     path('api/telegram/test-inbound-received/', views.test_inbound_received_notification, name='test_inbound_received'),
     path('api/telegram/test-inbound-received-more/', views.test_inbound_received_more, name='test_inbound_received_more'),
     path('api/telegram/test-inbound-received-less/', views.test_inbound_received_less, name='test_inbound_received_less'),
