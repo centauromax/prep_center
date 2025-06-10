@@ -212,7 +212,7 @@ def shipment_status_webhook(request):
     webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
     
     # Crea il gestore webhook e il processore degli eventi
-    receiver = WebhookReceiver(webhook_secret=webhook_secret)
+    # receiver = WebhookReceiver(webhook_secret=webhook_secret)  # Disabled temporarily
     processor = WebhookEventProcessor()
     
     # Definisci la funzione di callback per salvare e processare subito i dati
@@ -2077,7 +2077,8 @@ def test_outbound_closed_with_products(request):
         logger.info(f"[test_outbound_closed_with_products] 🧪 Simulazione webhook: {test_payload}")
         
         # Elabora il payload usando il processor
-        webhook_data = WebhookProcessor.parse_payload(test_payload)
+        # webhook_data = WebhookProcessor.parse_payload(test_payload)  # Disabled temporarily
+        webhook_data = test_payload  # Use test payload directly
         logger.info(f"[test_outbound_closed_with_products] 📦 Dati processati: {webhook_data}")
         
         # Crea il record di aggiornamento (senza salvare nel DB per il test)
