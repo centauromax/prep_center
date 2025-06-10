@@ -13,12 +13,21 @@ import pytz
 from .models import ShipmentStatusUpdate, OutgoingMessage, TelegramNotification
 from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
-from libs.api_client.prep_business import PrepBusinessClient
-from libs.config import (
-    PREP_BUSINESS_API_URL,
-    PREP_BUSINESS_API_KEY,
-    PREP_BUSINESS_API_TIMEOUT,
-)
+try:
+    from libs.api_client.prep_business import PrepBusinessClient
+    from libs.config import (
+        PREP_BUSINESS_API_URL,
+        PREP_BUSINESS_API_KEY,
+        PREP_BUSINESS_API_TIMEOUT,
+    )
+    LIBS_IMPORT_SUCCESS = True
+except ImportError as e:
+    logger.error(f"[event_handlers] Errore import libs: {e}")
+    PrepBusinessClient = None
+    PREP_BUSINESS_API_URL = None
+    PREP_BUSINESS_API_KEY = None
+    PREP_BUSINESS_API_TIMEOUT = 30
+    LIBS_IMPORT_SUCCESS = False
 
 logger = logging.getLogger('prep_management')
 
@@ -36,12 +45,16 @@ class WebhookEventProcessor:
         try:
             logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
             
-            # Uso del client originale con api_url e api_key
-            self.client = PrepBusinessClient(
-                api_url=PREP_BUSINESS_API_URL,
-                api_key=PREP_BUSINESS_API_KEY
-            )
-            logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+            if not LIBS_IMPORT_SUCCESS or PrepBusinessClient is None:
+                logger.error("[WebhookEventProcessor.__init__] Import libs fallito, client non disponibile.")
+                self.client = None
+            else:
+                # Uso del client originale con api_url e api_key
+                self.client = PrepBusinessClient(
+                    api_url=PREP_BUSINESS_API_URL,
+                    api_key=PREP_BUSINESS_API_KEY
+                )
+                logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
         except Exception as e_client_init:
             logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: " + str(e_client_init))
             self.client = None
