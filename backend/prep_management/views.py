@@ -236,6 +236,23 @@ def shipment_status_webhook(request):
             except Exception as e:
                 logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
+        # DEDUPLICAZIONE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        ten_minutes_ago = timezone.now() - timedelta(minutes=10)
+        existing_webhook = ShipmentStatusUpdate.objects.filter(
+            shipment_id=webhook_data.get('shipment_id'),
+            event_type=webhook_data.get('event_type', 'other'),
+            new_status=webhook_data.get('new_status', 'other'),
+            merchant_id=merchant_id,
+            created_at__gte=ten_minutes_ago
+        ).first()
+        
+        if existing_webhook:
+            logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
+            return existing_webhook
+        
         # Crea il record di aggiornamento
         shipment_update = ShipmentStatusUpdate(
             shipment_id=webhook_data.get('shipment_id'),
@@ -251,6 +268,8 @@ def shipment_status_webhook(request):
             payload=webhook_data.get('payload', {})
         )
         shipment_update.save()
+        logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+        
         # Elabora subito l'evento appena salvato (come era prima)
         processor.process_event(shipment_update.id)
         return shipment_update
