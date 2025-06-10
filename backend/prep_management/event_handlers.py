@@ -33,9 +33,19 @@ class WebhookEventProcessor:
         # Crea un client PrepBusiness per le chiamate API necessarie
         try:
             logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
+            
+            # Il nuovo client richiede company_domain invece di api_url
+            # Converte da "https://dashboard.fbaprepcenteritaly.com/api" a "dashboard.fbaprepcenteritaly.com"
+            if PREP_BUSINESS_API_URL:
+                company_domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').replace('/api', '').rstrip('/')
+            else:
+                company_domain = "dashboard.fbaprepcenteritaly.com"
+            
+            logger.info(f"[WebhookEventProcessor.__init__] Usando company_domain: {company_domain}")
+            
             self.client = PrepBusinessClient(
-                api_url=PREP_BUSINESS_API_URL,
-                api_key=PREP_BUSINESS_API_KEY
+                api_key=PREP_BUSINESS_API_KEY,
+                company_domain=company_domain
             )
             logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
         except Exception as e_client_init:
