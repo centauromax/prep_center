@@ -277,4 +277,105 @@ class PrepBusinessClient:
             Dettagli della spedizione aggiornata
         """
         response = self._make_request('PUT', f'/shipments/{shipment_id}', data=shipment_data)
-        return response.get('data', {}) 
+        return response.get('data', {})
+    
+    # Metodi specifici per inbound shipments
+    
+    def get_inbound_shipments(self, merchant_id: Optional[int] = None, page: int = 1, per_page: int = 50) -> List[Dict[str, Any]]:
+        """
+        Ottiene la lista delle spedizioni in entrata.
+        
+        Args:
+            merchant_id: ID del merchant (opzionale)
+            page: Numero di pagina
+            per_page: Elementi per pagina
+            
+        Returns:
+            Lista di spedizioni inbound
+        """
+        params = {
+            'page': page,
+            'per_page': per_page,
+            'type': 'inbound'
+        }
+        if merchant_id:
+            params['merchant_id'] = merchant_id
+            
+        response = self._make_request('GET', 'shipments', params=params)
+        return response.get('data', [])
+    
+    def get_inbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Ottiene gli items di una spedizione inbound.
+        
+        Args:
+            shipment_id: ID della spedizione
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Lista di items della spedizione
+        """
+        params = {}
+        if merchant_id:
+            params['merchant_id'] = merchant_id
+            
+        response = self._make_request('GET', f'shipments/{shipment_id}/items', params=params)
+        return response.get('data', [])
+    
+    # Metodi specifici per outbound shipments
+    
+    def get_outbound_shipments(self, merchant_id: Optional[int] = None, page: int = 1, per_page: int = 50) -> List[Dict[str, Any]]:
+        """
+        Ottiene la lista delle spedizioni in uscita.
+        
+        Args:
+            merchant_id: ID del merchant (opzionale)
+            page: Numero di pagina
+            per_page: Elementi per pagina
+            
+        Returns:
+            Lista di spedizioni outbound
+        """
+        params = {
+            'page': page,
+            'per_page': per_page,
+            'type': 'outbound'
+        }
+        if merchant_id:
+            params['merchant_id'] = merchant_id
+            
+        response = self._make_request('GET', 'shipments', params=params)
+        return response.get('data', [])
+    
+    def get_outbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Ottiene gli items di una spedizione outbound.
+        
+        Args:
+            shipment_id: ID della spedizione
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Lista di items della spedizione
+        """
+        params = {}
+        if merchant_id:
+            params['merchant_id'] = merchant_id
+            
+        response = self._make_request('GET', f'shipments/{shipment_id}/items', params=params)
+        return response.get('data', [])
+    
+    def create_inbound_shipment(self, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Crea una nuova spedizione inbound.
+        
+        Args:
+            shipment_data: Dati della spedizione inbound
+            
+        Returns:
+            Dettagli della spedizione creata
+        """
+        # Assicurati che il tipo sia inbound
+        shipment_data['type'] = 'inbound'
+        response = self._make_request('POST', 'shipments', data=shipment_data)
+        return response.get('data', {})
