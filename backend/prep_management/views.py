@@ -206,91 +206,124 @@ def shipment_status_webhook(request):
     Questo endpoint riceve notifiche POST quando lo stato di una spedizione cambia.
     Salva i dati ricevuti nel database per essere visualizzati e processati.
     """
-    # Ottieni la chiave segreta per verificare i webhook
-    webhook_secret = os.environ.get('PREP_BUSINESS_WEBHOOK_SECRET')
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
     
-    # Crea il gestore webhook e il processore degli eventi
-    # receiver = WebhookReceiver(webhook_secret=webhook_secret)  # Disabled temporarily
-    processor = WebhookEventProcessor()
-    
-    # Definisci la funzione di callback per salvare e processare subito i dati
-    def save_webhook_data(webhook_data):
-        # Recupera il nome del merchant usando il team_id
-        merchant_id = webhook_data.get('merchant_id')
-        merchant_name = None
-        if merchant_id:
-            try:
-                merchants = get_merchants()
-                merchant = next((m for m in merchants if str(m['id']) == str(merchant_id)), None)
-                if merchant:
-                    merchant_name = merchant['name']
-            except Exception as e:
-                logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
+    try:
+        # Parse JSON payload
+        import json
+        webhook_data = json.loads(request.body.decode('utf-8'))
+        
+        # Estrai i dati principali dal payload
+        event_type = webhook_data.get('event_type', 'unknown')
+        data = webhook_data.get('data', {})
+        
+        # Crea i dati del webhook nel formato atteso
+        processed_webhook_data = {
+            'shipment_id': data.get('id'),
+            'event_type': event_type,
+            'entity_type': 'shipment',
+            'previous_status': data.get('previous_status'),
+            'new_status': data.get('status', 'unknown'),
+            'merchant_id': data.get('merchant_id'),
+            'tracking_number': data.get('tracking_number'),
+            'carrier': data.get('carrier'),
+            'notes': data.get('notes'),
+            'payload': webhook_data
+        }
+        
+        # Crea il processore degli eventi
+        processor = WebhookEventProcessor()
+        
+        # Definisci la funzione di callback per salvare e processare subito i dati
+        def save_webhook_data(webhook_data):
+            # Recupera il nome del merchant usando il team_id
+            merchant_id = webhook_data.get('merchant_id')
+            merchant_name = None
+            if merchant_id:
+                try:
+                    merchants = get_merchants()
+                    merchant = next((m for m in merchants if str(m['id']) == str(merchant_id)), None)
+                    if merchant:
+                        merchant_name = merchant['name']
+                except Exception as e:
+                    logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
-        # DEDUPLICAZIONE CON LOCK TRANSAZIONALE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
-        from django.utils import timezone
-        from datetime import timedelta
-        from django.db import transaction
-        
-        ten_minutes_ago = timezone.now() - timedelta(minutes=10)
-        
-        # Usa select_for_update per evitare race conditions
-        with transaction.atomic():
-            existing_webhook = ShipmentStatusUpdate.objects.select_for_update().filter(
-                shipment_id=webhook_data.get('shipment_id'),
-                event_type=webhook_data.get('event_type', 'other'),
-                new_status=webhook_data.get('new_status', 'other'),
-                merchant_id=merchant_id,
-                created_at__gte=ten_minutes_ago
-            ).first()
+            # DEDUPLICAZIONE CON LOCK TRANSAZIONALE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
+            from django.utils import timezone
+            from datetime import timedelta
+            from django.db import transaction
             
-            if existing_webhook:
-                logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
-                return existing_webhook
-        
-        # Crea il record di aggiornamento (fuori dal transaction atomico)
-        try:
-            shipment_update = ShipmentStatusUpdate(
-                shipment_id=webhook_data.get('shipment_id'),
-                event_type=webhook_data.get('event_type', 'other'),
-                entity_type=webhook_data.get('entity_type', ''),
-                previous_status=webhook_data.get('previous_status'),
-                new_status=webhook_data.get('new_status', 'other'),
-                merchant_id=merchant_id,
-                merchant_name=merchant_name,
-                tracking_number=webhook_data.get('tracking_number'),
-                carrier=webhook_data.get('carrier'),
-                notes=webhook_data.get('notes'),
-                payload=webhook_data.get('payload', {})
-            )
-            shipment_update.save()
-            logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+            ten_minutes_ago = timezone.now() - timedelta(minutes=10)
             
-        except Exception as e:
-            from django.db import IntegrityError
-            if isinstance(e, IntegrityError) and 'unique_webhook_per_shipment_event' in str(e):
-                # Webhook duplicato bloccato dal constraint database
-                logger.warning(f"[webhook_dedup_constraint] Webhook duplicato bloccato da constraint DB per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
-                # Trova il webhook esistente
-                existing_webhook = ShipmentStatusUpdate.objects.filter(
+            # Usa select_for_update per evitare race conditions
+            with transaction.atomic():
+                existing_webhook = ShipmentStatusUpdate.objects.select_for_update().filter(
                     shipment_id=webhook_data.get('shipment_id'),
                     event_type=webhook_data.get('event_type', 'other'),
                     new_status=webhook_data.get('new_status', 'other'),
-                    merchant_id=merchant_id
+                    merchant_id=merchant_id,
+                    created_at__gte=ten_minutes_ago
                 ).first()
-                return existing_webhook
-            else:
-                # Altro errore, rilancia
-                logger.error(f"[webhook_save_error] Errore nel salvare webhook: {str(e)}")
-                raise
+                
+                if existing_webhook:
+                    logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
+                    return existing_webhook
+            
+            # Crea il record di aggiornamento (fuori dal transaction atomico)
+            try:
+                shipment_update = ShipmentStatusUpdate(
+                    shipment_id=webhook_data.get('shipment_id'),
+                    event_type=webhook_data.get('event_type', 'other'),
+                    entity_type=webhook_data.get('entity_type', ''),
+                    previous_status=webhook_data.get('previous_status'),
+                    new_status=webhook_data.get('new_status', 'other'),
+                    merchant_id=merchant_id,
+                    merchant_name=merchant_name,
+                    tracking_number=webhook_data.get('tracking_number'),
+                    carrier=webhook_data.get('carrier'),
+                    notes=webhook_data.get('notes'),
+                    payload=webhook_data.get('payload', {})
+                )
+                shipment_update.save()
+                logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+                
+            except Exception as e:
+                from django.db import IntegrityError
+                if isinstance(e, IntegrityError) and 'unique_webhook_per_shipment_event' in str(e):
+                    # Webhook duplicato bloccato dal constraint database
+                    logger.warning(f"[webhook_dedup_constraint] Webhook duplicato bloccato da constraint DB per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+                    # Trova il webhook esistente
+                    existing_webhook = ShipmentStatusUpdate.objects.filter(
+                        shipment_id=webhook_data.get('shipment_id'),
+                        event_type=webhook_data.get('event_type', 'other'),
+                        new_status=webhook_data.get('new_status', 'other'),
+                        merchant_id=merchant_id
+                    ).first()
+                    return existing_webhook
+                else:
+                    # Altro errore, rilancia
+                    logger.error(f"[webhook_save_error] Errore nel salvare webhook: {str(e)}")
+                    raise
+            
+            # Elabora subito l'evento appena salvato (come era prima)
+            processor.process_event(shipment_update.id)
+            return shipment_update
         
-        # Elabora subito l'evento appena salvato (come era prima)
-        processor.process_event(shipment_update.id)
-        return shipment_update
-    
-    # Processa il webhook
-    response, webhook_data = receiver.process_webhook(request, save_callback=save_webhook_data)
-    return response
+        # Salva e processa il webhook
+        saved_update = save_webhook_data(processed_webhook_data)
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Webhook processed successfully',
+            'update_id': saved_update.id if saved_update else None
+        })
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON payload'}, status=400)
+    except Exception as e:
+        logger.error(f"Errore nel processare webhook: {str(e)}")
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
 def test_webhook(request):
