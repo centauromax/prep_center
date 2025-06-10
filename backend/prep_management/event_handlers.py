@@ -339,7 +339,7 @@ class WebhookEventProcessor:
             logger.info(f"[_process_outbound_shipment_closed] 📦 Outbound shipment name: {outbound_name}")
             
             # Cerca l'inbound shipment corrispondente per nome
-            inbound_shipment = self._find_inbound_shipment_by_name(outbound_name, update.merchant_id)
+            inbound_shipment = self._find_matching_inbound_shipment(outbound_name, update.merchant_id)
             if not inbound_shipment:
                 error_msg = f"Nessun inbound shipment trovato con nome '{outbound_name}'"
                 logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
@@ -358,8 +358,8 @@ class WebhookEventProcessor:
             logger.info(f"[_process_outbound_shipment_closed] 📥 Inbound shipment trovato - ID: {inbound_id}, Name: {inbound_shipment.get('name')}")
             
             # Recupera i prodotti dell'outbound e dell'inbound
-            outbound_items = self._get_outbound_shipment_items(update.shipment_id, update.merchant_id)
-            inbound_items = self._get_inbound_shipment_items(str(inbound_id), update.merchant_id)
+            outbound_items = self._get_outbound_shipment_items(update.shipment_id)
+            inbound_items = self._get_inbound_shipment_items(str(inbound_id))
             
             if not outbound_items:
                 error_msg = f"Nessun prodotto trovato nell'outbound shipment {update.shipment_id}"
@@ -749,41 +749,32 @@ class WebhookEventProcessor:
             # Chiama l'API per ottenere tutti i merchants
             merchants_response = self.client.get_merchants()
             
-            # Il client può restituire un oggetto Pydantic MerchantsResponse
-            if hasattr(merchants_response, 'data'):
+            # MerchantsResponse ha un campo 'data' che contiene la lista di Merchant
+            if merchants_response and hasattr(merchants_response, 'data'):
                 merchants = merchants_response.data
                 logger.info(f"[_get_merchant_email] 📋 Ricevuti {len(merchants)} merchants dall'API")
-            elif isinstance(merchants_response, list):
-                merchants = merchants_response
-                logger.info(f"[_get_merchant_email] 📋 Ricevuti {len(merchants)} merchants dall'API")
-            else:
-                logger.error(f"[_get_merchant_email] ❌ Formato risposta merchants non riconosciuto: {type(merchants_response)}")
-                return None
-            
-            # Cerca il merchant con l'ID specificato
-            for merchant in merchants:
-                # Gestisci sia oggetti Pydantic che dict
-                if hasattr(merchant, 'id'):
+                
+                # Cerca il merchant con l'ID specificato
+                for merchant in merchants:
                     merchant_current_id = str(merchant.id)
-                    merchant_email = getattr(merchant, 'primaryEmail', None)
-                    merchant_name = getattr(merchant, 'name', 'Unknown')
-                else:
-                    merchant_current_id = str(merchant.get('id'))
-                    merchant_email = merchant.get('primaryEmail')
-                    merchant_name = merchant.get('name', 'Unknown')
+                    merchant_email = merchant.primaryEmail
+                    merchant_name = merchant.name
+                    
+                    logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {merchant_current_id}, Name: {merchant_name}, PrimaryEmail: {merchant_email}")
+                    
+                    if merchant_current_id == str(merchant_id):
+                        if merchant_email:
+                            logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {merchant_email}")
+                            return merchant_email
+                        else:
+                            logger.warning(f"[_get_merchant_email] ⚠️ Merchant {merchant_id} trovato ma senza email")
+                            return None
                 
-                logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {merchant_current_id}, Name: {merchant_name}, PrimaryEmail: {merchant_email}")
-                
-                if merchant_current_id == str(merchant_id):
-                    if merchant_email:
-                        logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {merchant_email}")
-                        return merchant_email
-                    else:
-                        logger.warning(f"[_get_merchant_email] ⚠️ Merchant {merchant_id} trovato ma senza email")
-                        return None
-            
-            logger.warning(f"[_get_merchant_email] ❌ Merchant con ID {merchant_id} non trovato")
-            return None
+                logger.warning(f"[_get_merchant_email] ❌ Merchant con ID {merchant_id} non trovato")
+                return None
+            else:
+                logger.error(f"[_get_merchant_email] ❌ Struttura risposta merchants non corretta: {type(merchants_response)}")
+                return None
             
         except Exception as e:
             logger.error(f"[_get_merchant_email] ❌ ECCEZIONE nel recupero email merchant {merchant_id}: {str(e)}")
@@ -804,37 +795,25 @@ class WebhookEventProcessor:
         logger.info(f"[_get_outbound_shipment_details] 🚀 Recupero dettagli outbound shipment_id={shipment_id}, merchant_id={merchant_id}")
         
         try:
-            # Usa il metodo generico get_shipment (restituisce oggetto Pydantic)
-            shipment = self.client.get_shipment(shipment_id)
+            # Usa il metodo generico get_shipment (restituisce OutboundShipmentResponse)
+            shipment_response = self.client.get_shipment(shipment_id)
             
-            if shipment:
-                # Il client restituisce un oggetto Pydantic, accediamo ai campi correttamente
-                if hasattr(shipment, 'shipment'):
-                    # Se c'è un campo 'shipment' annidato
-                    shipment_data = shipment.shipment
-                    result = {
-                        'id': getattr(shipment_data, 'id', None),
-                        'name': getattr(shipment_data, 'name', ''),
-                        'status': getattr(shipment_data, 'status', ''),
-                        'warehouse_id': getattr(shipment_data, 'warehouse_id', None),
-                        'notes': getattr(shipment_data, 'notes', ''),
-                        'created_at': getattr(shipment_data, 'created_at', '')
-                    }
-                else:
-                    # Accesso diretto ai campi
-                    result = {
-                        'id': getattr(shipment, 'id', None),
-                        'name': getattr(shipment, 'name', ''),
-                        'status': getattr(shipment, 'status', ''),
-                        'warehouse_id': getattr(shipment, 'warehouse_id', None),
-                        'notes': getattr(shipment, 'notes', ''),
-                        'created_at': getattr(shipment, 'created_at', '')
-                    }
+            if shipment_response and hasattr(shipment_response, 'shipment'):
+                # OutboundShipmentResponse ha un campo 'shipment' che contiene DetailedOutboundShipment
+                shipment_data = shipment_response.shipment
+                result = {
+                    'id': shipment_data.id,
+                    'name': shipment_data.name,
+                    'status': shipment_data.status,
+                    'warehouse_id': shipment_data.warehouse_id,
+                    'notes': shipment_data.notes or '',
+                    'created_at': shipment_data.created_at.isoformat() if shipment_data.created_at else ''
+                }
                 
                 logger.info(f"[_get_outbound_shipment_details] ✅ Dettagli recuperati: {result}")
                 return result
             else:
-                logger.warning(f"[_get_outbound_shipment_details] ⚠️ Nessun dato nella risposta API")
+                logger.warning(f"[_get_outbound_shipment_details] ⚠️ Nessun dato nella risposta API o struttura non corretta")
                 return None
                 
         except Exception as e:
@@ -842,155 +821,134 @@ class WebhookEventProcessor:
             logger.exception("Traceback:")
             return None
     
-    def _find_inbound_shipment_by_name(self, name: str, merchant_id: str) -> Optional[Dict[str, Any]]:
+    def _find_matching_inbound_shipment(self, outbound_shipment_name: str, merchant_id: str) -> Optional[Dict[str, Any]]:
         """
-        Cerca un inbound shipment per nome.
+        Cerca una spedizione inbound che corrisponde al nome della spedizione outbound.
         
         Args:
-            name: Nome della spedizione da cercare
+            outbound_shipment_name: Nome della spedizione outbound
             merchant_id: ID del merchant
             
         Returns:
-            Dict con i dettagli della spedizione o None se non trovata
+            Dict con dati della spedizione inbound o None se non trovata
         """
-        logger.info(f"[_find_inbound_shipment_by_name] 🔍 Ricerca inbound shipment con nome='{name}', merchant_id={merchant_id}")
+        logger.info(f"[_find_matching_inbound_shipment] 🔍 Ricerca spedizione inbound per nome: '{outbound_shipment_name}', merchant: {merchant_id}")
         
         try:
-            # Recupera tutte le spedizioni inbound con paginazione
-            page = 1
-            per_page = 50
-            max_pages = 10  # Limite di sicurezza
+            # Chiama l'API per ottenere le spedizioni inbound
+            inbound_response = self.client.get_inbound_shipments(merchant_id=merchant_id)
             
-            while page <= max_pages:
-                logger.info(f"[_find_inbound_shipment_by_name] 📄 Recupero pagina {page} (per_page={per_page})")
+            # InboundShipmentsResponse ha un campo 'data' che contiene la lista di InboundShipment
+            if inbound_response and hasattr(inbound_response, 'data'):
+                inbound_shipments = inbound_response.data
+                logger.info(f"[_find_matching_inbound_shipment] 📦 Trovate {len(inbound_shipments)} spedizioni inbound per merchant {merchant_id}")
                 
-                shipments_response = self.client.get_inbound_shipments(
-                    page=page,
-                    per_page=per_page,
-                    merchant_id=int(merchant_id) if merchant_id else None
-                )
+                for shipment in inbound_shipments:
+                    logger.info(f"[_find_matching_inbound_shipment] 🚚 Shipment ID: {shipment.id}, Nome: '{shipment.name}', Status: {shipment.status}")
+                    
+                    if shipment.name == outbound_shipment_name:
+                        result = {
+                            'id': shipment.id,
+                            'name': shipment.name,
+                            'status': shipment.status,
+                            'warehouse_id': shipment.warehouse_id,
+                            'notes': shipment.notes or '',
+                            'created_at': shipment.created_at.isoformat() if shipment.created_at else ''
+                        }
+                        logger.info(f"[_find_matching_inbound_shipment] ✅ Trovata spedizione inbound corrispondente: {result}")
+                        return result
                 
-                if shipments_response and isinstance(shipments_response, list):
-                    logger.info(f"[_find_inbound_shipment_by_name] 📦 Trovate {len(shipments_response)} spedizioni nella pagina {page}")
-                    
-                    for shipment in shipments_response:
-                        shipment_name = shipment.get('name', '')
-                        logger.debug(f"[_find_inbound_shipment_by_name] 🔍 Confronto: '{shipment_name}' == '{name}'")
-                        
-                        if shipment_name == name:
-                            result = {
-                                'id': shipment.get('id'),
-                                'name': shipment.get('name'),
-                                'status': shipment.get('status', ''),
-                                'warehouse_id': shipment.get('warehouse_id'),
-                                'notes': shipment.get('notes'),
-                                'created_at': shipment.get('created_at', '')
-                            }
-                            logger.info(f"[_find_inbound_shipment_by_name] ✅ Inbound shipment trovato: {result}")
-                            return result
-                    
-                    # Se non ci sono più pagine, esci
-                    if len(shipments_response) < per_page:
-                        logger.info(f"[_find_inbound_shipment_by_name] 📄 Ultima pagina raggiunta (< {per_page} items)")
-                        break
-                        
-                    page += 1
-                else:
-                    logger.info(f"[_find_inbound_shipment_by_name] 📄 Pagina {page} vuota o senza data")
-                    break
-            
-            logger.info(f"[_find_inbound_shipment_by_name] ❌ Nessun inbound shipment trovato con nome '{name}'")
-            return None
-            
+                logger.warning(f"[_find_matching_inbound_shipment] ❌ Nessuna spedizione inbound trovata con nome '{outbound_shipment_name}'")
+                return None
+            else:
+                logger.error(f"[_find_matching_inbound_shipment] ❌ Struttura risposta inbound non corretta: {type(inbound_response)}")
+                return None
+                
         except Exception as e:
-            logger.error(f"[_find_inbound_shipment_by_name] ❌ Errore ricerca: {str(e)}")
+            logger.error(f"[_find_matching_inbound_shipment] ❌ Errore nella ricerca: {str(e)}")
             logger.exception("Traceback:")
             return None
-    
-    def _get_outbound_shipment_items(self, shipment_id: str, merchant_id: str) -> List[Dict[str, Any]]:
+
+    def _get_outbound_shipment_items(self, shipment_id: str) -> List[Dict[str, Any]]:
         """
-        Recupera tutti gli items di un outbound shipment.
+        Recupera gli items di una spedizione outbound.
         
         Args:
             shipment_id: ID della spedizione
-            merchant_id: ID del merchant
             
         Returns:
-            Lista di dict con i dettagli degli items
+            Lista di dict con i dati degli items
         """
-        logger.info(f"[_get_outbound_shipment_items] 🚀 Recupero items outbound shipment_id={shipment_id}, merchant_id={merchant_id}")
+        logger.info(f"[_get_outbound_shipment_items] 📦 Recupero items per outbound shipment: {shipment_id}")
         
         try:
-            items_response = self.client.get_outbound_shipment_items(
-                shipment_id=int(shipment_id),
-                merchant_id=int(merchant_id) if merchant_id else None
-            )
+            # Chiama l'API per ottenere gli items della spedizione
+            items_response = self.client.get_outbound_shipment_items(shipment_id)
             
-            if items_response and isinstance(items_response, list):
-                items = []
-                for item in items_response:
-                    # Il client originale restituisce dict, non oggetti Pydantic
-                    item_data = {
-                        'item_id': item.get('item_id') or item.get('id'),
-                        'merchant_sku': item.get('merchant_sku', ''),
-                        'title': item.get('title', ''),
-                        'asin': item.get('asin', ''),
-                        'fnsku': item.get('fnsku', ''),
-                        'quantity': item.get('quantity', 0)
-                    }
-                    items.append(item_data)
-                    logger.debug(f"[_get_outbound_shipment_items] 📦 Item: {item_data}")
+            # OutboundShipmentItemsResponse ha un campo 'items' che contiene la lista di OutboundShipmentItem
+            if items_response and hasattr(items_response, 'items'):
+                items = items_response.items
+                logger.info(f"[_get_outbound_shipment_items] 📋 Trovati {len(items)} items per shipment {shipment_id}")
                 
-                logger.info(f"[_get_outbound_shipment_items] ✅ Recuperati {len(items)} items")
-                return items
+                result = []
+                for item in items:
+                    item_data = {
+                        'id': item.id,
+                        'item_id': item.item_id,
+                        'quantity': item.quantity,
+                        'merchant_sku': item.item.merchant_sku if item.item else 'N/A',
+                        'title': item.item.title if item.item else 'N/A'
+                    }
+                    result.append(item_data)
+                    logger.info(f"[_get_outbound_shipment_items] 📦 Item: {item_data}")
+                
+                return result
             else:
-                logger.warning(f"[_get_outbound_shipment_items] ⚠️ Nessun item trovato nella risposta API")
+                logger.warning(f"[_get_outbound_shipment_items] ❌ Struttura risposta items non corretta: {type(items_response)}")
                 return []
                 
         except Exception as e:
             logger.error(f"[_get_outbound_shipment_items] ❌ Errore recupero items: {str(e)}")
             logger.exception("Traceback:")
             return []
-    
-    def _get_inbound_shipment_items(self, shipment_id: str, merchant_id: str) -> List[Dict[str, Any]]:
+
+    def _get_inbound_shipment_items(self, shipment_id: str) -> List[Dict[str, Any]]:
         """
-        Recupera tutti gli items di un inbound shipment.
+        Recupera gli items di una spedizione inbound.
         
         Args:
             shipment_id: ID della spedizione
-            merchant_id: ID del merchant
             
         Returns:
-            Lista di dict con i dettagli degli items (expected/actual quantities)
+            Lista di dict con i dati degli items
         """
-        logger.info(f"[_get_inbound_shipment_items] 🚀 Recupero items inbound shipment_id={shipment_id}, merchant_id={merchant_id}")
+        logger.info(f"[_get_inbound_shipment_items] 📦 Recupero items per inbound shipment: {shipment_id}")
         
         try:
-            items_response = self.client.get_inbound_shipment_items(
-                shipment_id=int(shipment_id),
-                merchant_id=int(merchant_id) if merchant_id else None
-            )
+            # Chiama l'API per ottenere gli items della spedizione
+            items_response = self.client.get_inbound_shipment_items(shipment_id)
             
-            if items_response and isinstance(items_response, list):
-                items = []
-                for item in items_response:
-                    # Il client originale restituisce dict, non oggetti Pydantic
-                    item_data = {
-                        'item_id': item.get('item_id') or item.get('id'),
-                        'merchant_sku': item.get('merchant_sku', ''),
-                        'title': item.get('title', ''),
-                        'asin': item.get('asin', ''),
-                        'fnsku': item.get('fnsku', ''),
-                        'expected_quantity': item.get('expected_quantity', 0),
-                        'actual_quantity': item.get('actual_quantity', 0)
-                    }
-                    items.append(item_data)
-                    logger.debug(f"[_get_inbound_shipment_items] 📦 Item: {item_data}")
+            # ShipmentItemsResponse ha un campo 'items' che contiene la lista di ShipmentItem
+            if items_response and hasattr(items_response, 'items'):
+                items = items_response.items
+                logger.info(f"[_get_inbound_shipment_items] 📋 Trovati {len(items)} items per shipment {shipment_id}")
                 
-                logger.info(f"[_get_inbound_shipment_items] ✅ Recuperati {len(items)} items")
-                return items
+                result = []
+                for item in items:
+                    item_data = {
+                        'id': item.id,
+                        'item_id': item.item_id,
+                        'expected_quantity': item.expected.quantity,
+                        'actual_quantity': item.actual.quantity,
+                        'merchant_sku': item.item.merchant_sku if item.item else 'N/A',
+                        'title': item.item.title if item.item else 'N/A'
+                    }
+                    result.append(item_data)
+                    logger.info(f"[_get_inbound_shipment_items] 📦 Item: {item_data}")
+                
+                return result
             else:
-                logger.warning(f"[_get_inbound_shipment_items] ⚠️ Nessun item trovato nella risposta API")
+                logger.warning(f"[_get_inbound_shipment_items] ❌ Struttura risposta items non corretta: {type(items_response)}")
                 return []
                 
         except Exception as e:
@@ -1070,7 +1028,7 @@ class WebhookEventProcessor:
         
         try:
             # Controlla se esiste già un inbound con questo nome
-            if not self._find_inbound_shipment_by_name(base_name, merchant_id):
+            if not self._find_matching_inbound_shipment(base_name, merchant_id):
                 logger.info(f"[_generate_residual_name] ✅ Nome disponibile: '{base_name}'")
                 return base_name
             
@@ -1080,7 +1038,7 @@ class WebhookEventProcessor:
             
             while counter <= max_attempts:
                 numbered_name = f"{original_name} - Residual {counter}"
-                if not self._find_inbound_shipment_by_name(numbered_name, merchant_id):
+                if not self._find_matching_inbound_shipment(numbered_name, merchant_id):
                     logger.info(f"[_generate_residual_name] ✅ Nome disponibile: '{numbered_name}'")
                     return numbered_name
                 counter += 1
