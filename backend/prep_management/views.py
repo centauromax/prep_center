@@ -21,24 +21,17 @@ import base64
 import time
 import socket
 import uuid
-from libs.prepbusiness.webhook_manager import list_webhooks, create_webhook, delete_webhook, test_webhook, update_webhook
-from libs.prepbusiness.webhook_processor import WebhookProcessor
-from libs.prepbusiness.webhook_receiver import WebhookReceiver
+# Webhook imports removed temporarily to fix crash
 from .event_handlers import WebhookEventProcessor
 from django.utils import timezone
 from datetime import timedelta
-from libs.prepbusiness.client import PrepBusinessClient
+from libs.api_client.prep_business import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 from enum import Enum
 from functools import wraps
 from typing import Optional, Dict, Any, List
 from django.core.cache import cache
-from libs.prepbusiness.models import (
-    OutboundShipmentResponse,
-    OutboundShipmentItemsResponse,
-    InboundShipmentResponse,
-    ShipmentItemsResponse
-)
+# Models import removed temporarily to fix crash
 from .tasks import process_shipment_batch, echo_task, process_shipment_search_task
 from .utils.extractors import extract_product_info_from_dict
 from .utils.clients import get_client
@@ -1571,7 +1564,7 @@ def telegram_merchants_debug(request):
     Utile per troubleshooting delle registrazioni Telegram.
     """
     try:
-        from libs.prepbusiness.client import PrepBusinessClient
+        from libs.api_client.prep_business import PrepBusinessClient
         import os
         
         # Ottieni configurazione dalle variabili d'ambiente
