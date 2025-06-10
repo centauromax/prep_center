@@ -90,6 +90,14 @@ class ShipmentStatusUpdate(models.Model):
         verbose_name = "Aggiornamento stato spedizione"
         verbose_name_plural = "Aggiornamenti stato spedizioni"
         ordering = ['-created_at']
+        # Constraint per evitare webhook duplicati
+        constraints = [
+            models.UniqueConstraint(
+                fields=['shipment_id', 'event_type', 'new_status', 'merchant_id'],
+                name='unique_webhook_per_shipment_event',
+                violation_error_message='Webhook duplicato: stesso shipment_id, event_type e status già presente'
+            )
+        ]
     
     def __str__(self):
         return f"#{self.shipment_id}: {self.event_type}"

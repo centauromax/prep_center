@@ -236,39 +236,62 @@ def shipment_status_webhook(request):
             except Exception as e:
                 logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
-        # DEDUPLICAZIONE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
+        # DEDUPLICAZIONE CON LOCK TRANSAZIONALE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
         from django.utils import timezone
         from datetime import timedelta
+        from django.db import transaction
         
         ten_minutes_ago = timezone.now() - timedelta(minutes=10)
-        existing_webhook = ShipmentStatusUpdate.objects.filter(
-            shipment_id=webhook_data.get('shipment_id'),
-            event_type=webhook_data.get('event_type', 'other'),
-            new_status=webhook_data.get('new_status', 'other'),
-            merchant_id=merchant_id,
-            created_at__gte=ten_minutes_ago
-        ).first()
         
-        if existing_webhook:
-            logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
-            return existing_webhook
+        # Usa select_for_update per evitare race conditions
+        with transaction.atomic():
+            existing_webhook = ShipmentStatusUpdate.objects.select_for_update().filter(
+                shipment_id=webhook_data.get('shipment_id'),
+                event_type=webhook_data.get('event_type', 'other'),
+                new_status=webhook_data.get('new_status', 'other'),
+                merchant_id=merchant_id,
+                created_at__gte=ten_minutes_ago
+            ).first()
+            
+            if existing_webhook:
+                logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
+                return existing_webhook
         
-        # Crea il record di aggiornamento
-        shipment_update = ShipmentStatusUpdate(
-            shipment_id=webhook_data.get('shipment_id'),
-            event_type=webhook_data.get('event_type', 'other'),
-            entity_type=webhook_data.get('entity_type', ''),
-            previous_status=webhook_data.get('previous_status'),
-            new_status=webhook_data.get('new_status', 'other'),
-            merchant_id=merchant_id,
-            merchant_name=merchant_name,
-            tracking_number=webhook_data.get('tracking_number'),
-            carrier=webhook_data.get('carrier'),
-            notes=webhook_data.get('notes'),
-            payload=webhook_data.get('payload', {})
-        )
-        shipment_update.save()
-        logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+        # Crea il record di aggiornamento (fuori dal transaction atomico)
+        try:
+            shipment_update = ShipmentStatusUpdate(
+                shipment_id=webhook_data.get('shipment_id'),
+                event_type=webhook_data.get('event_type', 'other'),
+                entity_type=webhook_data.get('entity_type', ''),
+                previous_status=webhook_data.get('previous_status'),
+                new_status=webhook_data.get('new_status', 'other'),
+                merchant_id=merchant_id,
+                merchant_name=merchant_name,
+                tracking_number=webhook_data.get('tracking_number'),
+                carrier=webhook_data.get('carrier'),
+                notes=webhook_data.get('notes'),
+                payload=webhook_data.get('payload', {})
+            )
+            shipment_update.save()
+            logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+            
+        except Exception as e:
+            from django.db import IntegrityError
+            if isinstance(e, IntegrityError) and 'unique_webhook_per_shipment_event' in str(e):
+                # Webhook duplicato bloccato dal constraint database
+                logger.warning(f"[webhook_dedup_constraint] Webhook duplicato bloccato da constraint DB per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
+                # Trova il webhook esistente
+                existing_webhook = ShipmentStatusUpdate.objects.filter(
+                    shipment_id=webhook_data.get('shipment_id'),
+                    event_type=webhook_data.get('event_type', 'other'),
+                    new_status=webhook_data.get('new_status', 'other'),
+                    merchant_id=merchant_id
+                ).first()
+                return existing_webhook
+            else:
+                # Altro errore, rilancia
+                logger.error(f"[webhook_save_error] Errore nel salvare webhook: {str(e)}")
+                raise
         
         # Elabora subito l'evento appena salvato (come era prima)
         processor.process_event(shipment_update.id)
