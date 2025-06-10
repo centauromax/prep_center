@@ -29,17 +29,13 @@ class WebhookEventProcessor:
     def __init__(self):
         """Inizializza il processore degli eventi."""
         logger.info("[WebhookEventProcessor.__init__] Inizio inizializzazione.")
-        # Crea un client PrepBusiness per le chiamate API necessarie
-        domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
-        logger.info(f"[WebhookEventProcessor.__init__] Dominio calcolato per il client: {domain}")
         
-        # Riattivo il client per le chiamate API reali
+        # Crea un client PrepBusiness per le chiamate API necessarie
         try:
             logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
             self.client = PrepBusinessClient(
-                api_key=PREP_BUSINESS_API_KEY,
-                company_domain=domain,
-                timeout=PREP_BUSINESS_API_TIMEOUT,
+                api_url=PREP_BUSINESS_API_URL,
+                api_key=PREP_BUSINESS_API_KEY
             )
             logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
         except Exception as e_client_init:
