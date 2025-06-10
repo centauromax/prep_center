@@ -316,14 +316,30 @@ def shipment_status_webhook(request):
                 except Exception as e:
                     logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
-            # DEDUPLICAZIONE SEMPLIFICATA: Usa principalmente il constraint del database
+            # DEDUPLICAZIONE ORIGINALE RIPRISTINATA: Lock transazionale con finestra di 10 minuti
             from django.utils import timezone
             from datetime import timedelta
-            from django.db import transaction, IntegrityError
+            from django.db import transaction
             
-            # Prova a creare il record e lascia che il database constraint gestisca i duplicati
+            ten_minutes_ago = timezone.now() - timedelta(minutes=10)
+            
+            # Usa select_for_update per evitare race conditions
+            with transaction.atomic():
+                existing_webhook = ShipmentStatusUpdate.objects.select_for_update().filter(
+                    shipment_id=webhook_data.get('shipment_id'),
+                    event_type=webhook_data.get('event_type', 'other'),
+                    new_status=webhook_data.get('new_status', 'other'),
+                    merchant_id=merchant_id,
+                    created_at__gte=ten_minutes_ago
+                ).first()
+                
+                if existing_webhook:
+                    logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
+                    return existing_webhook
+            
+            # Crea il record di aggiornamento (fuori dal transaction atomico)
             try:
-                # Arricchisci il payload con le informazioni sui prodotti
+                # Arricchisci il payload con le informazioni sui prodotti (NUOVA FUNZIONALITÀ MANTENUTA)
                 enriched_payload = webhook_data.get('payload', {})
                 products_info = webhook_data.get('products_info', {})
                 if products_info:
@@ -346,11 +362,11 @@ def shipment_status_webhook(request):
                 shipment_update.save()
                 logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
                 
-            except IntegrityError as e:
-                if 'unique_webhook_per_shipment_event' in str(e):
+            except Exception as e:
+                from django.db import IntegrityError
+                if isinstance(e, IntegrityError) and 'unique_webhook_per_shipment_event' in str(e):
                     # Webhook duplicato bloccato dal constraint database
                     logger.warning(f"[webhook_dedup_constraint] Webhook duplicato bloccato da constraint DB per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")
-                    
                     # Trova il webhook esistente
                     existing_webhook = ShipmentStatusUpdate.objects.filter(
                         shipment_id=webhook_data.get('shipment_id'),
@@ -358,27 +374,11 @@ def shipment_status_webhook(request):
                         new_status=webhook_data.get('new_status', 'other'),
                         merchant_id=merchant_id
                     ).first()
-                    
-                    if existing_webhook:
-                        # Se l'elaborazione precedente è fallita, riprova l'elaborazione
-                        if existing_webhook.processed and not existing_webhook.process_success:
-                            logger.info(f"[webhook_dedup] Tentativo precedente fallito (ID: {existing_webhook.id}), riprovo elaborazione per shipment_id={webhook_data.get('shipment_id')}")
-                            processor.process_event(existing_webhook.id)
-                        else:
-                            logger.info(f"[webhook_dedup] Webhook già elaborato con successo (ID: {existing_webhook.id}), salto elaborazione")
-                        
-                        return existing_webhook
-                    else:
-                        logger.error(f"[webhook_dedup_error] Constraint violato ma webhook esistente non trovato")
-                        raise
+                    return existing_webhook
                 else:
-                    # Altro errore IntegrityError, rilancia
-                    logger.error(f"[webhook_save_error] Errore IntegrityError nel salvare webhook: {str(e)}")
+                    # Altro errore, rilancia
+                    logger.error(f"[webhook_save_error] Errore nel salvare webhook: {str(e)}")
                     raise
-            except Exception as e:
-                # Altro errore, rilancia
-                logger.error(f"[webhook_save_error] Errore generico nel salvare webhook: {str(e)}")
-                raise
             
             # Elabora subito l'evento appena salvato (come era prima)
             processor.process_event(shipment_update.id)
