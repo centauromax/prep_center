@@ -251,8 +251,9 @@ def shipment_status_webhook(request):
             payload=webhook_data.get('payload', {})
         )
         shipment_update.save()
-        # Elabora subito l'evento appena salvato
-        processor.process_event(shipment_update.id)
+        # TODO: Elabora l'evento in modo asincrono per evitare duplicati
+        # processor.process_event(shipment_update.id)
+        logger.info(f"[webhook_receiver] Webhook salvato ID: {shipment_update.id}, processamento differito")
         return shipment_update
     
     # Processa il webhook

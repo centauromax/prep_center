@@ -236,7 +236,7 @@ class PrepBusinessClient:
         Returns:
             Lista di spedizioni
         """
-        response = self._make_request('GET', '/shipments', params=filters)
+        response = self._make_request('GET', 'shipments', params=filters)
         return response.get('data', [])
     
     def get_shipment(self, shipment_id: str) -> Dict[str, Any]:
@@ -249,7 +249,7 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione
         """
-        response = self._make_request('GET', f'/shipments/{shipment_id}')
+        response = self._make_request('GET', f'shipments/{shipment_id}')
         return response.get('data', {})
     
     def create_shipment(self, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -262,7 +262,7 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione creata
         """
-        response = self._make_request('POST', '/shipments', data=shipment_data)
+        response = self._make_request('POST', 'shipments', data=shipment_data)
         return response.get('data', {})
     
     def update_shipment(self, shipment_id: str, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,7 +276,7 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione aggiornata
         """
-        response = self._make_request('PUT', f'/shipments/{shipment_id}', data=shipment_data)
+        response = self._make_request('PUT', f'shipments/{shipment_id}', data=shipment_data)
         return response.get('data', {})
     
     # Metodi specifici per inbound shipments
