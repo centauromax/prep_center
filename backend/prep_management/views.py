@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_http_methods
+from django.views.decorators.http import require_POST
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -2251,19 +2251,4 @@ def test_residual_logic_simple(request):
             'message': 'Errore durante test logica residual'
         }, status=500)
 
-@require_http_methods(["GET"])
-def debug_api_structure(request):
-    """Debug endpoint per ispezionare la struttura delle risposte API."""
-    try:
-        from libs.api_client.prep_business import PrepBusinessClient
-        from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY
-        
-        client = PrepBusinessClient(
-            api_url=PREP_BUSINESS_API_URL,
-            api_key=PREP_BUSINESS_API_KEY
-        )
-        
-        debug_info = {}
-        
-        # Test get_merchants
-        try:
+# Debug function removed to fix crash

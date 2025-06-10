@@ -53,5 +53,4 @@ urlpatterns = [
 
     # Debug endpoints
     path('telegram/debug/', views.telegram_debug_view, name='telegram_debug'),
-    path('debug-api-structure/', views.debug_api_structure, name='debug_api_structure'),
 ]
