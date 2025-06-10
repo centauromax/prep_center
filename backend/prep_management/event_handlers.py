@@ -11,7 +11,7 @@ import time
 from .models import ShipmentStatusUpdate, OutgoingMessage
 from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
-from libs.prepbusiness.client import PrepBusinessClient
+from libs.api_client.prep_business import PrepBusinessClient
 from libs.config import (
     PREP_BUSINESS_API_URL,
     PREP_BUSINESS_API_KEY,
