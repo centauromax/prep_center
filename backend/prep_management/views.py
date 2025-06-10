@@ -255,7 +255,35 @@ def shipment_status_webhook(request):
         
         logger.info(f"[webhook_parsing] Webhook ricevuto per shipment {data.get('id')}: status={data.get('status')}, shipped_at={data.get('shipped_at')}, inferred_event_type={event_type}")
         
-        # Crea i dati del webhook nel formato atteso
+        # Estrai informazioni sui prodotti dal payload per migliorare le notifiche
+        def extract_product_info(shipment_data):
+            """Estrae informazioni sui prodotti dal payload del webhook"""
+            products_info = {}
+            
+            # Cerca outbound_items
+            outbound_items = shipment_data.get('outbound_items', [])
+            if outbound_items:
+                total_quantity = sum(item.get('quantity', 0) for item in outbound_items)
+                products_info['total_quantity'] = total_quantity
+                products_info['items_count'] = len(outbound_items)
+                products_info['products_summary'] = f"{len(outbound_items)} prodotti, {total_quantity} unità totali"
+                logger.info(f"[webhook_products] Trovati {len(outbound_items)} prodotti outbound, {total_quantity} unità totali")
+            
+            # Cerca inbound_items (se è un inbound)
+            inbound_items = shipment_data.get('inbound_items', shipment_data.get('items', []))
+            if inbound_items and not outbound_items:  # Solo se non ci sono outbound_items
+                total_quantity = sum(item.get('quantity', 0) for item in inbound_items)
+                products_info['total_quantity'] = total_quantity
+                products_info['items_count'] = len(inbound_items)
+                products_info['products_summary'] = f"{len(inbound_items)} prodotti, {total_quantity} unità totali"
+                logger.info(f"[webhook_products] Trovati {len(inbound_items)} prodotti inbound, {total_quantity} unità totali")
+            
+            return products_info
+        
+        # Estrai info prodotti
+        products_info = extract_product_info(data)
+        
+        # Crea i dati del webhook nel formato atteso (con info prodotti)
         processed_webhook_data = {
             'shipment_id': str(data.get('id')),
             'event_type': event_type,
@@ -266,13 +294,15 @@ def shipment_status_webhook(request):
             'tracking_number': data.get('tracking_number'),
             'carrier': data.get('carrier'),
             'notes': data.get('notes'),
-            'payload': webhook_data
+            'payload': webhook_data,
+            # Aggiungi informazioni sui prodotti per migliorare le notifiche
+            'products_info': products_info
         }
         
         # Crea il processore degli eventi
         processor = WebhookEventProcessor()
         
-        # ... resto del codice per save_webhook_data rimane uguale ...
+        # Definisci la funzione di callback per salvare e processare subito i dati
         def save_webhook_data(webhook_data):
             # Recupera il nome del merchant usando il team_id
             merchant_id = webhook_data.get('merchant_id')
@@ -286,7 +316,7 @@ def shipment_status_webhook(request):
                 except Exception as e:
                     logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
-            # DEDUPLICAZIONE CON LOCK TRANSAZIONALE: Controlla se esiste già un webhook simile negli ultimi 10 minuti
+            # DEDUPLICAZIONE INTELLIGENTE: Permetti re-processing se il tentativo precedente è fallito
             from django.utils import timezone
             from datetime import timedelta
             from django.db import transaction
@@ -304,11 +334,23 @@ def shipment_status_webhook(request):
                 ).first()
                 
                 if existing_webhook:
-                    logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
-                    return existing_webhook
+                    # Se l'elaborazione precedente è fallita, permetti di riprovare
+                    if existing_webhook.processed and not existing_webhook.process_success:
+                        logger.info(f"[webhook_dedup] Tentativo precedente fallito (ID: {existing_webhook.id}), permetto re-processing per shipment_id={webhook_data.get('shipment_id')}")
+                        # Non bloccare, continua con la creazione di un nuovo record
+                    else:
+                        logger.warning(f"[webhook_dedup] Webhook duplicato ignorato per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}, existing_id={existing_webhook.id}")
+                        return existing_webhook
             
             # Crea il record di aggiornamento (fuori dal transaction atomico)
             try:
+                # Arricchisci il payload con le informazioni sui prodotti
+                enriched_payload = webhook_data.get('payload', {})
+                products_info = webhook_data.get('products_info', {})
+                if products_info:
+                    enriched_payload['products_info'] = products_info
+                    logger.info(f"[webhook_save] Arricchito payload con informazioni prodotti: {products_info}")
+                
                 shipment_update = ShipmentStatusUpdate(
                     shipment_id=webhook_data.get('shipment_id'),
                     event_type=webhook_data.get('event_type', 'other'),
@@ -320,7 +362,7 @@ def shipment_status_webhook(request):
                     tracking_number=webhook_data.get('tracking_number'),
                     carrier=webhook_data.get('carrier'),
                     notes=webhook_data.get('notes'),
-                    payload=webhook_data.get('payload', {})
+                    payload=enriched_payload  # Usa il payload arricchito
                 )
                 shipment_update.save()
                 logger.info(f"[webhook_saved] Nuovo webhook salvato ID: {shipment_update.id} per shipment_id={webhook_data.get('shipment_id')}, event_type={webhook_data.get('event_type')}")

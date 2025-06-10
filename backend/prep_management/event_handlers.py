@@ -523,45 +523,23 @@ class WebhookEventProcessor:
                 'new_status': update.new_status
             }
             
-            # Recupera conteggi prodotti per eventi specifici
-            logger.info(f"[_send_telegram_notification_if_needed] 🔍 Controllo evento: {update.event_type}")
-            
-            if update.event_type == 'outbound_shipment.closed':
-                logger.info(f"[_send_telegram_notification_if_needed] 📦 EVENTO OUTBOUND_CLOSED RILEVATO! Recupero numero prodotti per spedizione {update.shipment_id}")
-                logger.info(f"[_send_telegram_notification_if_needed] 📋 Parametri: shipment_id={update.shipment_id}, merchant_id={update.merchant_id}")
-                
-                try:
-                    products_count = self._get_outbound_shipment_products_count(update.shipment_id, update.merchant_id)
-                    logger.info(f"[_send_telegram_notification_if_needed] 📊 Risultato chiamata products_count: {products_count}")
-                    
-                    if products_count is not None:
-                        shipment_data['products_count'] = products_count
-                        logger.info(f"[_send_telegram_notification_if_needed] ✅ Numero prodotti AGGIUNTO ai dati: {products_count}")
-                    else:
-                        logger.warning(f"[_send_telegram_notification_if_needed] ⚠️ Numero prodotti NON disponibile per spedizione {update.shipment_id}")
-                except Exception as e:
-                    logger.error(f"[_send_telegram_notification_if_needed] ❌ ERRORE nel recupero prodotti: {str(e)}")
-                    logger.exception("Traceback:")
-                    
-            elif update.event_type == 'inbound_shipment.received':
-                logger.info(f"[_send_telegram_notification_if_needed] 📥 EVENTO INBOUND_RECEIVED RILEVATO! Recupero conteggi prodotti per spedizione {update.shipment_id}")
-                logger.info(f"[_send_telegram_notification_if_needed] 📋 Parametri: shipment_id={update.shipment_id}, merchant_id={update.merchant_id}")
-                
-                try:
-                    products_counts = self._get_inbound_shipment_products_count(update.shipment_id, update.merchant_id)
-                    logger.info(f"[_send_telegram_notification_if_needed] 📊 Risultato chiamata products_counts: {products_counts}")
-                    
-                    if products_counts is not None:
-                        shipment_data['expected_count'] = products_counts['expected']
-                        shipment_data['received_count'] = products_counts['received']
-                        logger.info(f"[_send_telegram_notification_if_needed] ✅ Conteggi prodotti AGGIUNTI ai dati - Attesi: {products_counts['expected']}, Arrivati: {products_counts['received']}")
-                    else:
-                        logger.warning(f"[_send_telegram_notification_if_needed] ⚠️ Conteggi prodotti NON disponibili per spedizione {update.shipment_id}")
-                except Exception as e:
-                    logger.error(f"[_send_telegram_notification_if_needed] ❌ ERRORE nel recupero conteggi prodotti: {str(e)}")
-                    logger.exception("Traceback:")
+            # NUOVO: Usa le informazioni sui prodotti estratte dal webhook se disponibili
+            webhook_products_info = getattr(update, 'products_info', None)
+            if webhook_products_info and webhook_products_info.get('total_quantity'):
+                logger.info(f"[_send_telegram_notification_if_needed] ✅ Usando informazioni prodotti dal webhook: {webhook_products_info}")
+                shipment_data['products_count'] = webhook_products_info['total_quantity']
+                shipment_data['products_summary'] = webhook_products_info.get('products_summary', '')
             else:
-                logger.info(f"[_send_telegram_notification_if_needed] ➡️ Evento {update.event_type} non richiede conteggio prodotti")
+                # Prova a estrarre le informazioni prodotti dal payload salvato
+                payload = update.payload or {}
+                saved_products_info = payload.get('products_info', {})
+                if saved_products_info and saved_products_info.get('total_quantity'):
+                    logger.info(f"[_send_telegram_notification_if_needed] ✅ Usando informazioni prodotti dal payload salvato: {saved_products_info}")
+                    shipment_data['products_count'] = saved_products_info['total_quantity']
+                    shipment_data['products_summary'] = saved_products_info.get('products_summary', '')
+                else:
+                    # Fallback: recupera conteggi prodotti per eventi specifici con chiamate API
+                    logger.info(f"[_send_telegram_notification_if_needed] 🔍 Controllo evento: {update.event_type}")
             
             # Log dei dati finali che verranno passati per la formattazione
             logger.info(f"[_send_telegram_notification_if_needed] 📋 Dati finali spedizione: {shipment_data}")
