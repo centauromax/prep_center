@@ -6,7 +6,7 @@ import traceback
 from typing import List, Dict, Any, Optional
 
 # Correggo l'import del client
-from libs.prepbusiness.client import PrepBusinessClient
+from libs.api_client.prep_business import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY
 
 # Configura il logger
@@ -29,42 +29,27 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
     try:
         # RIATTIVO LA CHIAMATA API PER I MERCHANTS
         logger.info("[get_merchants] Inizializzazione client PrepBusinessClient per chiamata get_merchants reale")
-        company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
-        logger.info(f"[get_merchants] Domain estratto: {company_domain}")
         
         client = PrepBusinessClient(
-            api_key=PREP_BUSINESS_API_KEY,
-            company_domain=company_domain
+            api_url=PREP_BUSINESS_API_URL,
+            api_key=PREP_BUSINESS_API_KEY
         )
         logger.info("[get_merchants] PrepBusinessClient inizializzato correttamente")
         
         logger.info("[get_merchants] Esecuzione chiamata API get_merchants")
         merchants_response = client.get_merchants()
         
-        if not hasattr(merchants_response, 'data'):
-            logger.info(f"[get_merchants] Ricevuta risposta senza attributo 'data' dal client: {type(merchants_response)}")
-            # Se la risposta è già una lista (vecchia versione del client)
-            if isinstance(merchants_response, list):
-                merchant_list = merchants_response
-            else:
-                logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
-                merchant_list = []
+        # Il client originale restituisce direttamente una lista
+        if isinstance(merchants_response, list):
+            merchant_list = merchants_response
         else:
-            logger.info(f"[get_merchants] Ricevuta risposta con attributo 'data' dal client")
-            merchant_list = merchants_response.data
+            logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
+            merchant_list = []
         
         logger.info(f"[get_merchants] Recuperati {len(merchant_list)} merchants da Prep Business")
         
-        # Converto oggetti Pydantic in dizionari se necessario
-        merchant_dicts = []
-        for m in merchant_list:
-            if hasattr(m, 'model_dump'):
-                merchant_dicts.append(m.model_dump())
-            elif hasattr(m, 'dict'):
-                merchant_dicts.append(m.dict())
-            else:
-                # Già un dizionario
-                merchant_dicts.append(m)
+        # I dati sono già dizionari con il client originale
+        merchant_dicts = merchant_list
         
         # Filtra per active se richiesto
         if active_only:

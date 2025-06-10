@@ -14,13 +14,10 @@ class PrepBusinessAPI:
         # Manteniamo self.headers per retrocompatibilità
         self.headers = {"Authorization": f"Bearer {api_key}"}
         
-        # Estraiamo il dominio dall'URL API
-        company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
-        
         # Inizializza il client PrepBusiness
         self.client = PrepBusinessClient(
-            api_key=api_key,
-            company_domain=company_domain
+            api_url=PREP_BUSINESS_API_URL,
+            api_key=api_key
         )
     
     def get_open_inbound_shipments(self):
@@ -36,17 +33,17 @@ class PrepBusinessAPI:
             
             # Filtriamo solo le spedizioni aperte
             open_shipments = [
-                shipment for shipment in response.data
-                if getattr(shipment, 'status', None) == 'open'
+                shipment for shipment in response
+                if shipment.get('status') == 'open'
             ]
             
             # Convertiamo in dict per mantenere la compatibilità con l'implementazione precedente
             return [
                 {
-                    'id': shipment.id,
-                    'name': shipment.name,
-                    'status': shipment.status,
-                    'created_at': shipment.created_at.isoformat() if hasattr(shipment.created_at, 'isoformat') else shipment.created_at,
+                    'id': shipment.get('id'),
+                    'name': shipment.get('name'),
+                    'status': shipment.get('status'),
+                    'created_at': shipment.get('created_at'),
                     # Aggiungi altri campi necessari
                 }
                 for shipment in open_shipments
@@ -155,12 +152,12 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         # Ottieni tutti i merchants
         client = get_client()
         merchants_response = client.get_merchants()
-        merchants = getattr(merchants_response, 'data', [])
+        merchants = merchants_response if merchants_response else []
         
         # Cerca tutti i merchants con questa email
         matching_merchants = []
         for merchant in merchants:
-            merchant_email = getattr(merchant, 'primaryEmail', None)
+            merchant_email = merchant.get('primaryEmail')
             if merchant_email and merchant_email.lower() == email:
                 matching_merchants.append(merchant)
         
@@ -170,10 +167,10 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         
         # Se c'è solo un match, restituiscilo
         if len(matching_merchants) == 1:
-            return matching_merchants[0].name
+            return matching_merchants[0].get('name')
         
         # Se ci sono multipli match, scegli il più appropriato
-        logger.info(f"Trovati {len(matching_merchants)} merchants per {email}: {[m.name for m in matching_merchants]}")
+        logger.info(f"Trovati {len(matching_merchants)} merchants per {email}: {[m.get('name') for m in matching_merchants]}")
         
         # Priorità di selezione:
         # 1. Nome senza suffissi tipo "- GERMANIA", "- NO", etc.
@@ -184,7 +181,7 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         best_score = -1
         
         for merchant in matching_merchants:
-            name = merchant.name
+            name = merchant.get('name', '')
             score = 0
             
             # Penalizza nomi con suffissi geografici o "NO"
@@ -198,18 +195,18 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
             if name.replace(' ', '').replace('.', '').isalnum():
                 score += 10
             
-            logger.info(f"Merchant {merchant.id}: '{name}' - Score: {score}")
+            logger.info(f"Merchant {merchant.get('id')}: '{name}' - Score: {score}")
             
             if score > best_score:
                 best_score = score
                 best_merchant = merchant
         
         if best_merchant:
-            logger.info(f"Selezionato merchant per {email}: '{best_merchant.name}' (Score: {best_score})")
-            return best_merchant.name
+            logger.info(f"Selezionato merchant per {email}: '{best_merchant.get('name')}' (Score: {best_score})")
+            return best_merchant.get('name')
         
         # Fallback: primo merchant trovato
-        return matching_merchants[0].name
+        return matching_merchants[0].get('name')
         
     except Exception as e:
         logger.error(f"Errore nel recuperare nome merchant per {email}: {str(e)}")

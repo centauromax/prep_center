@@ -147,11 +147,9 @@ def api_config_debug(request):
             logger.info(f"Test connessione API a {PREP_BUSINESS_API_URL}")
             
             # Utilizziamo PrepBusinessClient invece di chiamate dirette con requests
-            company_domain = PREP_BUSINESS_API_URL.split('//')[-1].split('/')[0]
             client = PrepBusinessClient(
-                api_key=PREP_BUSINESS_API_KEY,
-                company_domain=company_domain,
-                timeout=PREP_BUSINESS_API_TIMEOUT
+                api_url=PREP_BUSINESS_API_URL,
+                api_key=PREP_BUSINESS_API_KEY
             )
             
             # Test di connessione all'endpoint merchants
@@ -168,13 +166,13 @@ def api_config_debug(request):
                 'json': {
                     'data': [
                         {
-                            'id': merchant.id,
-                            'name': merchant.name,
-                            'email': getattr(merchant, 'primaryEmail', 'N/A')
+                            'id': merchant.get('id'),
+                            'name': merchant.get('name'),
+                            'email': merchant.get('primaryEmail', 'N/A')
                         } 
-                        for merchant in getattr(merchants_response, 'data', [])[:5]  # Mostra solo i primi 5
+                        for merchant in merchants_response[:5]  # Mostra solo i primi 5
                     ],
-                    'count': len(getattr(merchants_response, 'data', []))
+                    'count': len(merchants_response)
                 }
             }
                 
@@ -1579,27 +1577,27 @@ def telegram_merchants_debug(request):
             }, status=500)
         
         # Estrai dominio dall'URL
-        company_domain = api_url.split('//')[-1].split('/')[0]
+        # company_domain = api_url.split('//')[-1].split('/')[0]
         
         # Crea client PrepBusiness
         client = PrepBusinessClient(
-            api_key=api_key,
-            company_domain=company_domain
+            api_url=api_url,
+            api_key=api_key
         )
         
         # Ottieni tutti i merchant
         merchants_response = client.get_merchants()
-        merchants = merchants_response.data if merchants_response else []
+        merchants = merchants_response if merchants_response else []
         
         # Estrai info merchant
         merchant_info = []
         for merchant in merchants:
-            email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+            email = merchant.get('primaryEmail') or merchant.get('email')
             merchant_info.append({
-                'id': merchant.id,
-                'name': merchant.name,
+                'id': merchant.get('id'),
+                'name': merchant.get('name'),
                 'email': email,
-                'enabled': getattr(merchant, 'enabled', 'N/A')
+                'enabled': merchant.get('enabled', 'N/A')
             })
         
         return Response({
