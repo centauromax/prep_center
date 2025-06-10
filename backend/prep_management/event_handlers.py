@@ -751,23 +751,22 @@ class WebhookEventProcessor:
         try:
             logger.info(f"[_get_merchant_email] 🔍 Chiamata API per recuperare merchants...")
             
-            # Ottieni i merchant dall'API
-            merchants_response = self.client.get_merchants()
-            merchants = merchants_response.data if merchants_response else []
+            # Ottieni i merchant dall'API (la risposta è già una lista)
+            merchants = self.client.get_merchants()
             
             logger.info(f"[_get_merchant_email] 📋 Ricevuti {len(merchants)} merchants dall'API")
             
             # Debug: mostra tutti i merchant disponibili
             for m in merchants:
-                primary_email = getattr(m, 'primaryEmail', getattr(m, 'email', 'N/A'))
-                logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {m.id}, Name: {getattr(m, 'name', 'N/A')}, PrimaryEmail: {primary_email}")
+                primary_email = m.get('primaryEmail', m.get('email', 'N/A'))
+                logger.info(f"[_get_merchant_email] 🏢 Merchant ID: {m.get('id')}, Name: {m.get('name', 'N/A')}, PrimaryEmail: {primary_email}")
             
             # Trova il merchant con l'ID specificato
-            merchant = next((m for m in merchants if str(m.id) == str(merchant_id)), None)
+            merchant = next((m for m in merchants if str(m.get('id', '')) == str(merchant_id)), None)
             
             if merchant:
                 # Prova prima primaryEmail, poi email per retrocompatibilità
-                email = getattr(merchant, 'primaryEmail', None) or getattr(merchant, 'email', None)
+                email = merchant.get('primaryEmail') or merchant.get('email')
                 if email:
                     logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {email}")
                     return email
@@ -797,25 +796,22 @@ class WebhookEventProcessor:
         logger.info(f"[_get_outbound_shipment_details] 🚀 Recupero dettagli outbound shipment_id={shipment_id}, merchant_id={merchant_id}")
         
         try:
-            shipment_response = self.client.get_outbound_shipment(
-                shipment_id=int(shipment_id),
-                merchant_id=int(merchant_id) if merchant_id else None
-            )
+            # Usa il metodo generico get_shipment
+            shipment = self.client.get_shipment(shipment_id)
             
-            if hasattr(shipment_response, 'shipment'):
-                shipment = shipment_response.shipment
+            if shipment:
                 result = {
-                    'id': shipment.id,
-                    'name': shipment.name,
-                    'status': shipment.status.value if hasattr(shipment.status, 'value') else str(shipment.status),
-                    'warehouse_id': shipment.warehouse_id,
-                    'notes': shipment.notes,
-                    'created_at': shipment.created_at.isoformat() if hasattr(shipment.created_at, 'isoformat') else str(shipment.created_at)
+                    'id': shipment.get('id'),
+                    'name': shipment.get('name'),
+                    'status': shipment.get('status', ''),
+                    'warehouse_id': shipment.get('warehouse_id'),
+                    'notes': shipment.get('notes'),
+                    'created_at': shipment.get('created_at', '')
                 }
                 logger.info(f"[_get_outbound_shipment_details] ✅ Dettagli recuperati: {result}")
                 return result
             else:
-                logger.warning(f"[_get_outbound_shipment_details] ⚠️ Risposta API senza attributo 'shipment'")
+                logger.warning(f"[_get_outbound_shipment_details] ⚠️ Nessun dato nella risposta API")
                 return None
                 
         except Exception as e:
