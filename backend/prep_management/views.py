@@ -215,17 +215,54 @@ def shipment_status_webhook(request):
         webhook_data = json.loads(request.body.decode('utf-8'))
         
         # Estrai i dati principali dal payload
-        event_type = webhook_data.get('event_type', 'unknown')
-        data = webhook_data.get('data', {})
+        # I webhook reali hanno formato: {"data": {...}} senza event_type
+        data = webhook_data.get('data', webhook_data)  # Fallback se non c'è 'data'
+        
+        # Inferisci l'event_type dai dati della spedizione
+        def infer_event_type(shipment_data):
+            """Inferisce il tipo di evento dai dati della spedizione"""
+            status = shipment_data.get('status', '').lower()
+            shipped_at = shipment_data.get('shipped_at')
+            
+            # Determina se è inbound o outbound dai campi presenti
+            has_outbound_items = 'outbound_items' in shipment_data
+            has_inbound_items = 'inbound_items' in shipment_data or 'items' in shipment_data
+            
+            # Logica per determinare il tipo di evento
+            if has_outbound_items or 'outbound' in str(shipment_data).lower():
+                # È una spedizione outbound
+                if status == 'open':
+                    return 'outbound_shipment.created'
+                elif status == 'closed' and shipped_at:
+                    return 'outbound_shipment.closed'
+                elif shipped_at and not status == 'closed':
+                    return 'outbound_shipment.shipped'
+                else:
+                    return 'outbound_shipment.updated'
+            else:
+                # È una spedizione inbound (default)
+                if status == 'open':
+                    return 'inbound_shipment.created'
+                elif status == 'received':
+                    return 'inbound_shipment.received'
+                elif shipped_at:
+                    return 'inbound_shipment.shipped'
+                else:
+                    return 'inbound_shipment.updated'
+        
+        # Inferisci l'event_type
+        event_type = infer_event_type(data)
+        
+        logger.info(f"[webhook_parsing] Webhook ricevuto per shipment {data.get('id')}: status={data.get('status')}, shipped_at={data.get('shipped_at')}, inferred_event_type={event_type}")
         
         # Crea i dati del webhook nel formato atteso
         processed_webhook_data = {
-            'shipment_id': data.get('id'),
+            'shipment_id': str(data.get('id')),
             'event_type': event_type,
             'entity_type': 'shipment',
-            'previous_status': data.get('previous_status'),
+            'previous_status': data.get('previous_status'),  # Potrebbe non essere disponibile
             'new_status': data.get('status', 'unknown'),
-            'merchant_id': data.get('merchant_id'),
+            'merchant_id': str(data.get('team_id')) if data.get('team_id') else None,
             'tracking_number': data.get('tracking_number'),
             'carrier': data.get('carrier'),
             'notes': data.get('notes'),
@@ -235,7 +272,7 @@ def shipment_status_webhook(request):
         # Crea il processore degli eventi
         processor = WebhookEventProcessor()
         
-        # Definisci la funzione di callback per salvare e processare subito i dati
+        # ... resto del codice per save_webhook_data rimane uguale ...
         def save_webhook_data(webhook_data):
             # Recupera il nome del merchant usando il team_id
             merchant_id = webhook_data.get('merchant_id')
@@ -316,7 +353,8 @@ def shipment_status_webhook(request):
         return JsonResponse({
             'status': 'success',
             'message': 'Webhook processed successfully',
-            'update_id': saved_update.id if saved_update else None
+            'update_id': saved_update.id if saved_update else None,
+            'event_type': event_type
         })
         
     except json.JSONDecodeError:
