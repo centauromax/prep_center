@@ -2157,3 +2157,54 @@ def test_residual_inbound_creation(request):
             'error': str(e),
             'message': 'Errore durante test residual creation'
         }, status=500)
+
+@api_view(['GET'])
+@permission_classes([])
+def test_residual_logic_simple(request):
+    """
+    Endpoint GET semplice per testare la logica residual senza parametri.
+    """
+    try:
+        logger.info("[test_residual_logic_simple] 🧪 Test semplice logica residual")
+        
+        # Test della logica di calcolo con dati mock
+        inbound_items = [
+            {'item_id': 1, 'title': 'Prodotto Test 1', 'expected_quantity': 10, 'actual_quantity': 10},
+            {'item_id': 2, 'title': 'Prodotto Test 2', 'expected_quantity': 5, 'actual_quantity': 4},
+        ]
+        
+        outbound_items = [
+            {'item_id': 1, 'quantity': 7},
+            {'item_id': 2, 'quantity': 3},
+        ]
+        
+        # Importa il processor per testare la logica
+        from .event_handlers import WebhookEventProcessor
+        processor = WebhookEventProcessor()
+        
+        # Test del calcolo residual
+        residual_items = processor._calculate_residual_items(inbound_items, outbound_items)
+        
+        # Test della generazione nome
+        test_name = processor._generate_residual_name("Test Shipment", "123")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Test logica residual completato',
+            'test_data': {
+                'inbound_items': inbound_items,
+                'outbound_items': outbound_items,
+                'residual_items': residual_items,
+                'generated_name': test_name
+            },
+            'client_available': processor.client is not None
+        })
+        
+    except Exception as e:
+        logger.error(f"[test_residual_logic_simple] ❌ Errore: {str(e)}")
+        logger.exception("Traceback:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore durante test logica residual'
+        }, status=500)
