@@ -216,4 +216,81 @@ class WebhookEventProcessor:
             logger.info(f"[_send_telegram_notification_if_needed] Evento {update.event_type} non richiede notifica.")
             return
         
-        logger.info(f"[_send_telegram_notification_if_needed] Invio notifica per evento {update.event_type}") 
+        logger.info(f"[_send_telegram_notification_if_needed] Invio notifica per evento {update.event_type}")
+        
+        try:
+            # Recupera l'email del merchant
+            merchant_email = self._get_merchant_email(update.merchant_id)
+            if not merchant_email:
+                logger.warning(f"[_send_telegram_notification_if_needed] Nessuna email trovata per merchant {update.merchant_id}")
+                return
+            
+            logger.info(f"[_send_telegram_notification_if_needed] Email merchant trovata: {merchant_email}")
+            
+            # Estrai i dati della spedizione dal payload del webhook
+            shipment_data = {}
+            if update.payload and 'data' in update.payload:
+                shipment_data = update.payload['data']
+                logger.info(f"[_send_telegram_notification_if_needed] Dati spedizione estratti dal payload")
+            else:
+                logger.warning(f"[_send_telegram_notification_if_needed] Nessun dato spedizione nel payload")
+            
+            # Invia la notifica (la formattazione del messaggio sarà gestita internamente)
+            success = send_telegram_notification(
+                email=merchant_email,
+                message=None,  # Verrà formattato internamente
+                event_type=update.event_type,
+                shipment_id=update.shipment_id,
+                shipment_data=shipment_data  # Passiamo i dati per la formattazione
+            )
+            
+            if success:
+                logger.info(f"[_send_telegram_notification_if_needed] ✅ Notifica Telegram inviata per evento {update.event_type} a {merchant_email}")
+            else:
+                logger.warning(f"[_send_telegram_notification_if_needed] ❌ Notifica Telegram fallita per evento {update.event_type} a {merchant_email}")
+                
+        except Exception as e:
+            logger.error(f"[_send_telegram_notification_if_needed] Errore nell'invio notifica Telegram: {e}")
+            logger.exception("Traceback completo:")
+    
+    def _get_merchant_email(self, merchant_id: str) -> Optional[str]:
+        """
+        Recupera l'email del merchant tramite API.
+        
+        Args:
+            merchant_id: ID del merchant
+            
+        Returns:
+            Email del merchant o None se non trovata
+        """
+        logger.info(f"[_get_merchant_email] Recupero email per merchant {merchant_id}")
+        
+        try:
+            if self.client is None:
+                logger.error("[_get_merchant_email] Client API non disponibile!")
+                return None
+            
+            # Ottieni tutti i merchants
+            merchants = self.client.get_merchants()
+            logger.info(f"[_get_merchant_email] Recuperati {len(merchants)} merchants")
+            
+            # Trova il merchant con l'ID specificato
+            merchant = next((m for m in merchants if str(m.get('id', '')) == str(merchant_id)), None)
+            
+            if merchant:
+                # Prova prima primaryEmail, poi email per retrocompatibilità
+                email = merchant.get('primaryEmail') or merchant.get('email')
+                if email:
+                    logger.info(f"[_get_merchant_email] ✅ Email trovata per merchant {merchant_id}: {email}")
+                    return email
+                else:
+                    logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} trovato ma SENZA primaryEmail/email")
+                    return None
+            else:
+                logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} NON trovato nella lista")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[_get_merchant_email] Errore durante il recupero email per merchant {merchant_id}: {e}")
+            logger.exception("Traceback completo:")
+            return None 
