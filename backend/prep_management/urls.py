@@ -51,6 +51,7 @@ urlpatterns = [
     path('api/test-residual-inbound/', views.test_residual_inbound_creation, name='test_residual_inbound_creation'),
     path('api/test-residual-logic/', views.test_residual_logic_simple, name='test_residual_logic_simple'),
     path('api/test-outbound-closed-test2/', views.test_outbound_closed_test2, name='test_outbound_closed_test2'),
+    path('api/reprocess-update/<int:update_id>/', views.reprocess_webhook_update, name='reprocess_webhook_update'),
 
     # Debug endpoints  
     # path('telegram/debug/', views.telegram_debug_view, name='telegram_debug'),  # Disabilitato - duplicato

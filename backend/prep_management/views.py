@@ -2428,4 +2428,57 @@ def test_outbound_closed_test2(request):
             'timestamp': timezone.now().isoformat()
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([])
+def reprocess_webhook_update(request, update_id):
+    """
+    Forza il re-processing di un webhook update specifico.
+    Utile per debug e testing.
+    """
+    try:
+        from .models import ShipmentStatusUpdate
+        from .event_handlers import WebhookEventProcessor
+        
+        # Trova l'update
+        try:
+            update = ShipmentStatusUpdate.objects.get(id=update_id)
+        except ShipmentStatusUpdate.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': f'Update ID {update_id} non trovato'
+            }, status=404)
+        
+        logger.info(f"[reprocess_webhook_update] 🔄 Re-processing update ID {update_id}: {update.shipment_id} - {update.event_type}")
+        
+        # Forza il re-processing anche se già processato
+        update.processed = False
+        update.save()
+        
+        # Elabora l'evento
+        processor = WebhookEventProcessor()
+        result = processor.process_event(update_id)
+        
+        logger.info(f"[reprocess_webhook_update] ✅ Re-processing completato: {result}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Re-processing completato per update {update_id}',
+            'update_details': {
+                'shipment_id': update.shipment_id,
+                'event_type': update.event_type,
+                'merchant_id': update.merchant_id,
+                'created_at': update.created_at.isoformat()
+            },
+            'processor_result': result,
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.exception(f"Errore nel re-processing update {update_id}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Errore nel re-processing: {str(e)}',
+            'timestamp': timezone.now().isoformat()
+        }, status=500)
+
 # Debug function removed to fix crash
