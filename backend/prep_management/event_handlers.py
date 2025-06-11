@@ -230,10 +230,27 @@ class WebhookEventProcessor:
             # Estrai i dati della spedizione dal payload del webhook
             shipment_data = {}
             if update.payload and 'data' in update.payload:
-                shipment_data = update.payload['data']
-                logger.info(f"[_send_telegram_notification_if_needed] Dati spedizione estratti dal payload")
+                raw_data = update.payload['data']
+                
+                # Mappa i dati con i nomi di campo corretti per il formattatore
+                shipment_data = {
+                    'shipment_id': update.shipment_id,
+                    'shipment_name': raw_data.get('name'),  # Mappa 'name' a 'shipment_name'
+                    'tracking_number': raw_data.get('tracking_number'),
+                    'carrier': raw_data.get('carrier'),
+                    'notes': raw_data.get('notes'),
+                    'products_count': raw_data.get('products_count'),
+                    'expected_count': raw_data.get('expected_count'),
+                    'received_count': raw_data.get('received_count')
+                }
+                
+                logger.info(f"[_send_telegram_notification_if_needed] Dati spedizione mappati: {shipment_data}")
             else:
-                logger.warning(f"[_send_telegram_notification_if_needed] Nessun dato spedizione nel payload")
+                # Se non ci sono dati nel payload, almeno passa l'ID
+                shipment_data = {
+                    'shipment_id': update.shipment_id
+                }
+                logger.warning(f"[_send_telegram_notification_if_needed] Nessun dato spedizione nel payload, usando solo shipment_id")
             
             # Invia la notifica (la formattazione del messaggio sarà gestita internamente)
             success = send_telegram_notification(
