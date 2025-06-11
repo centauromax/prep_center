@@ -1,5 +1,33 @@
 # Prep Center - FBA Prep Center Italy
 
+## ⚠️ **REGOLE CRITICHE PER LO SVILUPPO**
+
+### 🚨 **REGOLA PRINCIPALE: NON TOCCARE CIÒ CHE FUNZIONA**
+**MAI modificare, cambiare o riscrivere funzioni, servizi o logiche che funzionano correttamente.**
+- Se il sistema riceve notifiche Telegram ✅ → NON toccare il sistema di notifiche
+- Se i webhook funzionano ✅ → NON toccare la logica dei webhook  
+- Se le API calls funzionano ✅ → NON toccare i client API
+- **SOLO aggiungere nuovo codice o correggere errori specifici**
+- **MAI riscrivere intere funzioni "per migliorarle"**
+- **Preferire sempre edit mirati invece di rewrite completi**
+
+### 📋 **ACCESSO AI LOG DI PRODUZIONE (Railway)**
+Per visualizzare i log di produzione su Railway:
+
+```bash
+# COMANDO CORRETTO per vedere i log Railway
+gtimeout 60 railway logs
+
+# Alternativa con timeout diverso
+gtimeout 120 railway logs
+
+# Per log specifici di un servizio
+gtimeout 60 railway logs --service web
+gtimeout 60 railway logs --service worker
+```
+
+**NOTA**: Usare sempre `gtimeout` invece di `railway logs` diretto per evitare timeout.
+
 ## 🎯 Panoramica del Progetto
 
 **Prep Center** è una piattaforma completa per la gestione di servizi di preparazione FBA (Fulfillment by Amazon) sviluppata per FBA Prep Center Italy. 
