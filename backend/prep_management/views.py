@@ -48,6 +48,7 @@ import re
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
+from django.db.models import Q
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -2375,13 +2376,46 @@ def test_outbound_closed_test2(request):
         test_payload = {
             "type": "outbound_shipment.closed",
             "data": {
-                "id": 99998,
+                "id": 999999999,  # ID sicuramente inesistente
                 "name": "test2",
                 "status": "closed",
                 "team_id": 123,
                 "created_at": "2024-01-15T10:00:00Z",
                 "updated_at": "2024-01-15T14:30:00Z",
-                "notes": "Test shipment for debug products analysis"
+                "shipped_at": "2024-01-15T14:30:00Z",  # Importante per classificazione come 'closed'
+                "notes": "Test shipment for debug products analysis",
+                "outbound_items": [  # Items da webhook per evitare chiamate API
+                    {
+                        "item_id": 1001,
+                        "quantity": 7,
+                        "item": {
+                            "merchant_sku": "TEST-SKU-1",
+                            "title": "Prodotto Test 1",
+                            "asin": "B001TEST1",
+                            "fnsku": "X001TEST1"
+                        }
+                    },
+                    {
+                        "item_id": 1002,
+                        "quantity": 3,
+                        "item": {
+                            "merchant_sku": "TEST-SKU-2", 
+                            "title": "Prodotto Test 2",
+                            "asin": "B002TEST2",
+                            "fnsku": "X002TEST2"
+                        }
+                    },
+                    {
+                        "item_id": 1003,
+                        "quantity": 2,
+                        "item": {
+                            "merchant_sku": "TEST-SKU-3",
+                            "title": "Prodotto Test 3", 
+                            "asin": "B003TEST3",
+                            "fnsku": "X003TEST3"
+                        }
+                    }
+                ]
             }
         }
         
@@ -2389,7 +2423,7 @@ def test_outbound_closed_test2(request):
         
         # Crea un record di test nel database
         shipment_update = ShipmentStatusUpdate(
-            shipment_id=test_payload['data']['id'],
+            shipment_id=str(test_payload['data']['id']),
             event_type='outbound_shipment.closed',
             entity_type='outbound_shipment',
             previous_status=None,
@@ -2479,6 +2513,93 @@ def reprocess_webhook_update(request, update_id):
             'success': False,
             'message': f'Errore nel re-processing: {str(e)}',
             'timestamp': timezone.now().isoformat()
+        }, status=500)
+
+@api_view(['GET'])
+@permission_classes([])
+def debug_test2_payload(request):
+    """
+    Debug endpoint per vedere l'ultimo payload test2.
+    """
+    try:
+        from .models import ShipmentStatusUpdate
+        
+        # Trova l'ultimo update per test2
+        last_update = ShipmentStatusUpdate.objects.filter(
+            shipment_id=99998,
+            event_type='outbound_shipment.closed'
+        ).order_by('-created_at').first()
+        
+        if not last_update:
+            return JsonResponse({
+                'success': False,
+                'message': 'Nessun update test2 trovato'
+            })
+        
+        payload = last_update.payload or {}
+        data = payload.get('data', {})
+        
+        return JsonResponse({
+            'success': True,
+            'update_id': last_update.id,
+            'shipment_id': last_update.shipment_id,
+            'event_type': last_update.event_type,
+            'payload_keys': list(payload.keys()),
+            'data_keys': list(data.keys()),
+            'outbound_items_in_data': data.get('outbound_items', []),
+            'outbound_items_count': len(data.get('outbound_items', [])),
+            'full_payload': payload
+        }, indent=2)
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@api_view(['GET'])
+@permission_classes([])
+def debug_latest_test2_raw(request):
+    """
+    Debug endpoint per vedere il payload RAW dell'ultimo test2.
+    """
+    try:
+        from .models import ShipmentStatusUpdate
+        
+        # Trova l'ultimo update con test2 nel nome
+        last_update = ShipmentStatusUpdate.objects.filter(
+            Q(shipment_id__contains='999999999') | Q(notes__icontains='test2')
+        ).order_by('-created_at').first()
+        
+        if not last_update:
+            return JsonResponse({
+                'success': False,
+                'message': 'Nessun update test2 trovato'
+            })
+        
+        payload = last_update.payload or {}
+        
+        return JsonResponse({
+            'success': True,
+            'update_id': last_update.id,
+            'shipment_id': last_update.shipment_id,
+            'event_type': last_update.event_type,
+            'created_at': last_update.created_at.isoformat(),
+            'merchant_id': last_update.merchant_id,
+            'has_payload': payload is not None,
+            'payload_type': str(type(payload)),
+            'payload': payload,
+            'data_section': payload.get('data', {}) if payload else {},
+            'outbound_items_present': 'outbound_items' in payload.get('data', {}) if payload else False,
+            'outbound_items_count': len(payload.get('data', {}).get('outbound_items', [])) if payload else 0,
+            'outbound_items': payload.get('data', {}).get('outbound_items', []) if payload else []
+        }, indent=2)
+        
+    except Exception as e:
+        logger.exception("Errore nel debug latest test2")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
         }, status=500)
 
 # Debug function removed to fix crash
