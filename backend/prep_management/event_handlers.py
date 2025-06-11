@@ -337,16 +337,20 @@ class WebhookEventProcessor:
                     'error': 'client_unavailable'
                 }
             
-            # 🔬 DEBUG FASE 1: Recupera e logga dettagli outbound shipment
+            # 🔬 DEBUG FASE 1: Prova a recuperare dettagli, ma usa webhook se fallisce
             outbound_shipment = self._get_outbound_shipment_details(update.shipment_id, update.merchant_id)
+            
+            # Se non riesce a recuperare dall'API, usa i dati dal webhook
             if not outbound_shipment:
-                error_msg = f"Impossibile recuperare dettagli outbound shipment {update.shipment_id}"
-                logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
-                return {
-                    'success': False,
-                    'message': error_msg,
-                    'error': 'outbound_not_found'
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ API non disponibile per shipment {update.shipment_id}, uso dati webhook")
+                webhook_data = update.payload.get('data', {}) if update.payload else {}
+                outbound_shipment = {
+                    'id': update.shipment_id,
+                    'name': webhook_data.get('name', str(update.shipment_id)),
+                    'status': webhook_data.get('status', 'closed'),
+                    'outbound_items': webhook_data.get('outbound_items', [])
                 }
+                logger.info(f"[_process_outbound_shipment_closed] 📦 Uso dati webhook: {len(outbound_shipment.get('outbound_items', []))} items trovati")
                 
             outbound_name = outbound_shipment.get('name', str(update.shipment_id))
             logger.info(f"[_process_outbound_shipment_closed] 📦 Outbound shipment name: {outbound_name}")
@@ -360,7 +364,27 @@ class WebhookEventProcessor:
                 
                 # 📦 Recupera tutti i prodotti della spedizione outbound
                 logger.info(f"[DEBUG_TEST2] 📦 Recupero lista prodotti outbound...")
-                outbound_items = self._get_outbound_shipment_items(update.shipment_id)
+                
+                # Prima prova dal webhook (più affidabile per spedizioni chiuse)
+                webhook_items = outbound_shipment.get('outbound_items', [])
+                if webhook_items:
+                    logger.info(f"[DEBUG_TEST2] ✅ Usando {len(webhook_items)} prodotti dal webhook")
+                    # Converte il formato webhook in formato standard
+                    outbound_items = []
+                    for item in webhook_items:
+                        converted_item = {
+                            'item_id': item.get('item_id'),
+                            'merchant_sku': item.get('item', {}).get('merchant_sku', 'N/A'),
+                            'title': item.get('item', {}).get('title', 'N/A'),
+                            'asin': item.get('item', {}).get('asin', 'N/A'),
+                            'fnsku': item.get('item', {}).get('fnsku', 'N/A'),
+                            'quantity': item.get('quantity', 0)
+                        }
+                        outbound_items.append(converted_item)
+                else:
+                    # Fallback: prova con API
+                    logger.info(f"[DEBUG_TEST2] 📞 Nessun item nel webhook, provo con API...")
+                    outbound_items = self._get_outbound_shipment_items(update.shipment_id)
                 
                 if outbound_items:
                     logger.info(f"[DEBUG_TEST2] ✅ Trovati {len(outbound_items)} prodotti nella spedizione outbound:")
