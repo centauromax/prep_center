@@ -53,7 +53,6 @@ urlpatterns = [
     path('api/test-outbound-closed-test2/', views.test_outbound_closed_test2, name='test_outbound_closed_test2'),
     path('api/debug-test2-payload/', views.debug_test2_payload, name='debug_test2_payload'),
     path('api/debug-latest-test2-raw/', views.debug_latest_test2_raw, name='debug_latest_test2_raw'),
-    path('api/debug-inbound-638538-items/', views.debug_inbound_638538_items, name='debug_inbound_638538_items'),
     path('api/reprocess-update/<int:update_id>/', views.reprocess_webhook_update, name='reprocess_webhook_update'),
 
     # Debug endpoints  
