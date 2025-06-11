@@ -473,6 +473,9 @@ class WebhookEventProcessor:
             
             # Prima prova dal webhook (più affidabile per spedizioni chiuse)
             webhook_items = outbound_shipment.get('outbound_items', [])
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 DEBUG: outbound_shipment keys: {list(outbound_shipment.keys())}")
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 DEBUG: webhook_items found: {len(webhook_items)}")
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 DEBUG: webhook_items content: {webhook_items}")
             if webhook_items:
                 logger.info(f"[_process_outbound_shipment_closed] ✅ Usando {len(webhook_items)} items dal webhook")
                 # Converte il formato webhook in formato standard
