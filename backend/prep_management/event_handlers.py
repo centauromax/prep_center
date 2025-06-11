@@ -351,7 +351,69 @@ class WebhookEventProcessor:
             outbound_name = outbound_shipment.get('name', str(update.shipment_id))
             logger.info(f"[_process_outbound_shipment_closed] 📦 Outbound shipment name: {outbound_name}")
             
-            # 🔬 DEBUG LOGGING: Logga tutto il contenuto dell'outbound shipment
+            # 🎯 DEBUG SPECIALE per "test2" - ANALISI PRODOTTI
+            if outbound_name.lower() == "test2":
+                logger.info(f"[DEBUG_TEST2] 🎯 === RILEVATA SPEDIZIONE TEST2 - MODALITÀ DEBUG PRODOTTI ===")
+                logger.info(f"[DEBUG_TEST2] 🚀 Inizio analisi dettagliata prodotti per spedizione 'test2'")
+                logger.info(f"[DEBUG_TEST2] Outbound ID: {update.shipment_id}")
+                logger.info(f"[DEBUG_TEST2] Merchant ID: {update.merchant_id}")
+                
+                # 📦 Recupera tutti i prodotti della spedizione outbound
+                logger.info(f"[DEBUG_TEST2] 📦 Recupero lista prodotti outbound...")
+                outbound_items = self._get_outbound_shipment_items(update.shipment_id)
+                
+                if outbound_items:
+                    logger.info(f"[DEBUG_TEST2] ✅ Trovati {len(outbound_items)} prodotti nella spedizione outbound:")
+                    for i, item in enumerate(outbound_items, 1):
+                        logger.info(f"[DEBUG_TEST2] Prodotto {i}:")
+                        logger.info(f"[DEBUG_TEST2]   - Item ID: {item.get('item_id', 'N/A')}")
+                        logger.info(f"[DEBUG_TEST2]   - Merchant SKU: {item.get('merchant_sku', 'N/A')}")
+                        logger.info(f"[DEBUG_TEST2]   - Titolo: {item.get('title', 'N/A')}")
+                        logger.info(f"[DEBUG_TEST2]   - ASIN: {item.get('asin', 'N/A')}")
+                        logger.info(f"[DEBUG_TEST2]   - FNSKU: {item.get('fnsku', 'N/A')}")
+                        logger.info(f"[DEBUG_TEST2]   - Quantità spedita: {item.get('quantity', 0)}")
+                        logger.info(f"[DEBUG_TEST2]   - Dati completi: {item}")
+                        logger.info(f"[DEBUG_TEST2]   {'='*50}")
+                    
+                    # Calcola totali
+                    total_quantity = sum(item.get('quantity', 0) for item in outbound_items)
+                    logger.info(f"[DEBUG_TEST2] 📊 TOTALI SPEDIZIONE:")
+                    logger.info(f"[DEBUG_TEST2]   - Totale prodotti: {len(outbound_items)} tipi diversi")
+                    logger.info(f"[DEBUG_TEST2]   - Quantità totale spedita: {total_quantity} pezzi")
+                    
+                    # Raggruppa per SKU per analisi dettagliata
+                    products_by_sku = {}
+                    for item in outbound_items:
+                        sku = item.get('merchant_sku', 'Unknown')
+                        if sku not in products_by_sku:
+                            products_by_sku[sku] = {
+                                'title': item.get('title', 'N/A'),
+                                'total_quantity': 0,
+                                'items': []
+                            }
+                        products_by_sku[sku]['total_quantity'] += item.get('quantity', 0)
+                        products_by_sku[sku]['items'].append(item)
+                    
+                    logger.info(f"[DEBUG_TEST2] 📊 ANALISI PER SKU:")
+                    for sku, info in products_by_sku.items():
+                        logger.info(f"[DEBUG_TEST2]   SKU {sku}: {info['total_quantity']} pezzi - {info['title']}")
+                    
+                else:
+                    logger.warning(f"[DEBUG_TEST2] ❌ Nessun prodotto trovato nella spedizione outbound {update.shipment_id}")
+                
+                logger.info(f"[DEBUG_TEST2] 🎯 === FINE ANALISI PRODOTTI TEST2 ===")
+                
+                # Per test2, ritorna subito dopo aver loggato i prodotti
+                return {
+                    'success': True,
+                    'message': f'DEBUG TEST2 completato - analisi prodotti per {outbound_name}',
+                    'debug_mode': True,
+                    'test2_analysis': True,
+                    'outbound_name': outbound_name,
+                    'products_found': len(outbound_items) if outbound_items else 0
+                }
+            
+            # 🔬 DEBUG LOGGING NORMALE: Logga tutto il contenuto dell'outbound shipment
             logger.info(f"[DEBUG_OUTBOUND] 🚚 === OUTBOUND SHIPMENT COMPLETO ===")
             logger.info(f"[DEBUG_OUTBOUND] ID: {update.shipment_id}")
             logger.info(f"[DEBUG_OUTBOUND] Name: {outbound_name}")

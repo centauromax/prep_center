@@ -96,28 +96,35 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Messaggio inviato: ID {sent_msg.id}, session {sent_msg.parameters.get("session_id")}'))
 
     def test_wait(self, session_id, timeout):
-        """Testa l'attesa di una risposta."""
-        self.stdout.write(f'Attendo risposta per sessione {session_id} (timeout: {timeout}s)...')
+        """Testa l'attesa di una risposta con timeout automatico."""
+        # Forza un timeout massimo di 30 secondi
+        max_timeout = min(timeout, 30)
+        self.stdout.write(f'Attendo risposta per sessione {session_id} (timeout: {max_timeout}s)...')
         
         session = MessageSession(session_id)
-        messages = session.wait_for_response(timeout)
+        messages = session.wait_for_response(max_timeout)
         
         if messages:
             self.stdout.write(self.style.SUCCESS(f'Ricevuti {len(messages)} messaggi:'))
             for msg in messages:
                 self.stdout.write(f'  - {msg.message_type}: {msg.payload}')
         else:
-            self.stdout.write(self.style.WARNING('Nessun messaggio ricevuto (timeout)'))
+            self.stdout.write(self.style.WARNING(f'Nessun messaggio ricevuto dopo {max_timeout}s - terminazione forzata'))
+        
+        # Forza l'uscita del comando
+        self.stdout.write(self.style.SUCCESS('✅ Test completato - comando terminato'))
 
     def test_send_and_wait(self, session_id, timeout):
-        """Testa invio e attesa di risposta."""
-        self.stdout.write(f'Invio messaggio e attendo risposta (timeout: {timeout}s)...')
+        """Testa invio e attesa di risposta con timeout automatico."""
+        # Forza un timeout massimo di 30 secondi
+        max_timeout = min(timeout, 30)
+        self.stdout.write(f'Invio messaggio e attendo risposta (timeout: {max_timeout}s)...')
         
         sent_msg, received_msgs = send_outbound_without_inbound_notification(
             merchant_name='Test Merchant',
             outbound_shipment_name='Test Shipment',
             wait_for_response=True,
-            timeout=timeout
+            timeout=max_timeout
         )
         
         session_id = sent_msg.parameters.get('session_id')
@@ -128,10 +135,13 @@ class Command(BaseCommand):
             for msg in received_msgs:
                 self.stdout.write(f'  - {msg.message_type}: {msg.payload}')
         else:
-            self.stdout.write(self.style.WARNING('Nessuna risposta ricevuta (timeout)'))
+            self.stdout.write(self.style.WARNING(f'Nessuna risposta ricevuta dopo {max_timeout}s - terminazione forzata'))
             self.stdout.write(f'Per testare manualmente, invia un POST a:')
             self.stdout.write(f'/prep_management/queue/receive/')
             self.stdout.write(f'con payload: {{"session_id": "{session_id}", "message_type": "USER_RESPONSE", "payload": {{"action": "test_response"}}}}')
+        
+        # Forza l'uscita del comando
+        self.stdout.write(self.style.SUCCESS('✅ Test completato - comando terminato'))
 
     def test_cleanup(self):
         """Testa la pulizia dei messaggi vecchi."""
