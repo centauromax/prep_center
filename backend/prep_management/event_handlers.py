@@ -834,8 +834,8 @@ class WebhookEventProcessor:
         logger.info(f"[_get_outbound_shipment_details] 🚀 Recupero dettagli outbound shipment_id={shipment_id}, merchant_id={merchant_id}")
         
         try:
-            # Usa il metodo generico get_shipment (restituisce dict)
-            shipment = self.client.get_shipment(shipment_id)
+            # Usa il metodo per outbound shipment (restituisce dict)
+            shipment = self.client.get_outbound_shipment(shipment_id)
             
             if shipment:
                 result = {

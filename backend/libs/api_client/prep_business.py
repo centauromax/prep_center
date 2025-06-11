@@ -226,22 +226,9 @@ class PrepBusinessClient:
         logger.info(f"Recuperati {len(merchants)} merchants")
         return merchants
     
-    def get_shipments(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def get_outbound_shipment(self, shipment_id: str) -> Dict[str, Any]:
         """
-        Ottiene la lista delle spedizioni.
-        
-        Args:
-            filters: Parametri di filtro opzionali
-            
-        Returns:
-            Lista di spedizioni
-        """
-        response = self._make_request('GET', 'shipments', params=filters)
-        return response.get('data', [])
-    
-    def get_shipment(self, shipment_id: str) -> Dict[str, Any]:
-        """
-        Ottiene i dettagli di una spedizione.
+        Ottiene i dettagli di una spedizione outbound.
         
         Args:
             shipment_id: ID della spedizione
@@ -249,34 +236,20 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione
         """
-        response = self._make_request('GET', f'shipments/{shipment_id}')
+        response = self._make_request('GET', f'shipments/outbound/{shipment_id}')
         return response.get('data', {})
-    
-    def create_shipment(self, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
+
+    def get_inbound_shipment(self, shipment_id: str) -> Dict[str, Any]:
         """
-        Crea una nuova spedizione.
-        
-        Args:
-            shipment_data: Dati della spedizione
-            
-        Returns:
-            Dettagli della spedizione creata
-        """
-        response = self._make_request('POST', 'shipments', data=shipment_data)
-        return response.get('data', {})
-    
-    def update_shipment(self, shipment_id: str, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Aggiorna una spedizione esistente.
+        Ottiene i dettagli di una spedizione inbound.
         
         Args:
             shipment_id: ID della spedizione
-            shipment_data: Dati aggiornati della spedizione
             
         Returns:
-            Dettagli della spedizione aggiornata
+            Dettagli della spedizione
         """
-        response = self._make_request('PUT', f'shipments/{shipment_id}', data=shipment_data)
+        response = self._make_request('GET', f'shipments/inbound/{shipment_id}')
         return response.get('data', {})
     
     # Metodi specifici per inbound shipments
@@ -295,13 +268,12 @@ class PrepBusinessClient:
         """
         params = {
             'page': page,
-            'per_page': per_page,
-            'type': 'inbound'
+            'per_page': per_page
         }
         if merchant_id:
             params['merchant_id'] = merchant_id
             
-        response = self._make_request('GET', 'shipments', params=params)
+        response = self._make_request('GET', 'shipments/inbound', params=params)
         return response.get('data', [])
     
     def get_inbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -319,7 +291,7 @@ class PrepBusinessClient:
         if merchant_id:
             params['merchant_id'] = merchant_id
             
-        response = self._make_request('GET', f'shipments/{shipment_id}/items', params=params)
+        response = self._make_request('GET', f'shipments/inbound/{shipment_id}/items', params=params)
         return response.get('data', [])
     
     # Metodi specifici per outbound shipments
@@ -338,13 +310,12 @@ class PrepBusinessClient:
         """
         params = {
             'page': page,
-            'per_page': per_page,
-            'type': 'outbound'
+            'per_page': per_page
         }
         if merchant_id:
             params['merchant_id'] = merchant_id
             
-        response = self._make_request('GET', 'shipments', params=params)
+        response = self._make_request('GET', 'shipments/outbound', params=params)
         return response.get('data', [])
     
     def get_outbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -362,7 +333,7 @@ class PrepBusinessClient:
         if merchant_id:
             params['merchant_id'] = merchant_id
             
-        response = self._make_request('GET', f'shipments/{shipment_id}/items', params=params)
+        response = self._make_request('GET', f'shipments/outbound/{shipment_id}/items', params=params)
         return response.get('data', [])
     
     def create_inbound_shipment(self, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -375,7 +346,5 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione creata
         """
-        # Assicurati che il tipo sia inbound
-        shipment_data['type'] = 'inbound'
-        response = self._make_request('POST', 'shipments', data=shipment_data)
+        response = self._make_request('POST', 'shipments/inbound', data=shipment_data)
         return response.get('data', {})
