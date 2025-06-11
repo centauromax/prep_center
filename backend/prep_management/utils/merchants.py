@@ -40,11 +40,11 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
         merchants_response = client.get_merchants()
         
         # Il client originale restituisce direttamente una lista
-            if isinstance(merchants_response, list):
-                merchant_list = merchants_response
-            else:
-                logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
-                merchant_list = []
+        if isinstance(merchants_response, list):
+            merchant_list = merchants_response
+        else:
+            logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
+            merchant_list = []
         
         logger.info(f"[get_merchants] Recuperati {len(merchant_list)} merchants da Prep Business")
         
