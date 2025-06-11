@@ -316,7 +316,7 @@ class WebhookEventProcessor:
     def _process_outbound_shipment_closed(self, update: ShipmentStatusUpdate) -> Dict[str, Any]:
         """
         Elabora l'evento di chiusura di una spedizione in uscita.
-        Crea un inbound residual con i prodotti rimanenti.
+        🔬 MODALITÀ DEBUG: Logga dati e crea spedizione test.
         
         Args:
             update: Oggetto ShipmentStatusUpdate da elaborare
@@ -337,7 +337,7 @@ class WebhookEventProcessor:
                     'error': 'client_unavailable'
                 }
             
-            # Recupera i dettagli dell'outbound shipment
+            # 🔬 DEBUG FASE 1: Recupera e logga dettagli outbound shipment
             outbound_shipment = self._get_outbound_shipment_details(update.shipment_id, update.merchant_id)
             if not outbound_shipment:
                 error_msg = f"Impossibile recuperare dettagli outbound shipment {update.shipment_id}"
@@ -351,11 +351,23 @@ class WebhookEventProcessor:
             outbound_name = outbound_shipment.get('name', str(update.shipment_id))
             logger.info(f"[_process_outbound_shipment_closed] 📦 Outbound shipment name: {outbound_name}")
             
-            # Cerca l'inbound shipment corrispondente per nome
+            # 🔬 DEBUG LOGGING: Logga tutto il contenuto dell'outbound shipment
+            logger.info(f"[DEBUG_OUTBOUND] 🚚 === OUTBOUND SHIPMENT COMPLETO ===")
+            logger.info(f"[DEBUG_OUTBOUND] ID: {update.shipment_id}")
+            logger.info(f"[DEBUG_OUTBOUND] Name: {outbound_name}")
+            logger.info(f"[DEBUG_OUTBOUND] Merchant ID: {update.merchant_id}")
+            logger.info(f"[DEBUG_OUTBOUND] Dettagli completi: {outbound_shipment}")
+            logger.info(f"[DEBUG_OUTBOUND] ========================================")
+            
+            # 🔬 DEBUG FASE 2: Cerca e logga inbound shipment corrispondente
             inbound_shipment = self._find_matching_inbound_shipment(outbound_name, update.merchant_id)
             if not inbound_shipment:
                 error_msg = f"Nessun inbound shipment trovato con nome '{outbound_name}'"
                 logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
+                
+                # 🔬 DEBUG: Crea spedizione test anche se non trova inbound
+                self._create_test_inbound_shipment(update.merchant_id)
+                
                 self._send_error_notification(error_msg, update.merchant_id, {
                     'outbound_shipment_id': update.shipment_id,
                     'outbound_name': outbound_name,
@@ -370,84 +382,30 @@ class WebhookEventProcessor:
             inbound_id = inbound_shipment.get('id')
             logger.info(f"[_process_outbound_shipment_closed] 📥 Inbound shipment trovato - ID: {inbound_id}, Name: {inbound_shipment.get('name')}")
             
-            # Recupera i prodotti dell'outbound e dell'inbound
-            outbound_items = self._get_outbound_shipment_items(update.shipment_id)
-            inbound_items = self._get_inbound_shipment_items(str(inbound_id))
+            # 🔬 DEBUG LOGGING: Logga tutto il contenuto dell'inbound shipment  
+            logger.info(f"[DEBUG_INBOUND] 📥 === INBOUND SHIPMENT CORRISPONDENTE ===")
+            logger.info(f"[DEBUG_INBOUND] ID: {inbound_id}")
+            logger.info(f"[DEBUG_INBOUND] Name: {inbound_shipment.get('name')}")
+            logger.info(f"[DEBUG_INBOUND] Status: {inbound_shipment.get('status')}")
+            logger.info(f"[DEBUG_INBOUND] Warehouse ID: {inbound_shipment.get('warehouse_id')}")
+            logger.info(f"[DEBUG_INBOUND] Dettagli completi: {inbound_shipment}")
+            logger.info(f"[DEBUG_INBOUND] ==========================================")
             
-            if not outbound_items:
-                error_msg = f"Nessun prodotto trovato nell'outbound shipment {update.shipment_id}"
-                logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
-                self._send_error_notification(error_msg, update.merchant_id, {
-                    'outbound_shipment_id': update.shipment_id,
-                    'inbound_shipment_id': inbound_id
-                })
-                return {
-                    'success': False,
-                    'message': error_msg,
-                    'error': 'no_outbound_items'
-                }
+            # 🔬 DEBUG FASE 3: Crea spedizione test vuota
+            self._create_test_inbound_shipment(update.merchant_id)
+            
+            # 🔬 DEBUG: Per ora ritorna successo senza fare altro
+            debug_msg = f"DEBUG COMPLETATO per {outbound_name} - outbound_id: {update.shipment_id}, inbound_id: {inbound_id}"
+            logger.info(f"[_process_outbound_shipment_closed] ✅ {debug_msg}")
+            return {
+                'success': True,
+                'message': debug_msg,
+                'debug_mode': True,
+                'outbound_name': outbound_name,
+                'inbound_id': inbound_id
+            }
                 
-            if not inbound_items:
-                error_msg = f"Nessun prodotto trovato nell'inbound shipment {inbound_id}"
-                logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
-                self._send_error_notification(error_msg, update.merchant_id, {
-                    'outbound_shipment_id': update.shipment_id,
-                    'inbound_shipment_id': inbound_id
-                })
-                return {
-                    'success': False,
-                    'message': error_msg,
-                    'error': 'no_inbound_items'
-                }
             
-            # Calcola i prodotti residuali
-            residual_items = self._calculate_residual_items(inbound_items, outbound_items)
-            logger.info(f"[_process_outbound_shipment_closed] 📊 Calcolati {len(residual_items)} prodotti residuali")
-            
-            if not residual_items:
-                message = f"Nessun prodotto residuale da creare per shipment {outbound_name}"
-                logger.info(f"[_process_outbound_shipment_closed] ✅ {message}")
-                return {
-                    'success': True,
-                    'message': message,
-                    'residual_items_count': 0
-                }
-            
-            # Genera il nome per il nuovo inbound residual
-            residual_name = self._generate_residual_name(outbound_name, update.merchant_id)
-            logger.info(f"[_process_outbound_shipment_closed] 🏷️ Nome generato per residual: {residual_name}")
-            
-            # Crea il nuovo inbound shipment residual
-            residual_shipment_id = self._create_residual_inbound_shipment(
-                residual_name, 
-                inbound_shipment.get('warehouse_id'),
-                residual_items,
-                update.merchant_id
-            )
-            
-            if residual_shipment_id:
-                success_msg = f"Creato inbound residual '{residual_name}' (ID: {residual_shipment_id}) con {len(residual_items)} prodotti"
-                logger.info(f"[_process_outbound_shipment_closed] ✅ {success_msg}")
-                return {
-                    'success': True,
-                    'message': success_msg,
-                    'residual_shipment_id': residual_shipment_id,
-                    'residual_name': residual_name,
-                    'residual_items_count': len(residual_items)
-                }
-            else:
-                error_msg = f"Errore nella creazione dell'inbound residual per {outbound_name}"
-                logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
-                self._send_error_notification(error_msg, update.merchant_id, {
-                    'outbound_shipment_id': update.shipment_id,
-                    'inbound_shipment_id': inbound_id,
-                    'residual_name': residual_name
-                })
-                return {
-                    'success': False,
-                    'message': error_msg,
-                    'error': 'residual_creation_failed'
-                }
                 
         except Exception as e:
             error_msg = f"Errore durante elaborazione outbound_shipment.closed: {str(e)}"
@@ -1120,6 +1078,60 @@ class WebhookEventProcessor:
             logger.exception("Traceback:")
             return None
     
+    def _create_test_inbound_shipment(self, merchant_id: str) -> Optional[int]:
+        """
+        🔬 DEBUG: Crea una spedizione in entrata vuota per test.
+        Questa funzione è solo per debugging della creazione di spedizioni.
+        
+        Args:
+            merchant_id: ID del merchant
+            
+        Returns:
+            ID della spedizione creata o None se errore
+        """
+        logger.info(f"[_create_test_inbound_shipment] 🧪 INIZIO creazione spedizione test per merchant {merchant_id}")
+        
+        try:
+            if not self.client:
+                logger.error(f"[_create_test_inbound_shipment] ❌ Client API non disponibile")
+                return None
+            
+            # Parametri per spedizione test vuota
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            test_name = f"test_di_creazione_{timestamp}"
+            
+            # Log dei parametri che useremo
+            logger.info(f"[_create_test_inbound_shipment] 📋 Parametri spedizione test:")
+            logger.info(f"[_create_test_inbound_shipment] - Nome: {test_name}")
+            logger.info(f"[_create_test_inbound_shipment] - Merchant ID: {merchant_id}")
+            logger.info(f"[_create_test_inbound_shipment] - Warehouse ID: 1 (default)")
+            logger.info(f"[_create_test_inbound_shipment] - Items: [] (vuoto)")
+            
+            # Chiamata API per creare spedizione vuota
+            logger.info(f"[_create_test_inbound_shipment] 📞 Chiamata API create_inbound_shipment...")
+            
+            # Usa il metodo esistente ma con parametri di test
+            test_shipment_id = self._create_residual_inbound_shipment(
+                name=test_name,
+                warehouse_id=1,  # Warehouse ID di default
+                items=[],  # Lista vuota per test
+                merchant_id=merchant_id
+            )
+            
+            if test_shipment_id:
+                logger.info(f"[_create_test_inbound_shipment] ✅ Spedizione test creata con successo - ID: {test_shipment_id}")
+                logger.info(f"[_create_test_inbound_shipment] 🎯 Nome: {test_name}")
+                return test_shipment_id
+            else:
+                logger.error(f"[_create_test_inbound_shipment] ❌ Creazione spedizione test fallita")
+                return None
+                
+        except Exception as e:
+            logger.error(f"[_create_test_inbound_shipment] ❌ ECCEZIONE durante creazione test: {str(e)}")
+            logger.exception("Traceback completo:")
+            return None
+
     def _send_error_notification(self, error_message: str, merchant_id: str, context: Dict[str, Any]):
         """
         Invia una notifica di errore tramite Telegram e/o browser extension.
