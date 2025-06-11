@@ -426,16 +426,7 @@ class WebhookEventProcessor:
                     logger.warning(f"[DEBUG_TEST2] ❌ Nessun prodotto trovato nella spedizione outbound {update.shipment_id}")
                 
                 logger.info(f"[DEBUG_TEST2] 🎯 === FINE ANALISI PRODOTTI TEST2 ===")
-                
-                # Per test2, ritorna subito dopo aver loggato i prodotti
-                return {
-                    'success': True,
-                    'message': f'DEBUG TEST2 completato - analisi prodotti per {outbound_name}',
-                    'debug_mode': True,
-                    'test2_analysis': True,
-                    'outbound_name': outbound_name,
-                    'products_found': len(outbound_items) if outbound_items else 0
-                }
+                logger.info(f"[DEBUG_TEST2] 🔄 Continuo con logica normale per test2...")
             
             # 🔬 DEBUG LOGGING NORMALE: Logga tutto il contenuto dell'outbound shipment
             logger.info(f"[DEBUG_OUTBOUND] 🚚 === OUTBOUND SHIPMENT COMPLETO ===")
