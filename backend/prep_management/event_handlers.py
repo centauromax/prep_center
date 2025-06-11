@@ -468,10 +468,32 @@ class WebhookEventProcessor:
             # 📦 FASE 3: Recupera items dell'outbound e dell'inbound per calcolare residui
             logger.info(f"[_process_outbound_shipment_closed] 📦 Recupero items per calcolo residui...")
             
-            # Recupera items dell'outbound shipment
-            outbound_items = self._get_outbound_shipment_items(update.shipment_id)
+            # Recupera items dell'outbound shipment (prima dal webhook, poi dall'API)
+            logger.info(f"[_process_outbound_shipment_closed] 📦 Recupero items outbound...")
+            
+            # Prima prova dal webhook (più affidabile per spedizioni chiuse)
+            webhook_items = outbound_shipment.get('outbound_items', [])
+            if webhook_items:
+                logger.info(f"[_process_outbound_shipment_closed] ✅ Usando {len(webhook_items)} items dal webhook")
+                # Converte il formato webhook in formato standard
+                outbound_items = []
+                for item in webhook_items:
+                    converted_item = {
+                        'item_id': item.get('item_id'),
+                        'merchant_sku': item.get('item', {}).get('merchant_sku', 'N/A'),
+                        'title': item.get('item', {}).get('title', 'N/A'),
+                        'asin': item.get('item', {}).get('asin', 'N/A'),
+                        'fnsku': item.get('item', {}).get('fnsku', 'N/A'),
+                        'quantity': item.get('quantity', 0)
+                    }
+                    outbound_items.append(converted_item)
+            else:
+                # Fallback: prova con API
+                logger.info(f"[_process_outbound_shipment_closed] 📞 Nessun item nel webhook, provo con API...")
+                outbound_items = self._get_outbound_shipment_items(update.shipment_id)
+            
             if not outbound_items:
-                error_msg = f"Nessun item trovato per outbound shipment {update.shipment_id}"
+                error_msg = f"Nessun item trovato per outbound shipment {update.shipment_id} (né da webhook né da API)"
                 logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
                 self._send_error_notification(error_msg, update.merchant_id, {
                     'outbound_shipment_id': update.shipment_id,
