@@ -15,15 +15,14 @@
 Per visualizzare i log di produzione su Railway:
 
 ```bash
-# COMANDO CORRETTO per vedere i log Railway
-gtimeout 60 railway logs
+# COMANDO CORRETTO per vedere i log del backend
+gtimeout 60 railway logs -s prep_center_backend
 
 # Alternativa con timeout diverso
-gtimeout 120 railway logs
+gtimeout 120 railway logs -s prep_center_backend
 
-# Per log specifici di un servizio
-gtimeout 60 railway logs --service web
-gtimeout 60 railway logs --service worker
+# Per altri servizi specifici se necessario
+gtimeout 60 railway logs -s [nome_servizio]
 ```
 
 **NOTA**: Usare sempre `gtimeout` invece di `railway logs` diretto per evitare timeout.
