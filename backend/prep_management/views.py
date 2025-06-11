@@ -2602,4 +2602,42 @@ def debug_latest_test2_raw(request):
             'error': str(e)
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([])
+def debug_inbound_638538_items(request):
+    """
+    Debug endpoint per testare get_inbound_shipment_items per l'ID 638538.
+    """
+    try:
+        from libs.api_client.prep_business import PrepBusinessClient
+        
+        # Crea client API
+        client = PrepBusinessClient()
+        
+        # Testa la chiamata diretta
+        shipment_id = 638538
+        items_response = client.get_inbound_shipment_items(shipment_id=shipment_id)
+        
+        return JsonResponse({
+            'success': True,
+            'shipment_id': shipment_id,
+            'api_response_type': str(type(items_response)),
+            'api_response_is_list': isinstance(items_response, list),
+            'api_response_length': len(items_response) if isinstance(items_response, list) else 'Not a list',
+            'api_response': items_response,
+            'analysis': {
+                'has_data': bool(items_response),
+                'first_item_keys': list(items_response[0].keys()) if items_response and isinstance(items_response, list) and len(items_response) > 0 else [],
+                'message': 'Se api_response è vuota o non è lista, l\'inbound potrebbe non avere items configurati'
+            }
+        }, indent=2)
+        
+    except Exception as e:
+        logger.exception("Errore nel debug inbound 638538")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__
+        }, status=500)
+
 # Debug function removed to fix crash
