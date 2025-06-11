@@ -394,16 +394,24 @@ class WebhookEventProcessor:
                 }
                 
             inbound_id = inbound_shipment.get('id')
-            logger.info(f"[_process_outbound_shipment_closed] 📥 Inbound shipment trovato - ID: {inbound_id}, Name: {inbound_shipment.get('name')}")
+            inbound_status = inbound_shipment.get('status', '').lower()
+            logger.info(f"[_process_outbound_shipment_closed] 📥 Inbound shipment trovato - ID: {inbound_id}, Name: {inbound_shipment.get('name')}, Status: {inbound_status}")
             
             # 🔬 DEBUG LOGGING: Logga tutto il contenuto dell'inbound shipment  
             logger.info(f"[DEBUG_INBOUND] 📥 === INBOUND SHIPMENT CORRISPONDENTE ===")
             logger.info(f"[DEBUG_INBOUND] ID: {inbound_id}")
             logger.info(f"[DEBUG_INBOUND] Name: {inbound_shipment.get('name')}")
-            logger.info(f"[DEBUG_INBOUND] Status: {inbound_shipment.get('status')}")
+            logger.info(f"[DEBUG_INBOUND] Status: {inbound_status}")
             logger.info(f"[DEBUG_INBOUND] Warehouse ID: {inbound_shipment.get('warehouse_id')}")
             logger.info(f"[DEBUG_INBOUND] Dettagli completi: {inbound_shipment}")
             logger.info(f"[DEBUG_INBOUND] ==========================================")
+            
+            # ⚠️ Verifica che l'inbound sia in uno stato valido per il calcolo residuali
+            valid_statuses = ['received', 'closed', 'completed']
+            if inbound_status not in valid_statuses:
+                warning_msg = f"Inbound shipment {inbound_id} ('{inbound_shipment.get('name')}') ha status '{inbound_status}'. Il calcolo residuali funziona meglio con inbound in status: {valid_statuses}"
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ {warning_msg}")
+                # Continua comunque con l'elaborazione
             
             # 📦 FASE 3: Recupera items dell'outbound e dell'inbound per calcolare residui
             logger.info(f"[_process_outbound_shipment_closed] 📦 Recupero items per calcolo residui...")
@@ -453,16 +461,20 @@ class WebhookEventProcessor:
             # Recupera items dell'inbound shipment
             inbound_items = self._get_inbound_shipment_items(str(inbound_id))
             if not inbound_items:
-                error_msg = f"Nessun item trovato per inbound shipment {inbound_id}"
-                logger.error(f"[_process_outbound_shipment_closed] ❌ {error_msg}")
-                self._send_error_notification(error_msg, update.merchant_id, {
-                    'outbound_shipment_id': update.shipment_id,
-                    'inbound_id': inbound_id
-                })
+                error_msg = f"Inbound shipment {inbound_id} ('{inbound_shipment.get('name')}') non ha items configurati. Verificare la configurazione nell'inbound originale prima della chiusura dell'outbound."
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ {error_msg}")
+                
+                # Non inviare notifica di errore per questo caso - è un problema di configurazione
+                # self._send_error_notification(error_msg, update.merchant_id, {
+                #     'outbound_shipment_id': update.shipment_id,
+                #     'inbound_id': inbound_id
+                # })
+                
                 return {
                     'success': False,
                     'message': error_msg,
-                    'error': 'inbound_items_not_found'
+                    'error': 'inbound_items_not_configured',
+                    'suggestion': 'Verificare che l\'inbound shipment originale abbia items configurati con expected_quantity > 0'
                 }
             
             logger.info(f"[_process_outbound_shipment_closed] 📦 Trovati {len(inbound_items)} items nell'inbound")
