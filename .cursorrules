@@ -809,7 +809,7 @@ python manage.py shell
 - Nuove funzionalità prep management
 - Ottimizzazioni performance
 - Miglioramenti UI/UX dashboard unificata
-- Integrazione nuovi servizi esterni
+- Integrazione nuovi servizi esterni 
 - Miglioramenti sistema logging
 - Dashboard per monitoraggio notifiche
 - **Miglioramenti Pallet Label**:

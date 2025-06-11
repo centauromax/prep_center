@@ -238,7 +238,7 @@ class PrepBusinessClient:
         """
         response = self._make_request('GET', f'shipments/outbound/{shipment_id}')
         return response.get('data', {})
-
+    
     def get_inbound_shipment(self, shipment_id: str) -> Dict[str, Any]:
         """
         Ottiene i dettagli di una spedizione inbound.
@@ -347,4 +347,4 @@ class PrepBusinessClient:
             Dettagli della spedizione creata
         """
         response = self._make_request('POST', 'shipments/inbound', data=shipment_data)
-        return response.get('data', {})
+        return response.get('data', {}) 

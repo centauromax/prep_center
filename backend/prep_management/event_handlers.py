@@ -15,11 +15,11 @@ from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
 try:
     from libs.api_client.prep_business import PrepBusinessClient
-    from libs.config import (
-        PREP_BUSINESS_API_URL,
-        PREP_BUSINESS_API_KEY,
-        PREP_BUSINESS_API_TIMEOUT,
-    )
+from libs.config import (
+    PREP_BUSINESS_API_URL,
+    PREP_BUSINESS_API_KEY,
+    PREP_BUSINESS_API_TIMEOUT,
+)
     LIBS_IMPORT_SUCCESS = True
 except ImportError as e:
     logger.error(f"[event_handlers] Errore import libs: {e}")
@@ -50,11 +50,11 @@ class WebhookEventProcessor:
                 self.client = None
             else:
                 # Uso del client originale con api_url e api_key
-                self.client = PrepBusinessClient(
+            self.client = PrepBusinessClient(
                     api_url=PREP_BUSINESS_API_URL,
                     api_key=PREP_BUSINESS_API_KEY
-                )
-                logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+            )
+            logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
         except Exception as e_client_init:
             logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: " + str(e_client_init))
             self.client = None
@@ -523,8 +523,8 @@ class WebhookEventProcessor:
             if residual_inbound_id:
                 success_msg = f"Inbound residuale creato con successo: {residual_name} (ID: {residual_inbound_id})"
                 logger.info(f"[_process_outbound_shipment_closed] ✅ {success_msg}")
-                return {
-                    'success': True,
+        return {
+            'success': True,
                     'message': success_msg,
                     'outbound_name': outbound_name,
                     'inbound_id': inbound_id,
@@ -1038,9 +1038,17 @@ class WebhookEventProcessor:
                 shipment_id=int(shipment_id)
             )
             
+            # 🔍 DEBUG: Logga la risposta completa dell'API
+            logger.info(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response type: {type(items_response)}")
+            logger.info(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response content: {items_response}")
+            
             if items_response and isinstance(items_response, list):
+                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce lista con {len(items_response)} elements")
+                
                 items = []
-                for item in items_response:
+                for i, item in enumerate(items_response):
+                    logger.info(f"[_get_inbound_shipment_items] 🔍 Raw item {i}: {item}")
+                    
                     # Il client originale restituisce dict, non oggetti Pydantic
                     item_data = {
                         'item_id': item.get('item_id') or item.get('id'),
@@ -1052,12 +1060,12 @@ class WebhookEventProcessor:
                         'actual_quantity': item.get('actual_quantity', 0)
                     }
                     items.append(item_data)
-                    logger.debug(f"[_get_inbound_shipment_items] 📦 Item: {item_data}")
+                    logger.info(f"[_get_inbound_shipment_items] 📦 Converted item {i}: {item_data}")
                 
                 logger.info(f"[_get_inbound_shipment_items] ✅ Recuperati {len(items)} items")
                 return items
             else:
-                logger.warning(f"[_get_inbound_shipment_items] ⚠️ Nessun item trovato nella risposta API")
+                logger.warning(f"[_get_inbound_shipment_items] ⚠️ Risposta API vuota o non lista: {items_response}")
                 return []
                 
         except Exception as e:
