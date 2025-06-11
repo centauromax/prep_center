@@ -50,6 +50,7 @@ urlpatterns = [
     path('api/telegram/test-inbound-received-less/', views.test_inbound_received_less, name='test_inbound_received_less'),
     path('api/test-residual-inbound/', views.test_residual_inbound_creation, name='test_residual_inbound_creation'),
     path('api/test-residual-logic/', views.test_residual_logic_simple, name='test_residual_logic_simple'),
+    path('api/test-outbound-closed-test2/', views.test_outbound_closed_test2, name='test_outbound_closed_test2'),
 
     # Debug endpoints  
     # path('telegram/debug/', views.telegram_debug_view, name='telegram_debug'),  # Disabilitato - duplicato

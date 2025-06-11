@@ -2360,4 +2360,72 @@ def debug_webhook_payload(request, update_id):
             'error': str(e)
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([])
+def test_outbound_closed_test2(request):
+    """
+    Endpoint di test per simulare la chiusura della spedizione "test2".
+    Testa il sistema di debug per l'analisi dei prodotti.
+    """
+    try:
+        from .event_handlers import WebhookEventProcessor
+        from .models import ShipmentStatusUpdate
+        
+        # Simula un payload di webhook per outbound_shipment.closed di "test2"
+        test_payload = {
+            "type": "outbound_shipment.closed",
+            "data": {
+                "id": 99998,
+                "name": "test2",
+                "status": "closed",
+                "team_id": 123,
+                "created_at": "2024-01-15T10:00:00Z",
+                "updated_at": "2024-01-15T14:30:00Z",
+                "notes": "Test shipment for debug products analysis"
+            }
+        }
+        
+        logger.info(f"[test_outbound_closed_test2] 🎯 Simulazione webhook test2: {test_payload}")
+        
+        # Crea un record di test nel database
+        shipment_update = ShipmentStatusUpdate(
+            shipment_id=test_payload['data']['id'],
+            event_type='outbound_shipment.closed',
+            entity_type='outbound_shipment',
+            previous_status=None,
+            new_status='closed',
+            merchant_id=request.data.get('merchant_id', 123),
+            merchant_name='Test Merchant',
+            tracking_number=None,
+            carrier=None,
+            notes=f"Test DEBUG per test2 - {timezone.now()}",
+            payload=test_payload
+        )
+        shipment_update.save()
+        
+        logger.info(f"[test_outbound_closed_test2] 📦 Record creato: ID {shipment_update.id}")
+        
+        # Elabora l'evento usando il processor
+        processor = WebhookEventProcessor()
+        result = processor.process_event(shipment_update.id)
+        
+        logger.info(f"[test_outbound_closed_test2] ✅ Risultato elaborazione: {result}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Test spedizione test2 completato - controlla i log per il debug dei prodotti',
+            'test_shipment_id': shipment_update.id,
+            'processor_result': result,
+            'instructions': 'Usa railway logs -s prep_center_backend -d | head -100 per vedere il debug completo',
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.exception("Errore durante il test test2")
+        return JsonResponse({
+            'success': False,
+            'message': f'Errore durante il test test2: {str(e)}',
+            'timestamp': timezone.now().isoformat()
+        }, status=500)
+
 # Debug function removed to fix crash
