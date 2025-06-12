@@ -58,7 +58,4 @@ urlpatterns = [
     # Debug endpoints  
     # path('telegram/debug/', views.telegram_debug_view, name='telegram_debug'),  # Disabilitato - duplicato
     path('debug/webhook/<int:update_id>/', views.debug_webhook_payload, name='debug_webhook_payload'),
-    
-    # Test endpoint per migrazione client
-    path('api/test-add-item-method/', views.test_add_item_method, name='test_add_item_method'),
 ]
