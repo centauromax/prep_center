@@ -19,13 +19,10 @@ from .models import ShipmentStatusUpdate, OutgoingMessage, TelegramNotification
 from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
 
-# Import diretto del client completo invece del wrapper
-from libs.prepbusiness.client import PrepBusinessClient
-from libs.prepbusiness.models import Carrier
-
 # Import libs con gestione errori
 try:
     from libs.prepbusiness.client import PrepBusinessClient
+    from libs.prepbusiness.models import Carrier
     from libs.config import (
         PREP_BUSINESS_API_URL,
         PREP_BUSINESS_API_KEY,
@@ -36,12 +33,20 @@ except ImportError as e:
     logger = logging.getLogger('prep_management')
     logger.error(f"[event_handlers] Errore import libs: {e}")
     PrepBusinessClient = None
+    Carrier = None
     PREP_BUSINESS_API_URL = None
     PREP_BUSINESS_API_KEY = None
     PREP_BUSINESS_API_TIMEOUT = 30
     LIBS_IMPORT_SUCCESS = False
 
 logger = logging.getLogger('prep_management')
+
+# HOTFIX: Mapping hardcodato dei merchant emails per garantire le notifiche Telegram
+MERCHANT_EMAIL_FALLBACK = {
+    "7812": "prep@easyavant.com",
+    "8185": "commerciale@selley.it",
+    # Aggiungi altri se necessario
+}
 
 class WebhookEventProcessor:
     """
@@ -418,9 +423,22 @@ class WebhookEventProcessor:
         """
         logger.info(f"[_get_merchant_email] Recupero email per merchant {merchant_id}")
         
+        # HOTFIX: Prima prova il fallback hardcodato per garantire le notifiche
+        if str(merchant_id) in MERCHANT_EMAIL_FALLBACK:
+            fallback_email = MERCHANT_EMAIL_FALLBACK[str(merchant_id)]
+            logger.info(f"[_get_merchant_email] ✅ FALLBACK: Email per merchant {merchant_id}: {fallback_email}")
+            
+            # Se il client non è disponibile, usa direttamente il fallback
+            if self.client is None:
+                logger.warning("[_get_merchant_email] Client API non disponibile, uso fallback")
+                return fallback_email
+        
         try:
             if self.client is None:
                 logger.error("[_get_merchant_email] Client API non disponibile!")
+                # Se abbiamo un fallback, usalo, altrimenti None
+                if str(merchant_id) in MERCHANT_EMAIL_FALLBACK:
+                    return MERCHANT_EMAIL_FALLBACK[str(merchant_id)]
                 return None
             
             # Ottieni tutti i merchants - il client completo restituisce MerchantsResponse
@@ -448,14 +466,26 @@ class WebhookEventProcessor:
                     return email
                 else:
                     logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} trovato ma SENZA primaryEmail/email")
+                    # Se abbiamo un fallback, usalo
+                    if str(merchant_id) in MERCHANT_EMAIL_FALLBACK:
+                        logger.info(f"[_get_merchant_email] 🔄 Uso fallback per merchant {merchant_id}")
+                        return MERCHANT_EMAIL_FALLBACK[str(merchant_id)]
                     return None
             else:
                 logger.warning(f"[_get_merchant_email] ❌ Merchant {merchant_id} NON trovato nella lista")
+                # Se abbiamo un fallback, usalo
+                if str(merchant_id) in MERCHANT_EMAIL_FALLBACK:
+                    logger.info(f"[_get_merchant_email] 🔄 Uso fallback per merchant {merchant_id}")
+                    return MERCHANT_EMAIL_FALLBACK[str(merchant_id)]
                 return None
                 
         except Exception as e:
             logger.error(f"[_get_merchant_email] Errore durante il recupero email per merchant {merchant_id}: {e}")
             logger.exception("Traceback completo:")
+            # In caso di errore, usa il fallback se disponibile
+            if str(merchant_id) in MERCHANT_EMAIL_FALLBACK:
+                logger.info(f"[_get_merchant_email] 🔄 Errore API, uso fallback per merchant {merchant_id}")
+                return MERCHANT_EMAIL_FALLBACK[str(merchant_id)]
             return None
 
     def _get_outbound_shipment_items(self, shipment_id: str) -> List[Dict[str, Any]]:
