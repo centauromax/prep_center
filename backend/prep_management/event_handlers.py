@@ -13,10 +13,15 @@ import pytz
 
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 
 from .models import ShipmentStatusUpdate, OutgoingMessage, TelegramNotification
 from .utils.messaging import send_outbound_without_inbound_notification
 from .services import send_telegram_notification, format_shipment_notification
+
+# Import diretto del client completo invece del wrapper
+from libs.prepbusiness.client import PrepBusinessClient
+from libs.prepbusiness.models import Carrier
 
 # Import libs con gestione errori
 try:
@@ -56,11 +61,10 @@ class WebhookEventProcessor:
                 logger.error("[WebhookEventProcessor.__init__] Import libs fallito, client non disponibile.")
                 self.client = None
             else:
-                # Uso del client completo direttamente - richiede company_domain
-                domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('/api', '') if PREP_BUSINESS_API_URL else 'dashboard.fbaprepcenteritaly.com'
+                # Usa il client completo direttamente
                 self.client = PrepBusinessClient(
-                    api_key=PREP_BUSINESS_API_KEY,
-                    company_domain=domain
+                    api_key=settings.PREP_BUSINESS_API_KEY,
+                    company_domain="dashboard.fbaprepcenteritaly.com"
                 )
                 logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient completo istanziato con successo.")
         except Exception as e_client_init:
@@ -299,12 +303,7 @@ class WebhookEventProcessor:
             
             # 6. Crea il nuovo inbound shipment residual
             logger.info(f"[_process_outbound_shipment_closed] 🚀 Step 6: Creazione inbound residual")
-            residual_id = self._create_residual_inbound_shipment(
-                name=residual_name,
-                warehouse_id=warehouse_id,
-                items=residual_items,
-                merchant_id=str(merchant_id)
-            )
+            residual_id = self._create_residual_inbound_shipment(residual_name, inbound_shipment, residual_items)
             
             if residual_id:
                 logger.info(f"[_process_outbound_shipment_closed] 🎉 SUCCESS: Inbound residual creato con ID: {residual_id}")
@@ -793,159 +792,114 @@ class WebhookEventProcessor:
             logger.warning(f"[_generate_residual_name] ⚠️ Usando nome fallback per errore: '{fallback_name}'")
             return fallback_name
     
-    def _create_residual_inbound_shipment(self, name: str, warehouse_id: int, items: List[Dict[str, Any]], merchant_id: str) -> Optional[int]:
+    def _create_residual_inbound_shipment(self, residual_name: str, inbound_shipment: Dict[str, Any], residual_items: List[Dict[str, Any]]) -> Optional[int]:
         """
-        Crea un nuovo inbound shipment residual con i prodotti specificati.
+        Crea un nuovo inbound shipment residual con gli items calcolati.
         
         Args:
-            name: Nome per il nuovo inbound
-            warehouse_id: ID del warehouse
-            items: Lista di prodotti da aggiungere (con item_id reali)
-            merchant_id: ID del merchant
+            residual_name: Nome per il nuovo shipment residual
+            inbound_shipment: Dati del shipment inbound originale
+            residual_items: Lista degli items residuali da aggiungere
             
         Returns:
-            ID del nuovo inbound shipment o None se errore
+            ID del nuovo shipment creato o None se fallisce
         """
-        logger.info(f"[_create_residual_inbound_shipment] 🚀 Creazione inbound residual '{name}' con {len(items)} items")
-        
-        if self.client is None:
-            logger.error("[_create_residual_inbound_shipment] ❌ Client API non disponibile!")
-            return None
-        
         try:
-            logger.info(f"[_create_residual_inbound_shipment] 📋 Creazione inbound shipment con name='{name}', warehouse_id={warehouse_id}, merchant_id={merchant_id}")
+            logger.info(f"🚀 Creazione inbound residual '{residual_name}' con {len(residual_items)} items")
             
-            # Crea l'inbound shipment - il client completo ha una firma diversa
-            shipment_response = self.client.create_inbound_shipment(
-                name=name,
-                warehouse_id=warehouse_id,
-                notes=f"Inbound residual creato automaticamente dal sistema",
-                merchant_id=int(merchant_id)
+            # Step 1: Crea il nuovo shipment inbound
+            logger.info(f"📋 Creazione inbound shipment con name='{residual_name}', warehouse_id={inbound_shipment['warehouse_id']}, merchant_id={inbound_shipment['team_id']}")
+            
+            create_response = self.client.create_inbound_shipment(
+                name=residual_name,
+                warehouse_id=inbound_shipment['warehouse_id'],
+                notes="Inbound residual creato automaticamente dal sistema",
+                merchant_id=inbound_shipment['team_id']
             )
             
-            # Il client completo restituisce CreateInboundShipmentResponse
-            if hasattr(shipment_response, 'shipment_id'):
-                shipment_id = shipment_response.shipment_id
-            elif hasattr(shipment_response, 'id'):
-                shipment_id = shipment_response.id
-            elif isinstance(shipment_response, dict):
-                shipment_id = shipment_response.get('shipment_id') or shipment_response.get('id')
-            else:
-                logger.error(f"[_create_residual_inbound_shipment] ❌ Risposta creazione shipment non riconosciuta: {shipment_response}")
-                return None
+            # Il client completo restituisce un response object con shipment_id
+            residual_shipment_id = create_response.shipment_id
+            logger.info(f"✅ Inbound shipment creato con ID: {residual_shipment_id}")
             
-            if not shipment_id:
-                logger.error(f"[_create_residual_inbound_shipment] ❌ Creazione shipment fallita - nessun ID restituito: {shipment_response}")
-                return None
-            
-            logger.info(f"[_create_residual_inbound_shipment] ✅ Inbound shipment creato con ID: {shipment_id}")
-            
-            # ✅ AGGIUNTA ITEMS: Usa gli item_id reali calcolati dai residual
+            # Step 2: Aggiungi tutti gli items al shipment
             items_added = 0
             items_failed = 0
             
-            for i, item in enumerate(items):
-                item_id = item.get('item_id')
-                expected_qty = item.get('expected_quantity', 0)
-                actual_qty = item.get('actual_quantity', 0)
-                
-                if not item_id:
-                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Item {i+1} senza item_id - saltato")
-                    items_failed += 1
-                    continue
-                
-                # Usa expected_quantity come quantità principale (fallback su actual_quantity)
-                quantity_to_add = expected_qty if expected_qty > 0 else actual_qty
-                
-                if quantity_to_add <= 0:
-                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Item {item_id} con quantità 0 - saltato")
-                    items_failed += 1
-                    continue
-                
+            for item in residual_items:
                 try:
-                    logger.info(f"[_create_residual_inbound_shipment] ➕ Aggiunta item {item_id} con quantità {quantity_to_add}")
+                    logger.info(f"➕ Aggiunta item {item['item_id']} con quantità {item['expected_quantity']}")
                     
-                    # Aggiungi l'item al shipment usando il client API con la firma corretta
-                    add_response = self.client.add_item_to_shipment(
-                        shipment_id=shipment_id,
-                        item_id=item_id,
-                        quantity=quantity_to_add,
-                        merchant_id=int(merchant_id)
+                    self.client.add_item_to_shipment(
+                        shipment_id=residual_shipment_id,
+                        item_id=item['item_id'],
+                        quantity=item['expected_quantity'],
+                        merchant_id=inbound_shipment['team_id']
                     )
                     
-                    logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con quantità expected: {quantity_to_add}")
+                    logger.info(f"✅ Item {item['item_id']} aggiunto con quantità expected: {item['expected_quantity']}")
                     items_added += 1
                     
                 except Exception as e:
-                    logger.error(f"[_create_residual_inbound_shipment] ❌ Errore aggiunta item {item_id}: {str(e)}")
+                    logger.error(f"❌ Errore aggiunta item {item['item_id']}: {e}")
                     items_failed += 1
+                    continue
             
-            # Report finale
-            logger.info(f"[_create_residual_inbound_shipment] 📊 Aggiunta items completata:")
+            # Step 3: Log risultati aggiunta items
+            logger.info(f"📊 Aggiunta items completata:")
             logger.info(f"    ✅ Items aggiunti: {items_added}")
             logger.info(f"    ❌ Items falliti: {items_failed}")
-            logger.info(f"    📦 Totale items: {len(items)}")
+            logger.info(f"    📦 Totale items: {len(residual_items)}")
             
-            # ✅ FIX: Submit shipment per permettere la ricezione degli items
-            if items_added > 0:
-                try:
-                    logger.info(f"[_create_residual_inbound_shipment] 📤 Submit shipment {shipment_id} con carrier no_tracking")
-                    submit_response = self.client.submit_inbound_shipment(
-                        shipment_id=shipment_id,
-                        carrier="no_tracking",
-                        tracking_numbers=None,
-                        merchant_id=int(merchant_id)
-                    )
-                    logger.info(f"[_create_residual_inbound_shipment] ✅ Shipment {shipment_id} submitted con successo")
-                    
-                    # Ora aggiorna le quantità ricevute per tutti gli items aggiunti
-                    items_received = 0
-                    items_receive_failed = 0
-                    
-                    for i, item in enumerate(items):
-                        item_id = item.get('item_id')
-                        expected_qty = item.get('expected_quantity', 0)
-                        actual_qty = item.get('actual_quantity', 0)
-                        
-                        if not item_id:
-                            continue
-                            
-                        quantity_to_receive = expected_qty if expected_qty > 0 else actual_qty
-                        
-                        if quantity_to_receive <= 0:
-                            continue
-                        
-                        try:
-                            logger.info(f"[_create_residual_inbound_shipment] 📦 Ricezione item {item_id} con quantità {quantity_to_receive}")
-                            update_response = self.client.update_shipment_item(
-                                shipment_id=shipment_id,
-                                item_id=item_id,
-                                actual_quantity=quantity_to_receive,
-                                merchant_id=int(merchant_id)
-                            )
-                            logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} ricevuto con quantità: {quantity_to_receive}")
-                            items_received += 1
-                            
-                        except Exception as receive_error:
-                            logger.error(f"[_create_residual_inbound_shipment] ❌ Errore ricezione item {item_id}: {receive_error}")
-                            items_receive_failed += 1
-                    
-                    logger.info(f"[_create_residual_inbound_shipment] 📊 Ricezione items completata:")
-                    logger.info(f"    ✅ Items ricevuti: {items_received}")
-                    logger.info(f"    ❌ Items ricezione fallita: {items_receive_failed}")
-                    
-                except Exception as submit_error:
-                    logger.error(f"[_create_residual_inbound_shipment] ❌ Errore submit shipment {shipment_id}: {submit_error}")
-                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Shipment creato ma non submitted - items non ricevuti")
-            
-            if items_added > 0:
-                logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual creato con {items_added} items - ID: {shipment_id}")
-            else:
-                logger.warning(f"[_create_residual_inbound_shipment] ⚠️ WARNING: Inbound residual creato ma VUOTO (nessun item aggiunto) - ID: {shipment_id}")
-            
-            return shipment_id
+            # Step 4: Submit il shipment con carrier NO_TRACKING
+            try:
+                logger.info(f"📤 Submit shipment {residual_shipment_id} con carrier NO_TRACKING")
                 
+                self.client.submit_inbound_shipment(
+                    shipment_id=residual_shipment_id,
+                    carrier=Carrier.NO_TRACKING
+                )
+                
+                logger.info(f"✅ Shipment {residual_shipment_id} submitted con successo")
+                
+                # Step 5: Aggiorna le quantità actual degli items (marca come ricevuti)
+                for item in residual_items:
+                    try:
+                        # Usa il metodo del client completo per aggiornare le quantità
+                        from libs.prepbusiness.models import ExpectedItemUpdate, ActualItemUpdate
+                        
+                        expected_update = ExpectedItemUpdate(
+                            quantity=item['expected_quantity'],
+                            item_group_configurations=[]
+                        )
+                        
+                        actual_update = ActualItemUpdate(
+                            quantity=item['actual_quantity'],
+                            item_group_configurations=[]
+                        )
+                        
+                        self.client.update_shipment_item(
+                            shipment_id=residual_shipment_id,
+                            item_id=item['item_id'],
+                            expected=expected_update,
+                            actual=actual_update,
+                            merchant_id=inbound_shipment['team_id']
+                        )
+                        
+                        logger.info(f"✅ Item {item['item_id']} aggiornato: actual={item['actual_quantity']}")
+                        
+                    except Exception as e:
+                        logger.error(f"❌ Errore aggiornamento quantità item {item['item_id']}: {e}")
+                        continue
+                        
+                logger.info(f"✅ Tutti gli items marcati come ricevuti")
+                
+            except Exception as e:
+                logger.error(f"❌ Errore submit shipment {residual_shipment_id}: {e}")
+                logger.warning(f"⚠️ Shipment creato ma non submitted - items non ricevuti")
+            
+            logger.info(f"🎉 SUCCESS: Inbound residual creato con {items_added} items - ID: {residual_shipment_id}")
+            return residual_shipment_id
+            
         except Exception as e:
-            logger.error(f"[_create_residual_inbound_shipment] ❌ Errore creazione inbound residual: {str(e)}")
-            logger.exception("Traceback:")
+            logger.error(f"❌ Errore creazione inbound residual: {e}")
             return None 

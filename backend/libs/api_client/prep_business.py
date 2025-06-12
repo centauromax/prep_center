@@ -21,7 +21,7 @@ from libs.config import (
 
 # Import del client completo
 from libs.prepbusiness.client import PrepBusinessClient as CompleteClient
-from libs.prepbusiness.models import PrepBusinessError, AuthenticationError
+from libs.prepbusiness.models import PrepBusinessError, AuthenticationError, Carrier
 
 # Configura il logger
 logger = logging.getLogger('prep_business')
@@ -506,34 +506,41 @@ class PrepBusinessClient:
             logger.error(f"Errore aggiornamento item {item_id} in shipment {shipment_id}: {e}")
             return {}
     
-    def submit_inbound_shipment(self, shipment_id: int, carrier: str = "no_tracking", tracking_numbers: Optional[List[str]] = None, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+    def submit_inbound_shipment(self, shipment_id: int, carrier: str = "no_tracking") -> Dict[str, Any]:
         """
-        Sottomette una spedizione inbound per renderla spedita e permettere la ricezione items.
+        Submit an inbound shipment.
         
         Args:
-            shipment_id: ID della spedizione
-            carrier: Carrier della spedizione (default: "no_tracking")
-            tracking_numbers: Lista di tracking numbers (opzionale)
-            merchant_id: ID del merchant (opzionale)
+            shipment_id: ID dello shipment da submittare
+            carrier: Carrier da utilizzare (default: "no_tracking")
             
         Returns:
-            Conferma della sottomissione
+            Dict con il risultato del submit
         """
-        if not self._complete_client:
-            raise Exception("Client completo non inizializzato")
-        
         try:
+            logger.info(f"📦 Submit inbound shipment {shipment_id} con carrier {carrier}")
+            
+            # Converti stringa carrier in enum se necessario
+            if isinstance(carrier, str):
+                if carrier == "no_tracking":
+                    carrier_enum = Carrier.NO_TRACKING
+                else:
+                    # Cerca di mappare altri carrier
+                    carrier_enum = getattr(Carrier, carrier.upper(), Carrier.NO_TRACKING)
+            else:
+                carrier_enum = carrier
+            
             response = self._complete_client.submit_inbound_shipment(
-                shipment_id=shipment_id,
-                carrier=carrier,
-                tracking_numbers=tracking_numbers,
-                merchant_id=merchant_id
+                shipment_id=shipment_id, 
+                carrier=carrier_enum
             )
+            
             # Estrai i dati dal response object
             if hasattr(response, 'model_dump'):
                 return response.model_dump()
             else:
                 return response if isinstance(response, dict) else {}
+                
         except Exception as e:
-            logger.error(f"Errore submit shipment {shipment_id}: {e}")
-            return {} 
+            logger.error(f"❌ Errore submit inbound shipment {shipment_id}: {e}")
+            raise 
