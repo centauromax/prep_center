@@ -209,7 +209,25 @@ class WebhookEventProcessor:
             
             shipment_id = shipment_data.get('id') or shipment_data.get('shipment_id')
             shipment_name = shipment_data.get('name', '')
-            merchant_id = shipment_data.get('merchant_id', '')
+            
+            # Prova diversi modi per ottenere merchant_id dal payload
+            merchant_id = (
+                shipment_data.get('merchant_id') or
+                shipment_data.get('merchantId') or  
+                shipment_data.get('client_id') or
+                update.merchant_id or  # Fallback dal modello update
+                ''
+            )
+            
+            # Validazione merchant_id
+            if not merchant_id or merchant_id == '':
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Merchant ID mancante o vuoto nei dati webhook")
+                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Payload shipment_data keys: {list(shipment_data.keys())}")
+                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Update merchant_id: {update.merchant_id}")
+                return {
+                    'success': False,
+                    'message': 'Merchant ID mancante nei dati webhook - impossibile procedere con inbound residual',
+                }
             
             if not shipment_id:
                 logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Shipment ID mancante")
@@ -218,7 +236,7 @@ class WebhookEventProcessor:
                     'message': 'Shipment ID mancante nei dati webhook',
                 }
             
-            logger.info(f"[_process_outbound_shipment_closed] 📦 Processing shipment ID: {shipment_id}, name: '{shipment_name}'")
+            logger.info(f"[_process_outbound_shipment_closed] 📦 Processing shipment ID: {shipment_id}, name: '{shipment_name}', merchant: {merchant_id}")
             
             # 1. Recupera gli items della spedizione outbound appena chiusa
             logger.info(f"[_process_outbound_shipment_closed] 📋 Step 1: Recupero items outbound shipment {shipment_id}")
@@ -235,7 +253,7 @@ class WebhookEventProcessor:
             
             # 2. Trova l'inbound shipment corrispondente (stesso nome)
             logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 2: Ricerca inbound shipment con nome '{shipment_name}'")
-            inbound_shipment = self._find_matching_inbound_shipment(shipment_name, merchant_id)
+            inbound_shipment = self._find_matching_inbound_shipment(shipment_name, str(merchant_id))
             
             if not inbound_shipment:
                 logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun inbound shipment trovato con nome '{shipment_name}'")
@@ -276,7 +294,7 @@ class WebhookEventProcessor:
             
             # 5. Genera nome per il nuovo inbound residual
             logger.info(f"[_process_outbound_shipment_closed] 🏷️ Step 5: Generazione nome per inbound residual")
-            residual_name = self._generate_residual_name(shipment_name, merchant_id)
+            residual_name = self._generate_residual_name(shipment_name, str(merchant_id))
             logger.info(f"[_process_outbound_shipment_closed] ✅ Nome generato: '{residual_name}'")
             
             # 6. Crea il nuovo inbound shipment residual
@@ -285,7 +303,7 @@ class WebhookEventProcessor:
                 name=residual_name,
                 warehouse_id=warehouse_id,
                 items=residual_items,
-                merchant_id=merchant_id
+                merchant_id=str(merchant_id)
             )
             
             if residual_id:
@@ -404,12 +422,22 @@ class WebhookEventProcessor:
                 logger.error("[_get_merchant_email] Client API non disponibile!")
                 return None
             
-            # Ottieni tutti i merchants
-            merchants = self.client.get_merchants()
-            logger.info(f"[_get_merchant_email] Recuperati {len(merchants)} merchants")
+            # Ottieni tutti i merchants - il client completo restituisce MerchantsResponse
+            merchants_response = self.client.get_merchants()
+            
+            # Estrai la lista di merchants dal response object
+            if hasattr(merchants_response, 'data'):
+                merchants_list = [m.model_dump() for m in merchants_response.data]
+            elif hasattr(merchants_response, 'merchants'):
+                merchants_list = [m.model_dump() for m in merchants_response.merchants]
+            else:
+                # Fallback se è già una lista (non dovrebbe succedere con client completo)
+                merchants_list = merchants_response if isinstance(merchants_response, list) else []
+            
+            logger.info(f"[_get_merchant_email] Recuperati {len(merchants_list)} merchants")
             
             # Trova il merchant con l'ID specificato
-            merchant = next((m for m in merchants if str(m.get('id', '')) == str(merchant_id)), None)
+            merchant = next((m for m in merchants_list if str(m.get('id', '')) == str(merchant_id)), None)
             
             if merchant:
                 # Prova prima primaryEmail, poi email per retrocompatibilità
@@ -617,9 +645,21 @@ class WebhookEventProcessor:
             logger.error("[_find_matching_inbound_shipment] ❌ Client API non disponibile!")
             return None
         
+        # Validazione merchant_id
+        if not merchant_id or merchant_id.strip() == '':
+            logger.error("[_find_matching_inbound_shipment] ❌ Merchant ID vuoto o non valido!")
+            return None
+        
+        try:
+            # Converti merchant_id a int per l'API
+            merchant_id_int = int(merchant_id)
+        except (ValueError, TypeError):
+            logger.error(f"[_find_matching_inbound_shipment] ❌ Merchant ID non valido per conversione int: '{merchant_id}'")
+            return None
+        
         try:
             # Cerca tra tutti gli inbound shipments del merchant
-            shipments_response = self.client.get_inbound_shipments(merchant_id=int(merchant_id))
+            shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id_int)
             
             # Il client completo restituisce un response object, estrai la lista
             if hasattr(shipments_response, 'shipments'):
