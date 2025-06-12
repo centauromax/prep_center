@@ -445,7 +445,7 @@ class WebhookEventProcessor:
             return []
         
         try:
-            items_response = self.client.get_shipment_items(shipment_id=int(shipment_id))
+            items_response = self.client.get_outbound_shipment_items(shipment_id=int(shipment_id))
             
             if items_response and isinstance(items_response, list):
                 items = []
@@ -490,7 +490,7 @@ class WebhookEventProcessor:
             return []
         
         try:
-            items_response = self.client.get_shipment_items(shipment_id=int(shipment_id))
+            items_response = self.client.get_inbound_shipment_items(shipment_id=int(shipment_id))
             
             # 🔍 DEBUG: Logga la risposta completa dell'API
             logger.info(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response type: {type(items_response)}")
