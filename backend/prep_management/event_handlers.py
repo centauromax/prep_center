@@ -66,18 +66,37 @@ class WebhookEventProcessor:
                 logger.error("[WebhookEventProcessor.__init__] Import libs fallito, client non disponibile.")
                 self.client = None
             else:
-                # Usa il client completo direttamente con i parametri corretti
-                self.client = PrepBusinessClient(
-                    api_key=settings.PREP_BUSINESS_API_KEY,
-                    company_domain="dashboard.fbaprepcenteritaly.com",
-                    timeout=30
-                )
-                logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient completo istanziato con successo.")
+                # HOTFIX: Prova prima l'inizializzazione standard del client completo
+                try:
+                    self.client = PrepBusinessClient(
+                        api_key=settings.PREP_BUSINESS_API_KEY,
+                        company_domain="dashboard.fbaprepcenteritaly.com",
+                        timeout=30
+                    )
+                    logger.info("[WebhookEventProcessor.__init__] ✅ PrepBusinessClient completo istanziato con successo.")
+                except Exception as e_complete:
+                    logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore client completo: {e_complete}")
+                    
+                    # FALLBACK: Prova con il wrapper che funziona per le notifiche
+                    try:
+                        from libs.api_client.prep_business import PrepBusinessClient as WrapperClient
+                        self.client = WrapperClient()
+                        logger.info("[WebhookEventProcessor.__init__] ✅ FALLBACK: Client wrapper istanziato con successo.")
+                    except Exception as e_wrapper:
+                        logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore anche con wrapper: {e_wrapper}")
+                        self.client = None
+                        
         except Exception as e_client_init:
             logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {e_client_init}")
             logger.exception("Traceback completo:")
             self.client = None
         
+        # Log finale dello stato del client
+        if self.client is not None:
+            logger.info("[WebhookEventProcessor.__init__] ✅ Client inizializzato correttamente.")
+        else:
+            logger.error("[WebhookEventProcessor.__init__] ❌ ERRORE: Client NON inizializzato!")
+            
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
     
     def process_event(self, update_id: int) -> Dict[str, Any]: 
