@@ -874,21 +874,6 @@ class WebhookEventProcessor:
                     )
                     
                     logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con quantità expected: {quantity_to_add}")
-                    
-                    # ✅ FIX: Aggiorna l'item per impostare la quantità come "ricevuta"
-                    # Gli items residuali sono considerati già ricevuti nel magazzino
-                    try:
-                        update_response = self.client.update_shipment_item(
-                            shipment_id=shipment_id,
-                            item_id=item_id,
-                            actual_quantity=quantity_to_add,
-                            merchant_id=int(merchant_id)
-                        )
-                        logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiornato con quantità actual: {quantity_to_add}")
-                    except Exception as update_error:
-                        logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Errore aggiornamento quantità actual per item {item_id}: {update_error}")
-                        # Non consideriamo questo un errore fatale, l'item è comunque aggiunto
-                    
                     items_added += 1
                     
                 except Exception as e:
@@ -900,6 +885,58 @@ class WebhookEventProcessor:
             logger.info(f"    ✅ Items aggiunti: {items_added}")
             logger.info(f"    ❌ Items falliti: {items_failed}")
             logger.info(f"    📦 Totale items: {len(items)}")
+            
+            # ✅ FIX: Submit shipment per permettere la ricezione degli items
+            if items_added > 0:
+                try:
+                    logger.info(f"[_create_residual_inbound_shipment] 📤 Submit shipment {shipment_id} con carrier no_tracking")
+                    submit_response = self.client.submit_inbound_shipment(
+                        shipment_id=shipment_id,
+                        carrier="no_tracking",
+                        tracking_numbers=None,
+                        merchant_id=int(merchant_id)
+                    )
+                    logger.info(f"[_create_residual_inbound_shipment] ✅ Shipment {shipment_id} submitted con successo")
+                    
+                    # Ora aggiorna le quantità ricevute per tutti gli items aggiunti
+                    items_received = 0
+                    items_receive_failed = 0
+                    
+                    for i, item in enumerate(items):
+                        item_id = item.get('item_id')
+                        expected_qty = item.get('expected_quantity', 0)
+                        actual_qty = item.get('actual_quantity', 0)
+                        
+                        if not item_id:
+                            continue
+                            
+                        quantity_to_receive = expected_qty if expected_qty > 0 else actual_qty
+                        
+                        if quantity_to_receive <= 0:
+                            continue
+                        
+                        try:
+                            logger.info(f"[_create_residual_inbound_shipment] 📦 Ricezione item {item_id} con quantità {quantity_to_receive}")
+                            update_response = self.client.update_shipment_item(
+                                shipment_id=shipment_id,
+                                item_id=item_id,
+                                actual_quantity=quantity_to_receive,
+                                merchant_id=int(merchant_id)
+                            )
+                            logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} ricevuto con quantità: {quantity_to_receive}")
+                            items_received += 1
+                            
+                        except Exception as receive_error:
+                            logger.error(f"[_create_residual_inbound_shipment] ❌ Errore ricezione item {item_id}: {receive_error}")
+                            items_receive_failed += 1
+                    
+                    logger.info(f"[_create_residual_inbound_shipment] 📊 Ricezione items completata:")
+                    logger.info(f"    ✅ Items ricevuti: {items_received}")
+                    logger.info(f"    ❌ Items ricezione fallita: {items_receive_failed}")
+                    
+                except Exception as submit_error:
+                    logger.error(f"[_create_residual_inbound_shipment] ❌ Errore submit shipment {shipment_id}: {submit_error}")
+                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Shipment creato ma non submitted - items non ricevuti")
             
             if items_added > 0:
                 logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual creato con {items_added} items - ID: {shipment_id}")

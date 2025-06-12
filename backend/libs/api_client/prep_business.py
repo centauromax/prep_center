@@ -504,4 +504,36 @@ class PrepBusinessClient:
                 return response if isinstance(response, dict) else {}
         except Exception as e:
             logger.error(f"Errore aggiornamento item {item_id} in shipment {shipment_id}: {e}")
+            return {}
+    
+    def submit_inbound_shipment(self, shipment_id: int, carrier: str = "no_tracking", tracking_numbers: Optional[List[str]] = None, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Sottomette una spedizione inbound per renderla spedita e permettere la ricezione items.
+        
+        Args:
+            shipment_id: ID della spedizione
+            carrier: Carrier della spedizione (default: "no_tracking")
+            tracking_numbers: Lista di tracking numbers (opzionale)
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Conferma della sottomissione
+        """
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.submit_inbound_shipment(
+                shipment_id=shipment_id,
+                carrier=carrier,
+                tracking_numbers=tracking_numbers,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'model_dump'):
+                return response.model_dump()
+            else:
+                return response if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore submit shipment {shipment_id}: {e}")
             return {} 
