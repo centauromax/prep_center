@@ -12,7 +12,7 @@ from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY
 # Configura il logger
 logger = logging.getLogger('prep_management')
 
-def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
+def get_merchants(active_only: bool = False) -> List[Dict[str, Any]]:
     """
     Ottiene la lista dei merchants da Prep Business.
     
@@ -51,9 +51,9 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
         # I dati sono già dizionari con il client originale
         merchant_dicts = merchant_list
         
-        # Filtra per active se richiesto
+        # Filtra per enabled se richiesto
         if active_only:
-            merchant_dicts = [m for m in merchant_dicts if m.get('active', True)]
+            merchant_dicts = [m for m in merchant_dicts if m.get('enabled', True)]
             logger.info(f"[get_merchants] Dopo filtro active_only: {len(merchant_dicts)} merchants")
         
         # Logga un esempio di merchant per debug (se disponibile)
@@ -67,11 +67,11 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
         if not merchant_dicts:
             logger.warning("[get_merchants] Nessun merchant trovato dall'API, restituisco dati mock come fallback")
             merchant_dicts = [
-                {'id': 1, 'name': 'Mock Merchant 1', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
-                {'id': 2, 'name': 'Mock Merchant 2 (Inactive)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
+                {'id': 1, 'name': 'Mock Merchant 1', 'enabled': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
+                {'id': 2, 'name': 'Mock Merchant 2 (Inactive)', 'enabled': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
             ]
             if active_only:
-                merchant_dicts = [m for m in merchant_dicts if m.get('active', True)]
+                merchant_dicts = [m for m in merchant_dicts if m.get('enabled', True)]
             logger.info("[get_merchants] Restituzione dati mock per merchants come fallback.")
         
         return merchant_dicts
@@ -82,10 +82,10 @@ def get_merchants(active_only: bool = True) -> List[Dict[str, Any]]:
         # In caso di errore, restituisci dati mock come fallback
         logger.warning("[get_merchants] Errore API, restituisco dati mock come fallback")
         merchants = [
-            {'id': 1, 'name': 'Mock Merchant 1 (Fallback)', 'active': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
-            {'id': 2, 'name': 'Mock Merchant 2 (Inactive Fallback)', 'active': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
+            {'id': 1, 'name': 'Mock Merchant 1 (Fallback)', 'enabled': True, 'email': 'merchant1@example.com', 'created_at': '2023-01-01T10:00:00Z'},
+            {'id': 2, 'name': 'Mock Merchant 2 (Inactive Fallback)', 'enabled': False, 'email': 'merchant2@example.com', 'created_at': '2023-01-02T11:00:00Z'},
         ]
         if active_only:
-            merchants = [m for m in merchants if m.get('active', True)]
+            merchants = [m for m in merchants if m.get('enabled', True)]
         logger.info("[get_merchants] Restituzione dati mock per merchants come fallback dopo errore.")
         return merchants 
