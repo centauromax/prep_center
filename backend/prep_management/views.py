@@ -224,14 +224,35 @@ def shipment_status_webhook(request):
             """Inferisce il tipo di evento dai dati della spedizione"""
             status = shipment_data.get('status', '').lower()
             shipped_at = shipment_data.get('shipped_at')
+            shipment_id = shipment_data.get('id')
             
             # Determina se è inbound o outbound dai campi presenti
             has_outbound_items = 'outbound_items' in shipment_data
             has_inbound_items = 'inbound_items' in shipment_data or 'items' in shipment_data
             
+            # MIGLIORAMENTO: Logica più intelligente per riconoscere outbound shipments
+            # 1. Se ha outbound_items espliciti
+            is_outbound = has_outbound_items
+            
+            # 2. Se contiene "outbound" nel payload
+            if not is_outbound:
+                is_outbound = 'outbound' in str(shipment_data).lower()
+            
+            # 3. NUOVO: Se è status="closed" con shipped_at, probabilmente è outbound
+            # (gli inbound raramente hanno status="closed", più spesso "received")
+            if not is_outbound and status == 'closed' and shipped_at:
+                logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: status=closed + shipped_at presente → probabilmente OUTBOUND")
+                is_outbound = True
+            
+            # 4. NUOVO: Se ha warehouse_id, potrebbe essere outbound (spedizione verso Amazon)
+            if not is_outbound and 'warehouse_id' in shipment_data:
+                logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: warehouse_id presente → possibile OUTBOUND")
+                is_outbound = True
+            
             # Logica per determinare il tipo di evento
-            if has_outbound_items or 'outbound' in str(shipment_data).lower():
+            if is_outbound:
                 # È una spedizione outbound
+                logger.info(f"[infer_event_type] ✅ Shipment {shipment_id} riconosciuto come OUTBOUND (status={status}, shipped_at={bool(shipped_at)})")
                 if status == 'open':
                     return 'outbound_shipment.created'
                 elif status == 'closed' and shipped_at:
@@ -242,6 +263,7 @@ def shipment_status_webhook(request):
                     return 'outbound_shipment.updated'
             else:
                 # È una spedizione inbound (default)
+                logger.info(f"[infer_event_type] ✅ Shipment {shipment_id} riconosciuto come INBOUND (status={status}, shipped_at={bool(shipped_at)})")
                 if status == 'open':
                     return 'inbound_shipment.created'
                 elif status == 'received':
