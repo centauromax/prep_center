@@ -20,7 +20,7 @@ from .services import send_telegram_notification, format_shipment_notification
 
 # Import libs con gestione errori
 try:
-    from libs.api_client.prep_business import PrepBusinessClient
+    from libs.prepbusiness.client import PrepBusinessClient
     from libs.config import (
         PREP_BUSINESS_API_URL,
         PREP_BUSINESS_API_KEY,
@@ -56,12 +56,13 @@ class WebhookEventProcessor:
                 logger.error("[WebhookEventProcessor.__init__] Import libs fallito, client non disponibile.")
                 self.client = None
             else:
-                # Uso del client originale con api_url e api_key
+                # Uso del client completo direttamente - richiede company_domain
+                domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('/api', '') if PREP_BUSINESS_API_URL else 'dashboard.fbaprepcenteritaly.com'
                 self.client = PrepBusinessClient(
-                    api_url=PREP_BUSINESS_API_URL,
-                    api_key=PREP_BUSINESS_API_KEY
+                    api_key=PREP_BUSINESS_API_KEY,
+                    company_domain=domain
                 )
-                logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient istanziato con successo.")
+                logger.info("[WebhookEventProcessor.__init__] PrepBusinessClient completo istanziato con successo.")
         except Exception as e_client_init:
             logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {e_client_init}")
             self.client = None
@@ -447,10 +448,18 @@ class WebhookEventProcessor:
         try:
             items_response = self.client.get_outbound_shipment_items(shipment_id=int(shipment_id))
             
-            if items_response and isinstance(items_response, list):
+            # Il client completo restituisce OutboundShipmentItemsResponse
+            if hasattr(items_response, 'items'):
+                items_list = [item.model_dump() for item in items_response.items]
+            elif hasattr(items_response, 'data'):
+                items_list = items_response.data
+            else:
+                items_list = items_response if isinstance(items_response, list) else []
+            
+            if items_list:
                 items = []
-                for item in items_response:
-                    # Il client wrapper restituisce dict
+                for item in items_list:
+                    # Il client completo restituisce dict strutturati
                     item_data = {
                         'item_id': item.get('item_id') or item.get('id'),
                         'merchant_sku': item.get('merchant_sku', ''),
@@ -496,14 +505,23 @@ class WebhookEventProcessor:
             logger.info(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response type: {type(items_response)}")
             logger.debug(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response content: {items_response}")
             
-            if items_response and isinstance(items_response, list):
-                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce lista con {len(items_response)} elements")
-                
+            # Il client completo restituisce ShipmentItemsResponse
+            if hasattr(items_response, 'items'):
+                items_list = [item.model_dump() for item in items_response.items]
+                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce response.items con {len(items_list)} elements")
+            elif hasattr(items_response, 'data'):
+                items_list = items_response.data
+                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce response.data con {len(items_list)} elements")
+            else:
+                items_list = items_response if isinstance(items_response, list) else []
+                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce lista diretta con {len(items_list)} elements")
+            
+            if items_list:
                 items = []
-                for i, item in enumerate(items_response):
+                for i, item in enumerate(items_list):
                     logger.debug(f"[_get_inbound_shipment_items] 🔍 Raw item {i}: {item}")
                     
-                    # Il client wrapper restituisce dict
+                    # Il client completo restituisce dict strutturati
                     item_data = {
                         'item_id': item.get('item_id') or item.get('id'),
                         'merchant_sku': item.get('merchant_sku', ''),
@@ -601,20 +619,27 @@ class WebhookEventProcessor:
         
         try:
             # Cerca tra tutti gli inbound shipments del merchant
-            shipments = self.client.get_shipments(merchant_id=int(merchant_id))
+            shipments_response = self.client.get_inbound_shipments(merchant_id=int(merchant_id))
+            
+            # Il client completo restituisce un response object, estrai la lista
+            if hasattr(shipments_response, 'shipments'):
+                shipments = [s.model_dump() for s in shipments_response.shipments]
+            elif hasattr(shipments_response, 'data'):
+                shipments = shipments_response.data
+            else:
+                shipments = shipments_response if isinstance(shipments_response, list) else []
             
             if not shipments:
-                logger.warning(f"[_find_matching_inbound_shipment] ⚠️ Nessun shipment trovato per merchant {merchant_id}")
+                logger.warning(f"[_find_matching_inbound_shipment] ⚠️ Nessun inbound shipment trovato per merchant {merchant_id}")
                 return None
             
-            logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} shipments")
+            logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments")
             
             for shipment in shipments:
-                shipment_type = shipment.get('type', '').lower()
                 current_name = shipment.get('name', '')
                 
-                # Filtra solo gli inbound shipments
-                if shipment_type == 'inbound' and current_name == shipment_name:
+                # Non c'è bisogno di filtrare per tipo perché get_inbound_shipments restituisce solo inbound
+                if current_name == shipment_name:
                     logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
                     return shipment
             
@@ -694,65 +719,53 @@ class WebhookEventProcessor:
             return None
         
         try:
-            # Prepara i dati per la creazione dell'inbound shipment
-            shipment_data = {
-                'name': name,
-                'merchant_id': int(merchant_id),
-                'warehouse_id': warehouse_id,
-                'type': 'inbound',
-                'status': 'created'
-            }
+            logger.info(f"[_create_residual_inbound_shipment] 📋 Creazione inbound shipment con name='{name}', warehouse_id={warehouse_id}, merchant_id={merchant_id}")
             
-            logger.info(f"[_create_residual_inbound_shipment] 📋 Dati shipment: {shipment_data}")
+            # Crea l'inbound shipment - il client completo ha una firma diversa
+            shipment_response = self.client.create_inbound_shipment(
+                name=name,
+                warehouse_id=warehouse_id,
+                notes=f"Inbound residual creato automaticamente dal sistema",
+                merchant_id=int(merchant_id)
+            )
             
-            # Crea l'inbound shipment
-            new_shipment = self.client.create_inbound_shipment(shipment_data)
-            
-            if not new_shipment or not new_shipment.get('id'):
-                logger.error(f"[_create_residual_inbound_shipment] ❌ Creazione shipment fallita: {new_shipment}")
+            # Il client completo restituisce CreateInboundShipmentResponse
+            if hasattr(shipment_response, 'shipment_id'):
+                shipment_id = shipment_response.shipment_id
+            elif hasattr(shipment_response, 'id'):
+                shipment_id = shipment_response.id
+            elif isinstance(shipment_response, dict):
+                shipment_id = shipment_response.get('shipment_id') or shipment_response.get('id')
+            else:
+                logger.error(f"[_create_residual_inbound_shipment] ❌ Risposta creazione shipment non riconosciuta: {shipment_response}")
                 return None
             
-            shipment_id = new_shipment.get('id')
+            if not shipment_id:
+                logger.error(f"[_create_residual_inbound_shipment] ❌ Creazione shipment fallita - nessun ID restituito: {shipment_response}")
+                return None
+            
             logger.info(f"[_create_residual_inbound_shipment] ✅ Inbound shipment creato con ID: {shipment_id}")
             
-            # Aggiungi gli items al shipment
-            items_added = 0
-            for item in items:
-                try:
-                    # Prepara i dati dell'item
-                    item_data = {
-                        'merchant_sku': item.get('merchant_sku', ''),
-                        'title': item.get('title', ''),
-                        'asin': item.get('asin', ''),
-                        'fnsku': item.get('fnsku', ''),
-                        'expected_quantity': item.get('expected_quantity', 0),
-                        'actual_quantity': item.get('actual_quantity', 0)
-                    }
-                    
-                    logger.debug(f"[_create_residual_inbound_shipment] 📦 Aggiunta item: {item_data}")
-                    
-                    # Aggiungi l'item al shipment (ora disponibile dopo la migrazione!)
-                    result = self.client.add_item_to_shipment(shipment_id, item_data)
-                    
-                    if result:
-                        items_added += 1
-                        logger.debug(f"[_create_residual_inbound_shipment] ✅ Item aggiunto: {item.get('merchant_sku', 'N/A')}")
-                    else:
-                        logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Aggiunta item fallita: {item.get('merchant_sku', 'N/A')}")
-                        
-                except Exception as e_item:
-                    logger.error(f"[_create_residual_inbound_shipment] ❌ Errore aggiunta item {item.get('merchant_sku', 'N/A')}: {str(e_item)}")
-                    continue
+            # ⚠️ IMPORTANTE: Il client completo add_item_to_shipment() richiede item_id esistente
+            # Purtroppo non possiamo aggiungere items arbitrari, devono esistere nell'inventario
+            # Per ora loggiamo solo i dati e continuiamo con il shipment vuoto
+            logger.warning(f"[_create_residual_inbound_shipment] ⚠️ NOTA: add_item_to_shipment richiede item_id esistenti nell'inventario")
+            logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Creato shipment vuoto ID {shipment_id} - items dovranno essere aggiunti manualmente")
             
-            logger.info(f"[_create_residual_inbound_shipment] ✅ Aggiunti {items_added}/{len(items)} items al shipment {shipment_id}")
+            for i, item in enumerate(items):
+                logger.info(f"[_create_residual_inbound_shipment] 📦 Item {i+1} da aggiungere manualmente:")
+                logger.info(f"    - SKU: {item.get('merchant_sku', 'N/A')}")
+                logger.info(f"    - Title: {item.get('title', 'N/A')}")
+                logger.info(f"    - ASIN: {item.get('asin', 'N/A')}")
+                logger.info(f"    - FNSKU: {item.get('fnsku', 'N/A')}")
+                logger.info(f"    - Expected Qty: {item.get('expected_quantity', 0)}")
+                logger.info(f"    - Actual Qty: {item.get('actual_quantity', 0)}")
             
-            if items_added > 0:
-                logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual creato completamente - ID: {shipment_id}")
-                return shipment_id
-            else:
-                logger.error(f"[_create_residual_inbound_shipment] ❌ Nessun item aggiunto - eliminazione shipment vuoto")
-                # Potresti voler eliminare il shipment vuoto qui, ma per sicurezza lo lasciamo
-                return None
+            logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual base creato - ID: {shipment_id}")
+            logger.info(f"[_create_residual_inbound_shipment] 📝 Shipment '{name}' creato per merchant {merchant_id}")
+            logger.info(f"[_create_residual_inbound_shipment] ➡️ Items dovranno essere aggiunti manualmente via interfaccia web")
+            
+            return shipment_id
                 
         except Exception as e:
             logger.error(f"[_create_residual_inbound_shipment] ❌ Errore creazione inbound residual: {str(e)}")
