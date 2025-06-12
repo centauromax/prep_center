@@ -549,15 +549,29 @@ class WebhookEventProcessor:
                 for i, item in enumerate(items_list):
                     logger.debug(f"[_get_inbound_shipment_items] 🔍 Raw item {i}: {item}")
                     
-                    # Il client completo restituisce dict strutturati
+                    # Il client completo restituisce dict strutturati con nested objects
+                    # Estrai le quantità dalle strutture annidate
+                    expected_data = item.get('expected', {})
+                    actual_data = item.get('actual', {})
+                    item_info = item.get('item', {})
+                    
+                    expected_quantity = expected_data.get('quantity', 0) if isinstance(expected_data, dict) else 0
+                    actual_quantity = actual_data.get('quantity', 0) if isinstance(actual_data, dict) else 0
+                    
+                    # Estrai i dati dell'item dal nested object
+                    merchant_sku = item_info.get('merchant_sku', '') if isinstance(item_info, dict) else item.get('merchant_sku', '')
+                    title = item_info.get('title', '') if isinstance(item_info, dict) else item.get('title', '')
+                    asin = item_info.get('asin', '') if isinstance(item_info, dict) else item.get('asin', '')
+                    fnsku = item_info.get('fnsku', '') if isinstance(item_info, dict) else item.get('fnsku', '')
+                    
                     item_data = {
                         'item_id': item.get('item_id') or item.get('id'),
-                        'merchant_sku': item.get('merchant_sku', ''),
-                        'title': item.get('title', ''),
-                        'asin': item.get('asin', ''),
-                        'fnsku': item.get('fnsku', ''),
-                        'expected_quantity': item.get('expected_quantity', 0),
-                        'actual_quantity': item.get('actual_quantity', 0)
+                        'merchant_sku': merchant_sku,
+                        'title': title,
+                        'asin': asin,
+                        'fnsku': fnsku,
+                        'expected_quantity': expected_quantity,
+                        'actual_quantity': actual_quantity
                     }
                     items.append(item_data)
                     logger.debug(f"[_get_inbound_shipment_items] 📦 Converted item {i}: {item_data}")
