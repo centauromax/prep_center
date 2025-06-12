@@ -663,25 +663,56 @@ class WebhookEventProcessor:
             
             # Il client completo restituisce un response object, estrai la lista
             if hasattr(shipments_response, 'shipments'):
-                shipments = [s.model_dump() for s in shipments_response.shipments]
-            elif hasattr(shipments_response, 'data'):
-                shipments = shipments_response.data
-            else:
-                shipments = shipments_response if isinstance(shipments_response, list) else []
-            
-            if not shipments:
-                logger.warning(f"[_find_matching_inbound_shipment] ⚠️ Nessun inbound shipment trovato per merchant {merchant_id}")
-                return None
-            
-            logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments")
-            
-            for shipment in shipments:
-                current_name = shipment.get('name', '')
+                # Gli oggetti shipments sono Pydantic objects, non dict
+                shipments = shipments_response.shipments
+                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments")
                 
-                # Non c'è bisogno di filtrare per tipo perché get_inbound_shipments restituisce solo inbound
-                if current_name == shipment_name:
-                    logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
-                    return shipment
+                for shipment in shipments:
+                    # Accesso diretto agli attributi Pydantic, non .get()
+                    current_name = getattr(shipment, 'name', '') or ''
+                    shipment_id = getattr(shipment, 'id', None)
+                    
+                    # Non c'è bisogno di filtrare per tipo perché get_inbound_shipments restituisce solo inbound
+                    if current_name == shipment_name:
+                        logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment_id}, nome '{current_name}'")
+                        # Converte in dict per compatibilità
+                        return shipment.model_dump()
+                
+            elif hasattr(shipments_response, 'data'):
+                shipments_list = shipments_response.data
+                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments_list)} inbound shipments")
+                
+                for shipment in shipments_list:
+                    if hasattr(shipment, 'model_dump'):
+                        # Oggetto Pydantic
+                        current_name = getattr(shipment, 'name', '') or ''
+                        if current_name == shipment_name:
+                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {getattr(shipment, 'id', None)}, nome '{current_name}'")
+                            return shipment.model_dump()
+                    else:
+                        # Dict normale
+                        current_name = shipment.get('name', '')
+                        if current_name == shipment_name:
+                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
+                            return shipment
+            else:
+                # Fallback se è già una lista
+                shipments = shipments_response if isinstance(shipments_response, list) else []
+                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments (fallback)")
+                
+                for shipment in shipments:
+                    if hasattr(shipment, 'model_dump'):
+                        # Oggetto Pydantic
+                        current_name = getattr(shipment, 'name', '') or ''
+                        if current_name == shipment_name:
+                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {getattr(shipment, 'id', None)}, nome '{current_name}'")
+                            return shipment.model_dump()
+                    else:
+                        # Dict normale
+                        current_name = shipment.get('name', '')
+                        if current_name == shipment_name:
+                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
+                            return shipment
             
             logger.warning(f"[_find_matching_inbound_shipment] ❌ Nessun inbound shipment trovato con nome '{shipment_name}'")
             return None
