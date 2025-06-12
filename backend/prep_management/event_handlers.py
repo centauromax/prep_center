@@ -228,10 +228,19 @@ class WebhookEventProcessor:
         try:
             # Estrai i dati dalla payload del webhook
             payload = update.payload or {}
+            
+            # HOTFIX: Gestisci sia il formato reale (payload.data) che quello di test (payload root)
             shipment_data = payload.get('data', {})
+            if not shipment_data:
+                # Se non c'è 'data', prova a usare il payload root (formato test)
+                shipment_data = payload
+                logger.info(f"[_process_outbound_shipment_closed] 🔧 Usando payload root come shipment_data (formato test)")
+            else:
+                logger.info(f"[_process_outbound_shipment_closed] 🔧 Usando payload.data come shipment_data (formato reale)")
             
             if not shipment_data:
                 logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun dato shipment nella payload")
+                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Payload keys: {list(payload.keys())}")
                 return {
                     'success': False,
                     'message': 'Dati shipment mancanti nella payload webhook',
@@ -245,6 +254,7 @@ class WebhookEventProcessor:
                 shipment_data.get('merchant_id') or
                 shipment_data.get('merchantId') or  
                 shipment_data.get('client_id') or
+                shipment_data.get('team_id') or  # AGGIUNTO: team_id per formato test
                 update.merchant_id or  # Fallback dal modello update
                 ''
             )
