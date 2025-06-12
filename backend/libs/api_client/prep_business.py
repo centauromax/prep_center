@@ -1,5 +1,6 @@
 """
 Client API per il servizio Prep Business.
+WRAPPER DI COMPATIBILITÀ - Usa internamente il client completo libs.prepbusiness.client
 """
 import requests
 import logging
@@ -18,11 +19,21 @@ from libs.config import (
     DEFAULT_HEADERS
 )
 
+# Import del client completo
+from libs.prepbusiness.client import PrepBusinessClient as CompleteClient
+from libs.prepbusiness.models import PrepBusinessError, AuthenticationError
+
 # Configura il logger
 logger = logging.getLogger('prep_business')
 
 class PrepBusinessClient:
-    """Client per le API di Prep Business."""
+    """
+    Client wrapper per le API di Prep Business.
+    
+    NOTA: Questo è un wrapper di compatibilità che usa internamente
+    il client completo libs.prepbusiness.client mantenendo l'interfaccia
+    esistente per non rompere il codice esistente.
+    """
     
     def __init__(self, api_url: str = None, api_key: str = None):
         """
@@ -46,9 +57,46 @@ class PrepBusinessClient:
         if not self.api_key:
             logger.warning("API key non impostata per Prep Business API")
         
+        # Estrai il company_domain dall'api_url per il client completo
+        company_domain = self._extract_company_domain(self.api_url)
+        
+        # Inizializza il client completo internamente
+        try:
+            self._complete_client = CompleteClient(
+                api_key=self.api_key,
+                company_domain=company_domain,
+                timeout=self.timeout
+            )
+            logger.info(f"Client completo inizializzato: Domain={company_domain}, API Key={self.api_key[:4]}..., Timeout={self.timeout}s")
+        except Exception as e:
+            logger.error(f"Errore inizializzazione client completo: {e}")
+            self._complete_client = None
+        
         # Logga le configurazioni (oscurando parte della API key per sicurezza)
         api_key_safe = self.api_key[:4] + "..." if self.api_key and len(self.api_key) > 4 else "non impostata"
-        logger.info(f"Client API inizializzato: URL={self.api_url}, API Key={api_key_safe}, Timeout={self.timeout}s, Retry={self.max_retries}")
+        logger.info(f"Client wrapper inizializzato: URL={self.api_url}, API Key={api_key_safe}, Timeout={self.timeout}s, Retry={self.max_retries}")
+    
+    def _extract_company_domain(self, api_url: str) -> str:
+        """
+        Estrae il company_domain dall'api_url.
+        
+        Args:
+            api_url: URL completo dell'API (es. https://dashboard.fbaprepcenteritaly.com/api)
+            
+        Returns:
+            Company domain (es. dashboard.fbaprepcenteritaly.com)
+        """
+        if not api_url:
+            return "dashboard.fbaprepcenteritaly.com"  # Default
+            
+        # Rimuovi protocollo e path
+        domain = api_url.replace('https://', '').replace('http://', '')
+        if '/api' in domain:
+            domain = domain.split('/api')[0]
+        if '/' in domain:
+            domain = domain.split('/')[0]
+            
+        return domain
     
     def _get_config_from_db(self):
         """
@@ -114,7 +162,7 @@ class PrepBusinessClient:
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
-        Esegue una richiesta HTTP all'API con retry in caso di errore.
+        Esegue una richiesta HTTP all'API usando il client completo.
         
         Args:
             method: Metodo HTTP ('GET', 'POST', ecc.)
@@ -129,82 +177,35 @@ class PrepBusinessClient:
         Raises:
             requests.RequestException: Se la richiesta fallisce dopo tutti i retry
         """
-        # Costruisci l'URL completo assicurandosi che non ci siano doppie barre o
-        # problemi con eventuali barre all'inizio dell'endpoint o alla fine dell'URL base
-        if self.api_url.endswith('/'):
-            url = f"{self.api_url}{endpoint.lstrip('/')}"
-        else:
-            url = f"{self.api_url}/{endpoint.lstrip('/')}"
-            
-        all_headers = self._get_headers(headers)
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
         
-        # Rimuovi Authorization per il logging
-        log_headers = all_headers.copy()
-        if 'Authorization' in log_headers:
-            log_headers['Authorization'] = 'Bearer ***HIDDEN***'
-        
-        logger.info(f"Esecuzione richiesta {method} a {url}")
-        logger.debug(f"Headers: {log_headers}")
-        logger.debug(f"Params: {params}")
-        if data and method.upper() in ['POST', 'PUT', 'PATCH']:
-            logger.debug(f"Data: {json.dumps(data)[:200]}...")
-        
-        retry_count = 0
-        last_exception = None
-        
-        while retry_count <= self.max_retries:
-            try:
-                logger.debug(f"Richiesta {method} a {url} (tentativo {retry_count+1}/{self.max_retries+1})")
-                
-                response = requests.request(
+        try:
+            # Usa il client completo per fare la richiesta
+            if method.upper() == 'GET':
+                return self._complete_client._request(
                     method=method,
-                    url=url,
-                    json=data if method.upper() in ['POST', 'PUT', 'PATCH'] else None,
-                    params=params,
-                    headers=all_headers,
-                    timeout=self.timeout
+                    endpoint=endpoint,
+                    params=params
                 )
-                
-                # Log della risposta
-                logger.debug(f"Risposta status code: {response.status_code}")
-                logger.debug(f"Risposta headers: {response.headers}")
-                
-                # Verifica se la risposta è valida
-                try:
-                    response.raise_for_status()
-                except requests.exceptions.HTTPError as e:
-                    logger.error(f"Errore HTTP: {e}")
-                    logger.error(f"Risposta: {response.text[:500]}")
-                    raise
-                
-                try:
-                    result = response.json()
-                    logger.debug(f"Risposta JSON: {json.dumps(result)[:500]}...")
-                    return result
-                except json.JSONDecodeError:
-                    logger.warning(f"Risposta non JSON: {response.text[:500]}")
-                    return {"text": response.text}
-                    
-            except requests.exceptions.RequestException as e:
-                last_exception = e
-                retry_count += 1
-                
-                if retry_count <= self.max_retries:
-                    # Calcola il tempo di attesa con backoff esponenziale
-                    wait_time = self.retry_backoff * (2 ** (retry_count - 1))
-                    logger.warning(f"Errore nella richiesta API: {e}. Retry in {wait_time:.2f} secondi...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"Fallimento dopo {self.max_retries} tentativi: {e}")
-                    logger.error(f"Traceback: {traceback.format_exc()}")
-                    raise
-        
-        if last_exception:
-            raise last_exception
-        
-        return {}  # Non dovrebbe mai arrivare qui
+            elif method.upper() in ['POST', 'PUT', 'PATCH']:
+                return self._complete_client._request(
+                    method=method,
+                    endpoint=endpoint,
+                    json=data,
+                    params=params
+                )
+            else:
+                return self._complete_client._request(
+                    method=method,
+                    endpoint=endpoint,
+                    params=params
+                )
+        except (PrepBusinessError, AuthenticationError) as e:
+            # Converte le eccezioni del client completo in RequestException per compatibilità
+            raise requests.RequestException(str(e))
     
-    # API wrappers per i vari endpoint
+    # API wrappers per i vari endpoint - mantengono l'interfaccia esistente
     
     def get_merchants(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
@@ -218,13 +219,24 @@ class PrepBusinessClient:
         """
         logger.info(f"Recupero merchants con filtri: {filters}")
         
-        # Costruisci l'URL completo per l'endpoint merchants
-        endpoint = 'merchants'
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
         
-        response = self._make_request('GET', endpoint, params=filters)
-        merchants = response.get('data', [])
-        logger.info(f"Recuperati {len(merchants)} merchants")
-        return merchants
+        try:
+            # Usa il client completo
+            response = self._complete_client.get_merchants()
+            # Il client completo restituisce un oggetto MerchantsResponse, estraiamo i dati
+            if hasattr(response, 'merchants'):
+                merchants = [merchant.model_dump() for merchant in response.merchants]
+            else:
+                # Fallback se la risposta è già un dict
+                merchants = response.get('data', []) if isinstance(response, dict) else []
+            
+            logger.info(f"Recuperati {len(merchants)} merchants")
+            return merchants
+        except Exception as e:
+            logger.error(f"Errore recupero merchants: {e}")
+            return []
     
     def get_outbound_shipment(self, shipment_id: str) -> Dict[str, Any]:
         """
@@ -236,8 +248,19 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione
         """
-        response = self._make_request('GET', f'shipments/outbound/{shipment_id}')
-        return response.get('data', {})
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_outbound_shipment(int(shipment_id))
+            # Estrai i dati dal response object
+            if hasattr(response, 'shipment'):
+                return response.shipment.model_dump()
+            else:
+                return response.get('data', {}) if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore recupero outbound shipment {shipment_id}: {e}")
+            return {}
     
     def get_inbound_shipment(self, shipment_id: str) -> Dict[str, Any]:
         """
@@ -249,8 +272,19 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione
         """
-        response = self._make_request('GET', f'shipments/inbound/{shipment_id}')
-        return response.get('data', {})
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_inbound_shipment(int(shipment_id))
+            # Estrai i dati dal response object
+            if hasattr(response, 'shipment'):
+                return response.shipment.model_dump()
+            else:
+                return response.get('data', {}) if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore recupero inbound shipment {shipment_id}: {e}")
+            return {}
     
     # Metodi specifici per inbound shipments
     
@@ -266,15 +300,23 @@ class PrepBusinessClient:
         Returns:
             Lista di spedizioni inbound
         """
-        params = {
-            'page': page,
-            'per_page': per_page
-        }
-        if merchant_id:
-            params['merchant_id'] = merchant_id
-            
-        response = self._make_request('GET', 'shipments/inbound', params=params)
-        return response.get('data', [])
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_inbound_shipments(
+                page=page,
+                per_page=per_page,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'shipments'):
+                return [shipment.model_dump() for shipment in response.shipments]
+            else:
+                return response.get('data', []) if isinstance(response, dict) else []
+        except Exception as e:
+            logger.error(f"Errore recupero inbound shipments: {e}")
+            return []
     
     def get_inbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -287,12 +329,22 @@ class PrepBusinessClient:
         Returns:
             Lista di items della spedizione
         """
-        params = {}
-        if merchant_id:
-            params['merchant_id'] = merchant_id
-            
-        response = self._make_request('GET', f'shipments/inbound/{shipment_id}/items', params=params)
-        return response.get('data', [])
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_inbound_shipment_items(
+                shipment_id=shipment_id,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'items'):
+                return [item.model_dump() for item in response.items]
+            else:
+                return response.get('data', []) if isinstance(response, dict) else []
+        except Exception as e:
+            logger.error(f"Errore recupero items inbound shipment {shipment_id}: {e}")
+            return []
     
     # Metodi specifici per outbound shipments
     
@@ -308,15 +360,23 @@ class PrepBusinessClient:
         Returns:
             Lista di spedizioni outbound
         """
-        params = {
-            'page': page,
-            'per_page': per_page
-        }
-        if merchant_id:
-            params['merchant_id'] = merchant_id
-            
-        response = self._make_request('GET', 'shipments/outbound', params=params)
-        return response.get('data', [])
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_outbound_shipments(
+                page=page,
+                per_page=per_page,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'shipments'):
+                return [shipment.model_dump() for shipment in response.shipments]
+            else:
+                return response.get('data', []) if isinstance(response, dict) else []
+        except Exception as e:
+            logger.error(f"Errore recupero outbound shipments: {e}")
+            return []
     
     def get_outbound_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -329,12 +389,22 @@ class PrepBusinessClient:
         Returns:
             Lista di items della spedizione
         """
-        params = {}
-        if merchant_id:
-            params['merchant_id'] = merchant_id
-            
-        response = self._make_request('GET', f'shipments/outbound/{shipment_id}/items', params=params)
-        return response.get('data', [])
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.get_outbound_shipment_items(
+                shipment_id=shipment_id,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'items'):
+                return [item.model_dump() for item in response.items]
+            else:
+                return response.get('data', []) if isinstance(response, dict) else []
+        except Exception as e:
+            logger.error(f"Errore recupero items outbound shipment {shipment_id}: {e}")
+            return []
     
     def create_inbound_shipment(self, shipment_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -346,5 +416,55 @@ class PrepBusinessClient:
         Returns:
             Dettagli della spedizione creata
         """
-        response = self._make_request('POST', 'shipments/inbound', data=shipment_data)
-        return response.get('data', {}) 
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            # Il client completo ha parametri specifici invece di un dict generico
+            response = self._complete_client.create_inbound_shipment(
+                name=shipment_data.get('name', ''),
+                warehouse_id=shipment_data.get('warehouse_id', 1),
+                notes=shipment_data.get('notes', ''),
+                merchant_id=shipment_data.get('merchant_id')
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'shipment'):
+                return response.shipment.model_dump()
+            else:
+                return response.get('data', {}) if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore creazione inbound shipment: {e}")
+            return {}
+    
+    # NUOVO METODO: add_item_to_shipment (questo era il metodo mancante!)
+    def add_item_to_shipment(self, shipment_id: int, item_id: int, quantity: int, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Aggiunge un item a una spedizione inbound.
+        
+        Args:
+            shipment_id: ID della spedizione
+            item_id: ID dell'item da aggiungere
+            quantity: Quantità da aggiungere
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Conferma dell'aggiunta
+        """
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.add_item_to_shipment(
+                shipment_id=shipment_id,
+                item_id=item_id,
+                quantity=quantity,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'model_dump'):
+                return response.model_dump()
+            else:
+                return response if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore aggiunta item {item_id} a shipment {shipment_id}: {e}")
+            return {} 
