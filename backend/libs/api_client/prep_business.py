@@ -472,4 +472,36 @@ class PrepBusinessClient:
                 return response if isinstance(response, dict) else {}
         except Exception as e:
             logger.error(f"Errore aggiunta item {item_id} a shipment {shipment_id}: {e}")
+            return {}
+    
+    def update_shipment_item(self, shipment_id: int, item_id: int, actual_quantity: int, merchant_id: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Aggiorna le quantità di un item in una spedizione inbound.
+        
+        Args:
+            shipment_id: ID della spedizione
+            item_id: ID dell'item da aggiornare
+            actual_quantity: Quantità effettivamente ricevuta
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Conferma dell'aggiornamento
+        """
+        if not self._complete_client:
+            raise Exception("Client completo non inizializzato")
+        
+        try:
+            response = self._complete_client.update_shipment_item(
+                shipment_id=shipment_id,
+                item_id=item_id,
+                quantity=actual_quantity,
+                merchant_id=merchant_id
+            )
+            # Estrai i dati dal response object
+            if hasattr(response, 'model_dump'):
+                return response.model_dump()
+            else:
+                return response if isinstance(response, dict) else {}
+        except Exception as e:
+            logger.error(f"Errore aggiornamento item {item_id} in shipment {shipment_id}: {e}")
             return {} 

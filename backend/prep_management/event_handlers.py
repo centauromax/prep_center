@@ -749,7 +749,16 @@ class WebhookEventProcessor:
         """
         logger.info(f"[_generate_residual_name] 🏷️ Generazione nome residual per '{original_name}'")
         
-        base_name = f"{original_name} - Residual"
+        # ✅ FIX: Gestisci nomi che sono già residual per evitare "test2 - residual - residual"
+        base_name_for_residual = original_name
+        
+        # Se il nome contiene già "- Residual", estrai il nome base originale
+        if " - Residual" in original_name:
+            # Esempio: "test2 - Residual" -> "test2", "test2 - Residual 3" -> "test2"
+            base_name_for_residual = original_name.split(" - Residual")[0]
+            logger.info(f"[_generate_residual_name] 🔄 Nome già residual, estratto nome base: '{base_name_for_residual}'")
+        
+        base_name = f"{base_name_for_residual} - Residual"
         
         try:
             # Controlla se esiste già un inbound con questo nome
@@ -762,7 +771,7 @@ class WebhookEventProcessor:
             max_attempts = 20  # Limite di sicurezza
             
             while counter <= max_attempts:
-                numbered_name = f"{original_name} - Residual {counter}"
+                numbered_name = f"{base_name_for_residual} - Residual {counter}"
                 if not self._find_matching_inbound_shipment(numbered_name, merchant_id):
                     logger.info(f"[_generate_residual_name] ✅ Nome disponibile: '{numbered_name}'")
                     return numbered_name
@@ -771,7 +780,7 @@ class WebhookEventProcessor:
             # Se tutti i nomi sono occupati, aggiungi timestamp
             import time
             timestamp = int(time.time())
-            fallback_name = f"{original_name} - Residual {timestamp}"
+            fallback_name = f"{base_name_for_residual} - Residual {timestamp}"
             logger.warning(f"[_generate_residual_name] ⚠️ Usando nome fallback con timestamp: '{fallback_name}'")
             return fallback_name
             
@@ -780,7 +789,7 @@ class WebhookEventProcessor:
             # Fallback con timestamp in caso di errore
             import time
             timestamp = int(time.time())
-            fallback_name = f"{original_name} - Residual {timestamp}"
+            fallback_name = f"{base_name_for_residual} - Residual {timestamp}"
             logger.warning(f"[_generate_residual_name] ⚠️ Usando nome fallback per errore: '{fallback_name}'")
             return fallback_name
     
@@ -864,7 +873,22 @@ class WebhookEventProcessor:
                         merchant_id=int(merchant_id)
                     )
                     
-                    logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con successo")
+                    logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con quantità expected: {quantity_to_add}")
+                    
+                    # ✅ FIX: Aggiorna l'item per impostare la quantità come "ricevuta"
+                    # Gli items residuali sono considerati già ricevuti nel magazzino
+                    try:
+                        update_response = self.client.update_shipment_item(
+                            shipment_id=shipment_id,
+                            item_id=item_id,
+                            actual_quantity=quantity_to_add,
+                            merchant_id=int(merchant_id)
+                        )
+                        logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiornato con quantità actual: {quantity_to_add}")
+                    except Exception as update_error:
+                        logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Errore aggiornamento quantità actual per item {item_id}: {update_error}")
+                        # Non consideriamo questo un errore fatale, l'item è comunque aggiunto
+                    
                     items_added += 1
                     
                 except Exception as e:
