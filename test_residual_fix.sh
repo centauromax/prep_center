@@ -1,7 +1,7 @@
 #!/bin/bash
 
-echo "🔧 TEST: Correzione logica residuale inbound"
-echo "Aspettando deploy Railway..."
+echo "🧪 TEST: Verifica fix logica residuale"
+echo "Aspetto deploy e poi testo webhook outbound.closed..."
 echo ""
 
 # Aspetta che il deploy sia completato
@@ -11,63 +11,102 @@ max_attempts=15
 while [ $counter -le $max_attempts ]; do
     echo "[$counter/$max_attempts] Controllo deploy $(date '+%H:%M:%S')..."
     
-    response=$(curl -s -o /dev/null -w "%{http_code}" https://backend.fbaprepcenteritaly.com/prep_management/webhook/)
+    response=$(curl -s -o /dev/null -w "%{http_code}" https://backend.fbaprepcenteritaly.com/prep_management/debug/webhook-processor/)
     
-    if [ "$response" = "405" ]; then
+    if [ "$response" = "200" ]; then
         echo "✅ Deploy completato!"
         break
     fi
     
     if [ $counter -eq $max_attempts ]; then
-        echo "💥 TIMEOUT deploy"
+        echo "💥 TIMEOUT deploy!"
         exit 1
     fi
     
-    sleep 10
+    sleep 8
     counter=$((counter + 1))
 done
 
 echo ""
-echo "🧪 TEST: Webhook outbound_shipment.closed che dovrebbe creare inbound residuale"
+echo "🚀 INVIO WEBHOOK TEST OUTBOUND.CLOSED..."
 
-test_response=$(curl -s -X POST https://backend.fbaprepcenteritaly.com/prep_management/webhook/ \
+# Webhook di test con formato che dovrebbe funzionare ora
+webhook_response=$(curl -s -X POST https://backend.fbaprepcenteritaly.com/prep_management/webhook/ \
   -H "Content-Type: application/json" \
   -d '{
-    "id": 555777,
-    "name": "test-residual-creation",
+    "id": 643084,
+    "name": "TEST-RESIDUAL-FIX",
     "status": "closed",
-    "shipped_at": "2025-06-12T17:00:00.000000Z",
     "team_id": 7812,
-    "warehouse_id": 310,
-    "notes": "Test creazione inbound residuale dopo fix client"
+    "tracking_number": "TEST123456",
+    "carrier": "DHL",
+    "notes": "Test webhook per verifica fix logica residuale",
+    "shipped_at": "2024-01-15T10:30:00Z",
+    "warehouse_id": 1,
+    "outbound_items": [
+      {
+        "id": 1001,
+        "product_id": 501,
+        "sku": "TEST-SKU-001",
+        "quantity": 5,
+        "name": "Prodotto Test 1"
+      },
+      {
+        "id": 1002,
+        "product_id": 502,
+        "sku": "TEST-SKU-002", 
+        "quantity": 3,
+        "name": "Prodotto Test 2"
+      }
+    ]
   }')
 
-echo "Risposta webhook: $test_response"
+echo "📨 Webhook inviato!"
+echo "📋 Risposta: $webhook_response"
+echo ""
 
-# Estrai update_id
-update_id=$(echo "$test_response" | grep -o '"update_id":[0-9]*' | cut -d':' -f2)
-echo "Update ID: $update_id"
+# Aspetta un po' per il processing
+echo "⏳ Aspetto 5 secondi per processing..."
+sleep 5
 
-# Estrai event_type
-event_type=$(echo "$test_response" | grep -o '"event_type":"[^"]*"' | cut -d'"' -f4)
-echo "Event Type: $event_type"
+echo ""
+echo "🔍 CONTROLLO RISULTATI:"
 
-if [ "$event_type" = "outbound_shipment.closed" ]; then
-    echo "✅ Event type corretto: outbound_shipment.closed"
-    echo ""
-    echo "🔍 Ora controlla i log Railway per vedere se:"
-    echo "   1. WebhookEventProcessor client si inizializza correttamente"
-    echo "   2. _process_outbound_shipment_closed viene chiamato"
-    echo "   3. Viene creato un inbound residuale"
-    echo ""
-    echo "📋 Comandi per controllare:"
-    echo "   railway logs -s prep_center_backend | grep -E \"(update_id: $update_id|_process_outbound_shipment_closed|Client.*inizializzato)\""
+# Controlla lo stato del processor
+debug_data=$(curl -s https://backend.fbaprepcenteritaly.com/prep_management/debug/webhook-processor/)
+
+# Estrai info chiave
+unprocessed_events=$(echo "$debug_data" | jq -r '.debug_info.unprocessed_events // "unknown"')
+outbound_closed_count=$(echo "$debug_data" | jq -r '.debug_info.outbound_closed_count // "unknown"')
+
+echo "⏳ Eventi non processati: $unprocessed_events"
+echo "📦 Eventi outbound.closed totali: $outbound_closed_count"
+
+echo ""
+echo "📋 ULTIMI 3 EVENTI OUTBOUND.CLOSED:"
+echo "$debug_data" | jq -r '.recent_outbound_closed_events[0:3][] | "ID: \(.id) | Shipment: \(.shipment_id) | Processato: \(.processed) | Successo: \(.process_success) | Messaggio: \(.process_message // "nessuno")"'
+
+# Cerca specificamente il nostro test
+echo ""
+echo "🎯 CERCA IL NOSTRO TEST (Shipment 643084):"
+our_test=$(echo "$debug_data" | jq -r '.recent_outbound_closed_events[] | select(.shipment_id == "643084") | "ID: \(.id) | Processato: \(.processed) | Successo: \(.process_success) | Messaggio: \(.process_message // "nessuno")"')
+
+if [ -n "$our_test" ]; then
+    echo "✅ TROVATO: $our_test"
+    
+    # Controlla se è stato processato con successo
+    success=$(echo "$debug_data" | jq -r '.recent_outbound_closed_events[] | select(.shipment_id == "643084") | .process_success')
+    
+    if [ "$success" = "true" ]; then
+        echo "🎉 SUCCESS! La logica residuale ha funzionato!"
+    else
+        echo "❌ FALLITO: La logica residuale non ha funzionato"
+        echo "🔍 Messaggio errore:"
+        echo "$debug_data" | jq -r '.recent_outbound_closed_events[] | select(.shipment_id == "643084") | .process_message // "nessun messaggio"'
+    fi
 else
-    echo "❌ Event type errato: $event_type (atteso: outbound_shipment.closed)"
+    echo "❌ NON TROVATO: Il nostro test non è presente negli eventi recenti"
 fi
 
 echo ""
-echo "🎯 PROSSIMI PASSI:"
-echo "1. Controlla i log per verificare l'inizializzazione del client"
-echo "2. Verifica se viene chiamato _process_outbound_shipment_closed"
-echo "3. Controlla se viene creato un nuovo inbound shipment" 
+echo "🏁 Test completato!" 

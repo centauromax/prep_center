@@ -2628,72 +2628,102 @@ def debug_latest_test2_raw(request):
 @permission_classes([AllowAny])
 def debug_webhook_processor(request):
     """
-    Debug endpoint per verificare lo stato del WebhookEventProcessor.
+    Debug endpoint per verificare lo stato del WebhookEventProcessor
     """
     try:
-        # Crea un'istanza del processor per testare l'inizializzazione
-        from .event_handlers import WebhookEventProcessor
+        # Inizializza il processor
         processor = WebhookEventProcessor()
         
-        # Verifica stato del client
-        client_status = {
-            'client_available': processor.client is not None,
-            'client_type': type(processor.client).__name__ if processor.client else None,
-            'client_module': type(processor.client).__module__ if processor.client else None,
-        }
-        
-        # Test del client se disponibile
+        # Test del client
         client_test = {}
-        if processor.client:
-            try:
-                # Test semplice del client
-                merchants = processor.client.get_merchants()
-                client_test = {
-                    'test_successful': True,
-                    'merchants_count': len(merchants) if hasattr(merchants, '__len__') else 'unknown',
-                    'merchants_type': type(merchants).__name__
-                }
-            except Exception as e:
-                client_test = {
-                    'test_successful': False,
-                    'error': str(e)
-                }
+        try:
+            merchants = processor.client.get_merchants()
+            client_test = {
+                'test_successful': True,
+                'merchants_count': len(merchants) if merchants else 0,
+                'error': None
+            }
+        except Exception as e:
+            client_test = {
+                'test_successful': False,
+                'merchants_count': 0,
+                'error': str(e)
+            }
         
-        # Ultimi eventi outbound_shipment.closed
+        # Statistiche eventi
+        total_events = ShipmentStatusUpdate.objects.count()
+        unprocessed_events = ShipmentStatusUpdate.objects.filter(processed=False).count()
+        outbound_closed_count = ShipmentStatusUpdate.objects.filter(event_type='outbound_shipment.closed').count()
+        
+        # Ultimi eventi outbound.closed
         recent_outbound_closed = ShipmentStatusUpdate.objects.filter(
             event_type='outbound_shipment.closed'
         ).order_by('-created_at')[:5]
         
-        recent_events = []
+        recent_events_data = []
         for event in recent_outbound_closed:
-            recent_events.append({
+            recent_events_data.append({
                 'id': event.id,
                 'shipment_id': event.shipment_id,
                 'processed': event.processed,
                 'process_success': event.process_success,
                 'process_message': event.process_message,
                 'created_at': event.created_at.isoformat(),
-                'processed_at': event.processed_at.isoformat() if event.processed_at else None,
             })
         
         return JsonResponse({
-            'status': 'success',
-            'timestamp': timezone.now().isoformat(),
-            'client_status': client_status,
+            'client_status': {
+                'client_available': processor.client is not None,
+                'client_type': type(processor.client).__name__ if processor.client else None,
+            },
             'client_test': client_test,
-            'recent_outbound_closed_events': recent_events,
             'debug_info': {
-                'total_events': ShipmentStatusUpdate.objects.count(),
-                'unprocessed_events': ShipmentStatusUpdate.objects.filter(processed=False).count(),
-                'outbound_closed_count': ShipmentStatusUpdate.objects.filter(event_type='outbound_shipment.closed').count(),
-            }
+                'total_events': total_events,
+                'unprocessed_events': unprocessed_events,
+                'outbound_closed_count': outbound_closed_count,
+            },
+            'recent_outbound_closed_events': recent_events_data,
         })
         
     except Exception as e:
         return JsonResponse({
-            'status': 'error',
             'error': str(e),
-            'timestamp': timezone.now().isoformat()
-        }, status=500)
+            'client_status': {
+                'client_available': False,
+                'client_type': None,
+            },
+            'client_test': {
+                'test_successful': False,
+                'error': str(e)
+            }
+        })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_webhook_payload_simple(request, update_id):
+    """
+    Debug endpoint semplice per vedere il payload di un webhook specifico
+    """
+    try:
+        update = ShipmentStatusUpdate.objects.get(id=update_id)
+        
+        return JsonResponse({
+            'update_id': update.id,
+            'shipment_id': update.shipment_id,
+            'event_type': update.event_type,
+            'processed': update.processed,
+            'process_success': update.process_success,
+            'process_message': update.process_message,
+            'payload': update.payload,
+            'payload_keys': list(update.payload.keys()) if update.payload else [],
+            'payload_has_data': 'data' in (update.payload or {}),
+            'payload_root_keys': list(update.payload.keys()) if update.payload else [],
+        })
+        
+    except ShipmentStatusUpdate.DoesNotExist:
+        return JsonResponse({'error': f'Webhook update {update_id} not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 # Debug function removed to fix crash

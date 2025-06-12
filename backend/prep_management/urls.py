@@ -59,4 +59,5 @@ urlpatterns = [
     # path('telegram/debug/', views.telegram_debug_view, name='telegram_debug'),  # Disabilitato - duplicato
     path('debug/webhook/<int:update_id>/', views.debug_webhook_payload, name='debug_webhook_payload'),
     path('debug/webhook-processor/', views.debug_webhook_processor, name='debug_webhook_processor'),
+    path('debug/payload/<int:update_id>/', views.debug_webhook_payload_simple, name='debug_webhook_payload_simple'),
 ]
