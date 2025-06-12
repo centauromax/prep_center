@@ -856,15 +856,13 @@ class WebhookEventProcessor:
                 try:
                     logger.info(f"[_create_residual_inbound_shipment] ➕ Aggiunta item {item_id} con quantità {quantity_to_add}")
                     
-                    # Prepara i dati per l'aggiunta dell'item
-                    item_data = {
-                        'item_id': item_id,
-                        'expected_quantity': expected_qty,
-                        'actual_quantity': actual_qty
-                    }
-                    
-                    # Aggiungi l'item al shipment usando il client API
-                    add_response = self.client.add_item_to_shipment(shipment_id, item_data)
+                    # Aggiungi l'item al shipment usando il client API con la firma corretta
+                    add_response = self.client.add_item_to_shipment(
+                        shipment_id=shipment_id,
+                        item_id=item_id,
+                        quantity=quantity_to_add,
+                        merchant_id=int(merchant_id)
+                    )
                     
                     logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con successo")
                     items_added += 1
