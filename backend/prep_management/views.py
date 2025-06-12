@@ -2602,4 +2602,49 @@ def debug_latest_test2_raw(request):
             'error': str(e)
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([])
+def test_add_item_method(request):
+    """
+    Endpoint di test per verificare che il metodo add_item_to_shipment sia disponibile.
+    """
+    try:
+        from libs.api_client.prep_business import PrepBusinessClient
+        
+        # Inizializza il client
+        client = PrepBusinessClient()
+        
+        # Verifica che il metodo esista
+        has_method = hasattr(client, 'add_item_to_shipment')
+        
+        # Verifica che il client completo sia inizializzato
+        has_complete_client = hasattr(client, '_complete_client') and client._complete_client is not None
+        
+        # Verifica che il client completo abbia il metodo
+        complete_client_has_method = False
+        if has_complete_client:
+            complete_client_has_method = hasattr(client._complete_client, 'add_item_to_shipment')
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Test metodo add_item_to_shipment completato',
+            'results': {
+                'wrapper_has_method': has_method,
+                'has_complete_client': has_complete_client,
+                'complete_client_has_method': complete_client_has_method,
+                'wrapper_method_callable': callable(getattr(client, 'add_item_to_shipment', None)),
+                'client_type': type(client).__name__,
+                'complete_client_type': type(client._complete_client).__name__ if has_complete_client else None
+            },
+            'timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.exception("Errore durante test add_item_to_shipment")
+        return JsonResponse({
+            'success': False,
+            'message': f'Errore durante test: {str(e)}',
+            'timestamp': timezone.now().isoformat()
+        }, status=500)
+
 # Debug function removed to fix crash
