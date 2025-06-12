@@ -10,6 +10,7 @@ import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import pytz
+import os
 
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
@@ -55,49 +56,44 @@ class WebhookEventProcessor:
     """
     
     def __init__(self):
-        """Inizializza il processore degli eventi."""
+        """
+        Inizializza il processore degli eventi webhook.
+        """
         logger.info("[WebhookEventProcessor.__init__] Inizio inizializzazione.")
         
-        # Crea un client PrepBusiness per le chiamate API necessarie
+        self.client = None
+        
         try:
-            logger.info("[WebhookEventProcessor.__init__] Tentativo di istanziare PrepBusinessClient.")
+            logger.info("[WebhookEventProcessor.__init__] Inizializzazione client completo PrepBusinessClient.")
             
-            if not LIBS_IMPORT_SUCCESS or PrepBusinessClient is None:
-                logger.error("[WebhookEventProcessor.__init__] Import libs fallito, client non disponibile.")
-                self.client = None
-            else:
-                # HOTFIX: Prova prima l'inizializzazione standard del client completo
-                try:
-                    self.client = PrepBusinessClient(
-                        api_key=settings.PREP_BUSINESS_API_KEY,
-                        company_domain="dashboard.fbaprepcenteritaly.com",
-                        timeout=30
-                    )
-                    logger.info("[WebhookEventProcessor.__init__] ✅ PrepBusinessClient completo istanziato con successo.")
-                except Exception as e_complete:
-                    logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore client completo: {e_complete}")
-                    
-                    # FALLBACK: Prova con il wrapper che funziona per le notifiche
-                    try:
-                        from libs.api_client.prep_business import PrepBusinessClient as WrapperClient
-                        self.client = WrapperClient()
-                        logger.info("[WebhookEventProcessor.__init__] ✅ FALLBACK: Client wrapper istanziato con successo.")
-                    except Exception as e_wrapper:
-                        logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore anche con wrapper: {e_wrapper}")
-                        self.client = None
-                        
-        except Exception as e_client_init:
-            logger.error(f"[WebhookEventProcessor.__init__] Eccezione durante l'istanza di PrepBusinessClient: {e_client_init}")
+            # USA SOLO IL CLIENT COMPLETO - NIENTE PIÙ WRAPPER!
+            from libs.prepbusiness.client import PrepBusinessClient
+            
+            # Configurazione per il client completo
+            api_key = os.environ.get('PREP_BUSINESS_API_KEY', 'jtc_...')  # Fallback per sviluppo
+            company_domain = "dashboard.fbaprepcenteritaly.com"
+            timeout = 30
+            
+            self.client = PrepBusinessClient(
+                api_key=api_key,
+                company_domain=company_domain,
+                timeout=timeout
+            )
+            
+            logger.info(f"[WebhookEventProcessor.__init__] ✅ Client completo inizializzato: Domain={company_domain}, API Key={api_key[:4]}..., Timeout={timeout}s")
+            
+        except Exception as e:
+            logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore inizializzazione client completo: {str(e)}")
             logger.exception("Traceback completo:")
+            # NON USARE PIÙ IL FALLBACK WRAPPER!
             self.client = None
         
-        # Log finale dello stato del client
-        if self.client is not None:
-            logger.info("[WebhookEventProcessor.__init__] ✅ Client inizializzato correttamente.")
-        else:
-            logger.error("[WebhookEventProcessor.__init__] ❌ ERRORE: Client NON inizializzato!")
-            
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
+        
+        if self.client is None:
+            logger.error("[WebhookEventProcessor.__init__] ❌ ERRORE CRITICO: Nessun client disponibile!")
+        else:
+            logger.info("[WebhookEventProcessor.__init__] ✅ Client inizializzato correttamente.")
     
     def process_event(self, update_id: int) -> Dict[str, Any]: 
         """
@@ -519,131 +515,109 @@ class WebhookEventProcessor:
 
     def _get_outbound_shipment_items(self, shipment_id: str) -> List[Dict[str, Any]]:
         """
-        Recupera tutti gli items di un outbound shipment.
+        Recupera gli items di una spedizione outbound.
         
         Args:
-            shipment_id: ID della spedizione
+            shipment_id: ID della spedizione outbound
             
         Returns:
-            Lista di dict con i dettagli degli items
+            Lista degli items della spedizione
         """
-        logger.info(f"[_get_outbound_shipment_items] 🚀 Recupero items outbound shipment_id={shipment_id}")
+        logger.info(f"[_get_outbound_shipment_items] 📋 Recupero items per outbound shipment {shipment_id}")
         
         if self.client is None:
             logger.error("[_get_outbound_shipment_items] ❌ Client API non disponibile!")
             return []
         
         try:
-            items_response = self.client.get_outbound_shipment_items(shipment_id=int(shipment_id))
+            # Converti shipment_id a int
+            shipment_id_int = int(shipment_id)
+        except (ValueError, TypeError):
+            logger.error(f"[_get_outbound_shipment_items] ❌ Shipment ID non valido: '{shipment_id}'")
+            return []
+        
+        try:
+            # USA IL CLIENT COMPLETO DIRETTAMENTE
+            logger.info(f"[_get_outbound_shipment_items] 📡 Chiamata get_outbound_shipment_items per shipment {shipment_id_int}")
             
-            # Il client completo restituisce OutboundShipmentItemsResponse
+            items_response = self.client.get_outbound_shipment_items(
+                shipment_id=shipment_id_int
+            )
+            
+            logger.info(f"[_get_outbound_shipment_items] 📋 Risposta API: {type(items_response)}")
+            
+            # Il client completo restituisce un response object con .items
             if hasattr(items_response, 'items'):
-                items_list = [item.model_dump() for item in items_response.items]
-            elif hasattr(items_response, 'data'):
-                items_list = items_response.data
-            else:
-                items_list = items_response if isinstance(items_response, list) else []
-            
-            if items_list:
-                items = []
-                for item in items_list:
-                    # Il client completo restituisce dict strutturati
-                    item_data = {
-                        'item_id': item.get('item_id') or item.get('id'),
-                        'merchant_sku': item.get('merchant_sku', ''),
-                        'title': item.get('title', ''),
-                        'asin': item.get('asin', ''),
-                        'fnsku': item.get('fnsku', ''),
-                        'quantity': item.get('quantity', 0)
-                    }
-                    items.append(item_data)
-                    logger.debug(f"[_get_outbound_shipment_items] 📦 Item: {item_data}")
+                items = items_response.items
+                logger.info(f"[_get_outbound_shipment_items] ✅ Trovati {len(items)} items per outbound shipment {shipment_id}")
                 
-                logger.info(f"[_get_outbound_shipment_items] ✅ Recuperati {len(items)} items")
-                return items
+                # Converte in lista di dict per compatibilità
+                items_list = []
+                for item in items:
+                    item_dict = item.model_dump()
+                    items_list.append(item_dict)
+                
+                return items_list
             else:
-                logger.warning(f"[_get_outbound_shipment_items] ⚠️ Nessun item trovato nella risposta API")
+                logger.error(f"[_get_outbound_shipment_items] ❌ Risposta API non ha attributo 'items': {dir(items_response)}")
                 return []
                 
         except Exception as e:
-            logger.error(f"[_get_outbound_shipment_items] ❌ Errore recupero items: {str(e)}")
+            logger.error(f"[_get_outbound_shipment_items] ❌ Errore recupero items outbound shipment {shipment_id}: {str(e)}")
             logger.exception("Traceback:")
             return []
-
+    
     def _get_inbound_shipment_items(self, shipment_id: str) -> List[Dict[str, Any]]:
         """
-        Recupera tutti gli items di un inbound shipment.
+        Recupera gli items di una spedizione inbound.
         
         Args:
-            shipment_id: ID della spedizione
+            shipment_id: ID della spedizione inbound
             
         Returns:
-            Lista di dict con i dettagli degli items (expected/actual quantities)
+            Lista degli items della spedizione
         """
-        logger.info(f"[_get_inbound_shipment_items] 🚀 Recupero items inbound shipment_id={shipment_id}")
+        logger.info(f"[_get_inbound_shipment_items] 📋 Recupero items per inbound shipment {shipment_id}")
         
         if self.client is None:
             logger.error("[_get_inbound_shipment_items] ❌ Client API non disponibile!")
             return []
         
         try:
-            items_response = self.client.get_inbound_shipment_items(shipment_id=int(shipment_id))
+            # Converti shipment_id a int
+            shipment_id_int = int(shipment_id)
+        except (ValueError, TypeError):
+            logger.error(f"[_get_inbound_shipment_items] ❌ Shipment ID non valido: '{shipment_id}'")
+            return []
+        
+        try:
+            # USA IL CLIENT COMPLETO DIRETTAMENTE
+            logger.info(f"[_get_inbound_shipment_items] 📡 Chiamata get_inbound_shipment_items per shipment {shipment_id_int}")
             
-            # 🔍 DEBUG: Logga la risposta completa dell'API
-            logger.info(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response type: {type(items_response)}")
-            logger.debug(f"[_get_inbound_shipment_items] 🔍 DEBUG API Response content: {items_response}")
+            items_response = self.client.get_inbound_shipment_items(
+                shipment_id=shipment_id_int
+            )
             
-            # Il client completo restituisce ShipmentItemsResponse
+            logger.info(f"[_get_inbound_shipment_items] 📋 Risposta API: {type(items_response)}")
+            
+            # Il client completo restituisce un response object con .items
             if hasattr(items_response, 'items'):
-                items_list = [item.model_dump() for item in items_response.items]
-                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce response.items con {len(items_list)} elements")
-            elif hasattr(items_response, 'data'):
-                items_list = items_response.data
-                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce response.data con {len(items_list)} elements")
-            else:
-                items_list = items_response if isinstance(items_response, list) else []
-                logger.info(f"[_get_inbound_shipment_items] ✅ API restituisce lista diretta con {len(items_list)} elements")
-            
-            if items_list:
-                items = []
-                for i, item in enumerate(items_list):
-                    logger.debug(f"[_get_inbound_shipment_items] 🔍 Raw item {i}: {item}")
-                    
-                    # Il client completo restituisce dict strutturati con nested objects
-                    # Estrai le quantità dalle strutture annidate
-                    expected_data = item.get('expected', {})
-                    actual_data = item.get('actual', {})
-                    item_info = item.get('item', {})
-                    
-                    expected_quantity = expected_data.get('quantity', 0) if isinstance(expected_data, dict) else 0
-                    actual_quantity = actual_data.get('quantity', 0) if isinstance(actual_data, dict) else 0
-                    
-                    # Estrai i dati dell'item dal nested object
-                    merchant_sku = item_info.get('merchant_sku', '') if isinstance(item_info, dict) else item.get('merchant_sku', '')
-                    title = item_info.get('title', '') if isinstance(item_info, dict) else item.get('title', '')
-                    asin = item_info.get('asin', '') if isinstance(item_info, dict) else item.get('asin', '')
-                    fnsku = item_info.get('fnsku', '') if isinstance(item_info, dict) else item.get('fnsku', '')
-                    
-                    item_data = {
-                        'item_id': item.get('item_id') or item.get('id'),
-                        'merchant_sku': merchant_sku,
-                        'title': title,
-                        'asin': asin,
-                        'fnsku': fnsku,
-                        'expected_quantity': expected_quantity,
-                        'actual_quantity': actual_quantity
-                    }
-                    items.append(item_data)
-                    logger.debug(f"[_get_inbound_shipment_items] 📦 Converted item {i}: {item_data}")
+                items = items_response.items
+                logger.info(f"[_get_inbound_shipment_items] ✅ Trovati {len(items)} items per inbound shipment {shipment_id}")
                 
-                logger.info(f"[_get_inbound_shipment_items] ✅ Recuperati {len(items)} items")
-                return items
+                # Converte in lista di dict per compatibilità
+                items_list = []
+                for item in items:
+                    item_dict = item.model_dump()
+                    items_list.append(item_dict)
+                
+                return items_list
             else:
-                logger.warning(f"[_get_inbound_shipment_items] ⚠️ Risposta API vuota o non lista: {items_response}")
+                logger.error(f"[_get_inbound_shipment_items] ❌ Risposta API non ha attributo 'items': {dir(items_response)}")
                 return []
                 
         except Exception as e:
-            logger.error(f"[_get_inbound_shipment_items] ❌ Errore recupero items: {str(e)}")
+            logger.error(f"[_get_inbound_shipment_items] ❌ Errore recupero items inbound shipment {shipment_id}: {str(e)}")
             logger.exception("Traceback:")
             return []
     
@@ -732,63 +706,44 @@ class WebhookEventProcessor:
             return None
         
         try:
-            # Cerca tra tutti gli inbound shipments del merchant
-            shipments_response = self.client.get_inbound_shipments(merchant_id=merchant_id_int)
+            # USA IL CLIENT COMPLETO DIRETTAMENTE
+            logger.info(f"[_find_matching_inbound_shipment] 📡 Chiamata get_inbound_shipments per merchant {merchant_id_int}")
             
-            # Il client completo restituisce un response object, estrai la lista
+            shipments_response = self.client.get_inbound_shipments(
+                page=1,
+                per_page=100,  # Aumentiamo per essere sicuri di trovare tutti
+                merchant_id=merchant_id_int
+            )
+            
+            logger.info(f"[_find_matching_inbound_shipment] 📋 Risposta API: {type(shipments_response)}")
+            
+            # Il client completo restituisce un response object con .shipments
             if hasattr(shipments_response, 'shipments'):
-                # Gli oggetti shipments sono Pydantic objects, non dict
                 shipments = shipments_response.shipments
-                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments")
+                logger.info(f"[_find_matching_inbound_shipment] 📋 Trovati {len(shipments)} inbound shipments")
                 
                 for shipment in shipments:
-                    # Accesso diretto agli attributi Pydantic, non .get()
+                    # Accesso diretto agli attributi Pydantic
                     current_name = getattr(shipment, 'name', '') or ''
                     shipment_id = getattr(shipment, 'id', None)
                     
-                    # Non c'è bisogno di filtrare per tipo perché get_inbound_shipments restituisce solo inbound
+                    logger.debug(f"[_find_matching_inbound_shipment] 🔍 Controllo shipment ID {shipment_id}, nome: '{current_name}'")
+                    
                     if current_name == shipment_name:
-                        logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment_id}, nome '{current_name}'")
+                        logger.info(f"[_find_matching_inbound_shipment] ✅ TROVATO inbound shipment: ID {shipment_id}, nome '{current_name}'")
                         # Converte in dict per compatibilità
                         return shipment.model_dump()
                 
-            elif hasattr(shipments_response, 'data'):
-                shipments_list = shipments_response.data
-                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments_list)} inbound shipments")
+                logger.warning(f"[_find_matching_inbound_shipment] ❌ Nessun inbound shipment trovato con nome '{shipment_name}' tra {len(shipments)} shipments")
                 
-                for shipment in shipments_list:
-                    if hasattr(shipment, 'model_dump'):
-                        # Oggetto Pydantic
-                        current_name = getattr(shipment, 'name', '') or ''
-                        if current_name == shipment_name:
-                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {getattr(shipment, 'id', None)}, nome '{current_name}'")
-                            return shipment.model_dump()
-                    else:
-                        # Dict normale
-                        current_name = shipment.get('name', '')
-                        if current_name == shipment_name:
-                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
-                            return shipment
+                # DEBUG: Mostra i primi 5 nomi per debug
+                if len(shipments) > 0:
+                    sample_names = [getattr(s, 'name', 'NO_NAME') for s in shipments[:5]]
+                    logger.info(f"[_find_matching_inbound_shipment] 🔍 Primi 5 nomi trovati: {sample_names}")
+                
             else:
-                # Fallback se è già una lista
-                shipments = shipments_response if isinstance(shipments_response, list) else []
-                logger.info(f"[_find_matching_inbound_shipment] 📋 Cercando tra {len(shipments)} inbound shipments (fallback)")
-                
-                for shipment in shipments:
-                    if hasattr(shipment, 'model_dump'):
-                        # Oggetto Pydantic
-                        current_name = getattr(shipment, 'name', '') or ''
-                        if current_name == shipment_name:
-                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {getattr(shipment, 'id', None)}, nome '{current_name}'")
-                            return shipment.model_dump()
-                    else:
-                        # Dict normale
-                        current_name = shipment.get('name', '')
-                        if current_name == shipment_name:
-                            logger.info(f"[_find_matching_inbound_shipment] ✅ Trovato inbound shipment: ID {shipment.get('id')}, nome '{current_name}'")
-                            return shipment
+                logger.error(f"[_find_matching_inbound_shipment] ❌ Risposta API non ha attributo 'shipments': {dir(shipments_response)}")
             
-            logger.warning(f"[_find_matching_inbound_shipment] ❌ Nessun inbound shipment trovato con nome '{shipment_name}'")
             return None
                 
         except Exception as e:
