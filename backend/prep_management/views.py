@@ -2624,6 +2624,76 @@ def debug_latest_test2_raw(request):
             'error': str(e)
         }, status=500)
 
-
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_webhook_processor(request):
+    """
+    Debug endpoint per verificare lo stato del WebhookEventProcessor.
+    """
+    try:
+        # Crea un'istanza del processor per testare l'inizializzazione
+        from .event_handlers import WebhookEventProcessor
+        processor = WebhookEventProcessor()
+        
+        # Verifica stato del client
+        client_status = {
+            'client_available': processor.client is not None,
+            'client_type': type(processor.client).__name__ if processor.client else None,
+            'client_module': type(processor.client).__module__ if processor.client else None,
+        }
+        
+        # Test del client se disponibile
+        client_test = {}
+        if processor.client:
+            try:
+                # Test semplice del client
+                merchants = processor.client.get_merchants()
+                client_test = {
+                    'test_successful': True,
+                    'merchants_count': len(merchants) if hasattr(merchants, '__len__') else 'unknown',
+                    'merchants_type': type(merchants).__name__
+                }
+            except Exception as e:
+                client_test = {
+                    'test_successful': False,
+                    'error': str(e)
+                }
+        
+        # Ultimi eventi outbound_shipment.closed
+        recent_outbound_closed = ShipmentStatusUpdate.objects.filter(
+            event_type='outbound_shipment.closed'
+        ).order_by('-created_at')[:5]
+        
+        recent_events = []
+        for event in recent_outbound_closed:
+            recent_events.append({
+                'id': event.id,
+                'shipment_id': event.shipment_id,
+                'processed': event.processed,
+                'process_success': event.process_success,
+                'process_message': event.process_message,
+                'created_at': event.created_at.isoformat(),
+                'processed_at': event.processed_at.isoformat() if event.processed_at else None,
+            })
+        
+        return JsonResponse({
+            'status': 'success',
+            'timestamp': timezone.now().isoformat(),
+            'client_status': client_status,
+            'client_test': client_test,
+            'recent_outbound_closed_events': recent_events,
+            'debug_info': {
+                'total_events': ShipmentStatusUpdate.objects.count(),
+                'unprocessed_events': ShipmentStatusUpdate.objects.filter(processed=False).count(),
+                'outbound_closed_count': ShipmentStatusUpdate.objects.filter(event_type='outbound_shipment.closed').count(),
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': timezone.now().isoformat()
+        }, status=500)
 
 # Debug function removed to fix crash
