@@ -791,7 +791,7 @@ class WebhookEventProcessor:
         Args:
             name: Nome per il nuovo inbound
             warehouse_id: ID del warehouse
-            items: Lista di prodotti da aggiungere
+            items: Lista di prodotti da aggiungere (con item_id reali)
             merchant_id: ID del merchant
             
         Returns:
@@ -831,24 +831,58 @@ class WebhookEventProcessor:
             
             logger.info(f"[_create_residual_inbound_shipment] ✅ Inbound shipment creato con ID: {shipment_id}")
             
-            # ⚠️ IMPORTANTE: Il client completo add_item_to_shipment() richiede item_id esistente
-            # Purtroppo non possiamo aggiungere items arbitrari, devono esistere nell'inventario
-            # Per ora loggiamo solo i dati e continuiamo con il shipment vuoto
-            logger.warning(f"[_create_residual_inbound_shipment] ⚠️ NOTA: add_item_to_shipment richiede item_id esistenti nell'inventario")
-            logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Creato shipment vuoto ID {shipment_id} - items dovranno essere aggiunti manualmente")
+            # ✅ AGGIUNTA ITEMS: Usa gli item_id reali calcolati dai residual
+            items_added = 0
+            items_failed = 0
             
             for i, item in enumerate(items):
-                logger.info(f"[_create_residual_inbound_shipment] 📦 Item {i+1} da aggiungere manualmente:")
-                logger.info(f"    - SKU: {item.get('merchant_sku', 'N/A')}")
-                logger.info(f"    - Title: {item.get('title', 'N/A')}")
-                logger.info(f"    - ASIN: {item.get('asin', 'N/A')}")
-                logger.info(f"    - FNSKU: {item.get('fnsku', 'N/A')}")
-                logger.info(f"    - Expected Qty: {item.get('expected_quantity', 0)}")
-                logger.info(f"    - Actual Qty: {item.get('actual_quantity', 0)}")
+                item_id = item.get('item_id')
+                expected_qty = item.get('expected_quantity', 0)
+                actual_qty = item.get('actual_quantity', 0)
+                
+                if not item_id:
+                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Item {i+1} senza item_id - saltato")
+                    items_failed += 1
+                    continue
+                
+                # Usa expected_quantity come quantità principale (fallback su actual_quantity)
+                quantity_to_add = expected_qty if expected_qty > 0 else actual_qty
+                
+                if quantity_to_add <= 0:
+                    logger.warning(f"[_create_residual_inbound_shipment] ⚠️ Item {item_id} con quantità 0 - saltato")
+                    items_failed += 1
+                    continue
+                
+                try:
+                    logger.info(f"[_create_residual_inbound_shipment] ➕ Aggiunta item {item_id} con quantità {quantity_to_add}")
+                    
+                    # Prepara i dati per l'aggiunta dell'item
+                    item_data = {
+                        'item_id': item_id,
+                        'expected_quantity': expected_qty,
+                        'actual_quantity': actual_qty
+                    }
+                    
+                    # Aggiungi l'item al shipment usando il client API
+                    add_response = self.client.add_item_to_shipment(shipment_id, item_data)
+                    
+                    logger.info(f"[_create_residual_inbound_shipment] ✅ Item {item_id} aggiunto con successo")
+                    items_added += 1
+                    
+                except Exception as e:
+                    logger.error(f"[_create_residual_inbound_shipment] ❌ Errore aggiunta item {item_id}: {str(e)}")
+                    items_failed += 1
             
-            logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual base creato - ID: {shipment_id}")
-            logger.info(f"[_create_residual_inbound_shipment] 📝 Shipment '{name}' creato per merchant {merchant_id}")
-            logger.info(f"[_create_residual_inbound_shipment] ➡️ Items dovranno essere aggiunti manualmente via interfaccia web")
+            # Report finale
+            logger.info(f"[_create_residual_inbound_shipment] 📊 Aggiunta items completata:")
+            logger.info(f"    ✅ Items aggiunti: {items_added}")
+            logger.info(f"    ❌ Items falliti: {items_failed}")
+            logger.info(f"    📦 Totale items: {len(items)}")
+            
+            if items_added > 0:
+                logger.info(f"[_create_residual_inbound_shipment] 🎉 SUCCESS: Inbound residual creato con {items_added} items - ID: {shipment_id}")
+            else:
+                logger.warning(f"[_create_residual_inbound_shipment] ⚠️ WARNING: Inbound residual creato ma VUOTO (nessun item aggiunto) - ID: {shipment_id}")
             
             return shipment_id
                 
