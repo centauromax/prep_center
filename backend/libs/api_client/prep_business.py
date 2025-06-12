@@ -225,12 +225,17 @@ class PrepBusinessClient:
         try:
             # Usa il client completo
             response = self._complete_client.get_merchants()
-            # Il client completo restituisce un oggetto MerchantsResponse, estraiamo i dati
-            if hasattr(response, 'merchants'):
-                merchants = [merchant.model_dump() for merchant in response.merchants]
+            logger.info(f"Risposta get_merchants: {type(response)}")
+            
+            # Il client completo restituisce un oggetto MerchantsResponse con campo 'data'
+            if hasattr(response, 'data'):
+                merchants_list = response.data
+                logger.info(f"Trovato campo 'data' con {len(merchants_list)} merchants")
+                merchants = [merchant.model_dump() for merchant in merchants_list]
             else:
                 # Fallback se la risposta è già un dict
                 merchants = response.get('data', []) if isinstance(response, dict) else []
+                logger.warning(f"Fallback: merchants estratti come dict: {len(merchants)}")
             
             logger.info(f"Recuperati {len(merchants)} merchants")
             return merchants
