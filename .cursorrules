@@ -190,27 +190,132 @@ backend/libs/
 - **Secrets Management**: API keys e tokens sicuri
 - **Fallback Values**: Valori di default per sviluppo
 
-### Client Prep Business API (libs/api_client/prep_business.py)
-#### Funzionalità Complete
-- **PrepBusinessClient**: Client HTTP con retry logic e error handling
-- **Merchants Management**: Lista e dettagli merchants
-- **Shipments Management**: CRUD operations per shipments
-- **Error Handling**: Gestione errori HTTP standardizzata
-- **Logging**: Logging dettagliato per debugging
-- **Timeout Management**: Configurazione timeout personalizzabili
+## 🚨 **CLIENT PREP BUSINESS API - REGOLE CRITICHE**
 
-#### Metodi Disponibili
+### ⚠️ **REGOLA FONDAMENTALE: UN SOLO CLIENT**
+**ESISTE UN SOLO CLIENT UFFICIALE PER PREP BUSINESS API:**
+- **File**: `libs/api_client/prep_business.py` - **QUESTO È L'UNICO CLIENT DA USARE**
+- **❌ MAI creare altri client** - Usare sempre questo
+- **❌ MAI duplicare logiche API** - Tutto deve passare da qui
+- **❌ MAI importare direttamente** `libs/prepbusiness/client.py` - È interno
+
+### 🏗️ **ARCHITETTURA CLIENT (DOPO MIGRAZIONE 2025-06-12)**
+
+#### **Client Wrapper di Compatibilità**
+**File**: `libs/api_client/prep_business.py` (✅ UNICO CLIENT UFFICIALE)
+- **Wrapper intelligente** che usa internamente il client completo
+- **Interfaccia semplificata** per mantenere compatibilità
+- **Tutti i metodi necessari** per l'inbound residuale
+- **Error handling** standardizzato
+- **Logging** dettagliato
+
+#### **Client Completo Interno** 
+**File**: `libs/prepbusiness/client.py` (⚠️ SOLO USO INTERNO)
+- **2177 righe** di codice completo con Pydantic models
+- **Usato internamente** dal wrapper
+- **❌ NON importare direttamente** - Usare sempre il wrapper
+
+### 📋 **COME USARE IL CLIENT (ESEMPI PRATICI)**
+
+#### **✅ MODO CORRETTO - Usare sempre il wrapper:**
 ```python
+# ✅ SEMPRE COSÌ
+from libs.api_client.prep_business import PrepBusinessClient
+
+# Inizializzazione
+client = PrepBusinessClient()
+
 # Merchants
-client.get_merchants()                    # Lista merchants
-client.get_merchant(merchant_id)          # Dettaglio merchant
+merchants = client.get_merchants()                    # Lista merchants (tutti, non solo attivi)
+merchant = client.get_merchant(merchant_id)          # Dettaglio merchant
 
 # Shipments  
-client.get_shipments(merchant_id=None)    # Lista shipments
-client.get_shipment(shipment_id)          # Dettaglio shipment
-client.create_shipment(data)              # Crea shipment
-client.update_shipment(shipment_id, data) # Aggiorna shipment
+shipments = client.get_shipments(merchant_id=None)   # Lista shipments
+shipment = client.get_shipment(shipment_id)          # Dettaglio shipment
+new_shipment = client.create_shipment(data)          # Crea shipment
+updated = client.update_shipment(shipment_id, data)  # Aggiorna shipment
+
+# 🆕 METODI AGGIUNTI DOPO MIGRAZIONE (per inbound residuale)
+client.add_item_to_shipment(shipment_id, item_data)  # ✅ DISPONIBILE!
+client.create_inbound_shipment(data)                 # ✅ DISPONIBILE!
+# ... tutti gli altri metodi del client completo
 ```
+
+#### **❌ MODI SBAGLIATI - NON FARE MAI:**
+```python
+# ❌ NON FARE - Import diretto del client completo
+from libs.prepbusiness.client import PrepBusinessClient  # SBAGLIATO!
+
+# ❌ NON FARE - Creare client custom
+class MyPrepBusinessClient:  # SBAGLIATO!
+    pass
+
+# ❌ NON FARE - Duplicare logiche API
+def my_get_merchants():  # SBAGLIATO!
+    # logica duplicata...
+```
+
+### 🔧 **CONFIGURAZIONE E INIZIALIZZAZIONE**
+
+#### **Configurazione Automatica**
+Il client si configura automaticamente usando:
+1. **Environment Variables** (Railway/produzione)
+2. **Database Config** (PrepBusinessConfig model)
+3. **Fallback values** (sviluppo locale)
+
+#### **Parametri di Configurazione**
+```python
+# Configurazione automatica da environment/database
+PREP_BUSINESS_API_URL = "https://dashboard.fbaprepcenteritaly.com/api"
+PREP_BUSINESS_API_KEY = "jtc_..."  # Da environment variables
+PREP_BUSINESS_API_TIMEOUT = 30     # Timeout in secondi
+PREP_BUSINESS_MAX_RETRIES = 3      # Retry automatici
+```
+
+### 🆕 **METODI COMPLETI DISPONIBILI (POST-MIGRAZIONE)**
+
+#### **Merchants Management**
+```python
+client.get_merchants()                    # Lista tutti merchants (enabled=False di default)
+client.get_merchant(merchant_id)          # Dettaglio merchant specifico
+```
+
+#### **Shipments Management** 
+```python
+client.get_shipments(merchant_id=None)    # Lista shipments (tutti o per merchant)
+client.get_shipment(shipment_id)          # Dettaglio shipment
+client.create_shipment(data)              # Crea nuovo shipment
+client.update_shipment(shipment_id, data) # Aggiorna shipment esistente
+client.create_inbound_shipment(data)      # 🆕 Crea inbound shipment
+```
+
+#### **Items Management (🆕 AGGIUNTI DOPO MIGRAZIONE)**
+```python
+client.add_item_to_shipment(shipment_id, item_data)     # ✅ Aggiunge item a shipment
+client.get_shipment_items(shipment_id)                  # ✅ Lista items di shipment
+client.update_shipment_item(item_id, data)              # ✅ Aggiorna item
+client.remove_item_from_shipment(shipment_id, item_id)  # ✅ Rimuove item
+```
+
+#### **Altri Metodi Disponibili**
+```python
+# Tutti i metodi del client completo sono disponibili tramite il wrapper
+# Vedere libs/prepbusiness/client.py per lista completa (2177 righe)
+```
+
+### 🚨 **PROBLEMI RISOLTI NELLA MIGRAZIONE**
+
+#### **Problema 1: Metodo Mancante**
+- **❌ PRIMA**: `add_item_to_shipment()` non esisteva nel client semplice
+- **✅ DOPO**: Tutti i metodi del client completo disponibili tramite wrapper
+
+#### **Problema 2: Filtro Merchants Errato**
+- **❌ PRIMA**: Filtrava per `active_only=True` con campo `active` 
+- **✅ DOPO**: Usa `active_only=False` di default con campo `enabled`
+
+#### **Problema 3: Struttura Risposta API**
+- **❌ PRIMA**: Si aspettava lista diretta, ma API restituisce `{data: [...]}`
+- **✅ DOPO**: Wrapper estrae correttamente `response.data`
 
 ### Database Configuration (PrepBusinessConfig)
 - **Modello Django**: Configurazione API salvata in database
