@@ -163,7 +163,29 @@ class WebhookEventProcessor:
             
             # Invia notifica Telegram se l'evento lo richiede
             logger.info(f"[WebhookEventProcessor.process_event] Tentativo invio notifica Telegram per evento {update.event_type}")
-            self._send_telegram_notification_if_needed(update)
+            
+            # Prepara dati base per notifica
+            notification_data = {
+                'shipment_id': update.shipment_id,
+                'shipment_name': update.payload.get('name', '') if isinstance(update.payload, dict) else '',
+                'tracking_number': update.payload.get('tracking_number') if isinstance(update.payload, dict) else None,
+                'carrier': update.payload.get('carrier') if isinstance(update.payload, dict) else None,
+                'notes': update.payload.get('notes', '') if isinstance(update.payload, dict) else '',
+                'products_count': None,  # Sarà aggiornato se disponibile
+                'expected_count': None,  # Sarà aggiornato se disponibile
+                'received_count': None   # Sarà aggiornato se disponibile
+            }
+            
+            # Se il risultato contiene dati aggiuntivi, aggiorna notification_data
+            if isinstance(result, dict):
+                if 'products_count' in result:
+                    notification_data['products_count'] = result['products_count']
+                if 'expected_count' in result:
+                    notification_data['expected_count'] = result['expected_count']
+                if 'received_count' in result:
+                    notification_data['received_count'] = result['received_count']
+            
+            self._send_telegram_notification_if_needed(update, notification_data)
             
             return result
             
