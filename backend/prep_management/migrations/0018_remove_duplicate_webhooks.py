@@ -4,29 +4,69 @@ from django.db import migrations
 
 def remove_duplicate_webhooks(apps, schema_editor):
     """
-    Rimuove i duplicati dalla tabella ShipmentStatusUpdate usando SQL raw.
-    Per ogni combinazione di shipment_id, event_type, new_status, merchant_id,
-    mantiene solo il record più recente.
+    Rimuove i duplicati dalla tabella ShipmentStatusUpdate usando una tabella temporanea.
+    Questo approccio è più sicuro perché:
+    1. Crea una tabella temporanea con la stessa struttura
+    2. Copia solo i record unici (più recenti)
+    3. Svuota la tabella originale
+    4. Ripristina i record dalla tabella temporanea
+    5. Elimina la tabella temporanea
     """
     db_alias = schema_editor.connection.alias
     
-    # SQL per rimuovere i duplicati mantenendo solo il record più recente
-    sql = """
-    DELETE FROM prep_management_shipmentstatusupdate a
-    USING (
-        SELECT shipment_id, event_type, new_status, merchant_id, MAX(created_at) as max_created_at
-        FROM prep_management_shipmentstatusupdate
-        GROUP BY shipment_id, event_type, new_status, merchant_id
-    ) b
-    WHERE a.shipment_id = b.shipment_id
-    AND a.event_type = b.event_type
-    AND a.new_status = b.new_status
-    AND a.merchant_id = b.merchant_id
-    AND a.created_at < b.max_created_at;
+    # 1. Crea tabella temporanea con la stessa struttura
+    create_temp_table = """
+    CREATE TABLE prep_management_shipmentstatusupdate_temp (
+        id SERIAL PRIMARY KEY,
+        shipment_id VARCHAR(100),
+        event_type VARCHAR(50),
+        new_status VARCHAR(50),
+        merchant_id VARCHAR(100),
+        notes TEXT,
+        payload JSONB,
+        processed BOOLEAN DEFAULT FALSE,
+        signature_verified BOOLEAN,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
     """
     
-    # Esegui la query
-    schema_editor.execute(sql)
+    # 2. Copia solo i record unici (più recenti) nella tabella temporanea
+    copy_unique_records = """
+    INSERT INTO prep_management_shipmentstatusupdate_temp (
+        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
+    )
+    SELECT DISTINCT ON (shipment_id, event_type, new_status, merchant_id)
+        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
+    FROM prep_management_shipmentstatusupdate
+    ORDER BY shipment_id, event_type, new_status, merchant_id, created_at DESC;
+    """
+    
+    # 3. Svuota la tabella originale
+    truncate_original = """
+    TRUNCATE TABLE prep_management_shipmentstatusupdate;
+    """
+    
+    # 4. Ripristina i record dalla tabella temporanea
+    restore_records = """
+    INSERT INTO prep_management_shipmentstatusupdate (
+        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
+    )
+    SELECT 
+        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
+    FROM prep_management_shipmentstatusupdate_temp;
+    """
+    
+    # 5. Elimina la tabella temporanea
+    drop_temp_table = """
+    DROP TABLE prep_management_shipmentstatusupdate_temp;
+    """
+    
+    # Esegui le query in sequenza
+    schema_editor.execute(create_temp_table)
+    schema_editor.execute(copy_unique_records)
+    schema_editor.execute(truncate_original)
+    schema_editor.execute(restore_records)
+    schema_editor.execute(drop_temp_table)
 
 class Migration(migrations.Migration):
 
