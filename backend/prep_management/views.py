@@ -2726,4 +2726,45 @@ def debug_webhook_payload_simple(request, update_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def test_outbound_created_with_name(request):
+    """
+    Test per spedizione in uscita creata con nome della spedizione.
+    Verifica che il nome venga estratto correttamente da payload.data.name
+    """
+    try:
+        from .services import send_telegram_notification
+        
+        # Dati di test per outbound_shipment.created con nome spedizione
+        shipment_data = {
+            'shipment_id': 'OUTBOUND-TEST-123',
+            'shipment_name': 'Test Spedizione con Nome Corretto',
+            'notes': 'Test per verificare estrazione nome da payload.data.name',
+            'merchant_name': 'Test Merchant'
+        }
+        
+        success = send_telegram_notification(
+            email="prep@easyavant.com",
+            message=None,  # Formattazione automatica
+            event_type="outbound_shipment.created",
+            shipment_id=shipment_data['shipment_id'],
+            shipment_data=shipment_data
+        )
+        
+        return Response({
+            'success': success,
+            'message': f'Test outbound created con nome - Success: {success}',
+            'data': shipment_data,
+            'note': 'Controlla Telegram per verificare che il nome "Test Spedizione con Nome Corretto" sia presente nel messaggio'
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
 # Debug function removed to fix crash
