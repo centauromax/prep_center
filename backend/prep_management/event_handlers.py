@@ -288,7 +288,8 @@ class WebhookEventProcessor:
             # Recupera gli items dell'outbound shipment
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Recupero items per outbound shipment {shipment_id}")
-                outbound_items = self.client.get_shipment_items(shipment_id)
+                # Usa l'endpoint corretto per outbound shipments
+                outbound_items = self.client.get_outbound_shipment_items(shipment_id)
                 logger.info(f"[_process_outbound_shipment_closed] Recuperati {len(outbound_items)} items per outbound shipment {shipment_id}")
             except Exception as e:
                 logger.error(f"[_process_outbound_shipment_closed] ❌ Errore recupero items outbound shipment {shipment_id}: {e}")
