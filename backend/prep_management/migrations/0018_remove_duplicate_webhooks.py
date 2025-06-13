@@ -9,22 +9,32 @@ def truncate_all_tables(apps, schema_editor):
     1. Svuota la tabella ShipmentStatusUpdate
     2. Svuota la tabella TelegramNotification
     3. Rimuove tutti i dati precedenti
+    
+    Usa DELETE invece di TRUNCATE per compatibilità SQLite/PostgreSQL
     """
     db_alias = schema_editor.connection.alias
     
-    # 1. Svuota la tabella ShipmentStatusUpdate
-    truncate_shipment_updates = """
-    TRUNCATE TABLE prep_management_shipmentstatusupdate RESTART IDENTITY CASCADE;
+    # 1. Svuota la tabella ShipmentStatusUpdate (compatibile SQLite + PostgreSQL)
+    delete_shipment_updates = """
+    DELETE FROM prep_management_shipmentstatusupdate;
     """
     
-    # 2. Svuota la tabella TelegramNotification
-    truncate_telegram_notifications = """
-    TRUNCATE TABLE prep_management_telegramnotification RESTART IDENTITY CASCADE;
+    # 2. Svuota la tabella TelegramNotification (compatibile SQLite + PostgreSQL)
+    delete_telegram_notifications = """
+    DELETE FROM prep_management_telegramnotification;
     """
     
     # Esegui le query
-    schema_editor.execute(truncate_shipment_updates)
-    schema_editor.execute(truncate_telegram_notifications)
+    schema_editor.execute(delete_shipment_updates)
+    schema_editor.execute(delete_telegram_notifications)
+    
+    # Reset delle sequenze per PostgreSQL (ignorato da SQLite)
+    if schema_editor.connection.vendor == 'postgresql':
+        reset_sequences = """
+        ALTER SEQUENCE prep_management_shipmentstatusupdate_id_seq RESTART WITH 1;
+        ALTER SEQUENCE prep_management_telegramnotification_id_seq RESTART WITH 1;
+        """
+        schema_editor.execute(reset_sequences)
 
 class Migration(migrations.Migration):
 
