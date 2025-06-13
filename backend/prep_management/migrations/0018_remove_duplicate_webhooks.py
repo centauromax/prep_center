@@ -2,21 +2,19 @@
 
 from django.db import migrations
 
-def remove_duplicate_webhooks(apps, schema_editor):
+def recreate_table_without_duplicates(apps, schema_editor):
     """
-    Rimuove i duplicati dalla tabella ShipmentStatusUpdate usando una tabella temporanea.
-    Questo approccio è più sicuro perché:
-    1. Crea una tabella temporanea con la stessa struttura
+    Ricrea la tabella ShipmentStatusUpdate da zero con il vincolo di unicità già presente.
+    Questo approccio è il più sicuro perché:
+    1. Crea una nuova tabella con il vincolo già presente
     2. Copia solo i record unici (più recenti)
-    3. Svuota la tabella originale
-    4. Ripristina i record dalla tabella temporanea
-    5. Elimina la tabella temporanea
+    3. Rinomina le tabelle
     """
     db_alias = schema_editor.connection.alias
     
-    # 1. Crea tabella temporanea con la stessa struttura
-    create_temp_table = """
-    CREATE TABLE prep_management_shipmentstatusupdate_temp (
+    # 1. Crea nuova tabella con il vincolo già presente
+    create_new_table = """
+    CREATE TABLE prep_management_shipmentstatusupdate_new (
         id SERIAL PRIMARY KEY,
         shipment_id VARCHAR(100),
         event_type VARCHAR(50),
@@ -26,13 +24,14 @@ def remove_duplicate_webhooks(apps, schema_editor):
         payload JSONB,
         processed BOOLEAN DEFAULT FALSE,
         signature_verified BOOLEAN,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT unique_webhook_per_shipment_event UNIQUE (shipment_id, event_type, new_status, merchant_id)
     );
     """
     
-    # 2. Copia solo i record unici (più recenti) nella tabella temporanea
+    # 2. Copia solo i record unici (più recenti) nella nuova tabella
     copy_unique_records = """
-    INSERT INTO prep_management_shipmentstatusupdate_temp (
+    INSERT INTO prep_management_shipmentstatusupdate_new (
         shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
     )
     SELECT DISTINCT ON (shipment_id, event_type, new_status, merchant_id)
@@ -41,32 +40,22 @@ def remove_duplicate_webhooks(apps, schema_editor):
     ORDER BY shipment_id, event_type, new_status, merchant_id, created_at DESC;
     """
     
-    # 3. Svuota la tabella originale
-    truncate_original = """
-    TRUNCATE TABLE prep_management_shipmentstatusupdate;
+    # 3. Rinomina le tabelle
+    rename_tables = """
+    ALTER TABLE prep_management_shipmentstatusupdate RENAME TO prep_management_shipmentstatusupdate_old;
+    ALTER TABLE prep_management_shipmentstatusupdate_new RENAME TO prep_management_shipmentstatusupdate;
     """
     
-    # 4. Ripristina i record dalla tabella temporanea
-    restore_records = """
-    INSERT INTO prep_management_shipmentstatusupdate (
-        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
-    )
-    SELECT 
-        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
-    FROM prep_management_shipmentstatusupdate_temp;
-    """
-    
-    # 5. Elimina la tabella temporanea
-    drop_temp_table = """
-    DROP TABLE prep_management_shipmentstatusupdate_temp;
+    # 4. Elimina la vecchia tabella
+    drop_old_table = """
+    DROP TABLE prep_management_shipmentstatusupdate_old;
     """
     
     # Esegui le query in sequenza
-    schema_editor.execute(create_temp_table)
+    schema_editor.execute(create_new_table)
     schema_editor.execute(copy_unique_records)
-    schema_editor.execute(truncate_original)
-    schema_editor.execute(restore_records)
-    schema_editor.execute(drop_temp_table)
+    schema_editor.execute(rename_tables)
+    schema_editor.execute(drop_old_table)
 
 class Migration(migrations.Migration):
 
@@ -75,5 +64,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(remove_duplicate_webhooks),
+        migrations.RunPython(recreate_table_without_duplicates),
     ]
