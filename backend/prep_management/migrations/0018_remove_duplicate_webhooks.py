@@ -2,60 +2,33 @@
 
 from django.db import migrations
 
-def recreate_table_without_duplicates(apps, schema_editor):
+def force_remove_duplicates(apps, schema_editor):
     """
-    Ricrea la tabella ShipmentStatusUpdate da zero con il vincolo di unicità già presente.
-    Questo approccio è il più sicuro perché:
-    1. Crea una nuova tabella con il vincolo già presente
-    2. Copia solo i record unici (più recenti)
-    3. Rinomina le tabelle
+    Forza la rimozione dei duplicati usando SQL raw.
+    Questo approccio è il più diretto perché:
+    1. Usa DELETE con subquery per rimuovere i duplicati
+    2. Mantiene solo il record più recente per ogni combinazione
+    3. È eseguito direttamente a livello di database
     """
     db_alias = schema_editor.connection.alias
     
-    # 1. Crea nuova tabella con il vincolo già presente
-    create_new_table = """
-    CREATE TABLE prep_management_shipmentstatusupdate_new (
-        id SERIAL PRIMARY KEY,
-        shipment_id VARCHAR(100),
-        event_type VARCHAR(50),
-        new_status VARCHAR(50),
-        merchant_id VARCHAR(100),
-        notes TEXT,
-        payload JSONB,
-        processed BOOLEAN DEFAULT FALSE,
-        signature_verified BOOLEAN,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT unique_webhook_per_shipment_event UNIQUE (shipment_id, event_type, new_status, merchant_id)
-    );
+    # 1. Rimuovi i duplicati mantenendo solo il record più recente
+    remove_duplicates = """
+    DELETE FROM prep_management_shipmentstatusupdate a
+    USING (
+        SELECT shipment_id, event_type, new_status, merchant_id, MAX(created_at) as max_created_at
+        FROM prep_management_shipmentstatusupdate
+        GROUP BY shipment_id, event_type, new_status, merchant_id
+    ) b
+    WHERE a.shipment_id = b.shipment_id
+    AND a.event_type = b.event_type
+    AND a.new_status = b.new_status
+    AND a.merchant_id = b.merchant_id
+    AND a.created_at < b.max_created_at;
     """
     
-    # 2. Copia solo i record unici (più recenti) nella nuova tabella
-    copy_unique_records = """
-    INSERT INTO prep_management_shipmentstatusupdate_new (
-        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
-    )
-    SELECT DISTINCT ON (shipment_id, event_type, new_status, merchant_id)
-        shipment_id, event_type, new_status, merchant_id, notes, payload, processed, signature_verified, created_at
-    FROM prep_management_shipmentstatusupdate
-    ORDER BY shipment_id, event_type, new_status, merchant_id, created_at DESC;
-    """
-    
-    # 3. Rinomina le tabelle
-    rename_tables = """
-    ALTER TABLE prep_management_shipmentstatusupdate RENAME TO prep_management_shipmentstatusupdate_old;
-    ALTER TABLE prep_management_shipmentstatusupdate_new RENAME TO prep_management_shipmentstatusupdate;
-    """
-    
-    # 4. Elimina la vecchia tabella
-    drop_old_table = """
-    DROP TABLE prep_management_shipmentstatusupdate_old;
-    """
-    
-    # Esegui le query in sequenza
-    schema_editor.execute(create_new_table)
-    schema_editor.execute(copy_unique_records)
-    schema_editor.execute(rename_tables)
-    schema_editor.execute(drop_old_table)
+    # Esegui la query
+    schema_editor.execute(remove_duplicates)
 
 class Migration(migrations.Migration):
 
@@ -64,5 +37,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(recreate_table_without_duplicates),
+        migrations.RunPython(force_remove_duplicates),
     ]
