@@ -2,33 +2,29 @@
 
 from django.db import migrations
 
-def force_remove_duplicates(apps, schema_editor):
+def truncate_all_tables(apps, schema_editor):
     """
-    Forza la rimozione dei duplicati usando SQL raw.
-    Questo approccio è il più diretto perché:
-    1. Usa DELETE con subquery per rimuovere i duplicati
-    2. Mantiene solo il record più recente per ogni combinazione
-    3. È eseguito direttamente a livello di database
+    Svuota completamente tutte le tabelle per ripartire da zero.
+    Questo approccio è radicale ma definitivo:
+    1. Svuota la tabella ShipmentStatusUpdate
+    2. Svuota la tabella TelegramNotification
+    3. Rimuove tutti i dati precedenti
     """
     db_alias = schema_editor.connection.alias
     
-    # 1. Rimuovi i duplicati mantenendo solo il record più recente
-    remove_duplicates = """
-    DELETE FROM prep_management_shipmentstatusupdate a
-    USING (
-        SELECT shipment_id, event_type, new_status, merchant_id, MAX(created_at) as max_created_at
-        FROM prep_management_shipmentstatusupdate
-        GROUP BY shipment_id, event_type, new_status, merchant_id
-    ) b
-    WHERE a.shipment_id = b.shipment_id
-    AND a.event_type = b.event_type
-    AND a.new_status = b.new_status
-    AND a.merchant_id = b.merchant_id
-    AND a.created_at < b.max_created_at;
+    # 1. Svuota la tabella ShipmentStatusUpdate
+    truncate_shipment_updates = """
+    TRUNCATE TABLE prep_management_shipmentstatusupdate RESTART IDENTITY CASCADE;
     """
     
-    # Esegui la query
-    schema_editor.execute(remove_duplicates)
+    # 2. Svuota la tabella TelegramNotification
+    truncate_telegram_notifications = """
+    TRUNCATE TABLE prep_management_telegramnotification RESTART IDENTITY CASCADE;
+    """
+    
+    # Esegui le query
+    schema_editor.execute(truncate_shipment_updates)
+    schema_editor.execute(truncate_telegram_notifications)
 
 class Migration(migrations.Migration):
 
@@ -37,5 +33,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(force_remove_duplicates),
+        migrations.RunPython(truncate_all_tables),
     ]
