@@ -717,15 +717,15 @@ class WebhookEventProcessor:
             
             logger.info(f"[_find_matching_inbound_shipment] 📋 Risposta API: {type(shipments_response)}")
             
-            # Il client completo restituisce un response object con .shipments
-            if hasattr(shipments_response, 'shipments'):
-                shipments = shipments_response.shipments
+            # Il client completo restituisce un response object con .data.shipments
+            if hasattr(shipments_response, 'data') and hasattr(shipments_response.data, 'shipments'):
+                shipments = shipments_response.data.shipments
                 logger.info(f"[_find_matching_inbound_shipment] 📋 Trovati {len(shipments)} inbound shipments")
                 
                 for shipment in shipments:
                     # Accesso diretto agli attributi Pydantic
-                    current_name = getattr(shipment, 'name', '') or ''
-                    shipment_id = getattr(shipment, 'id', None)
+                    current_name = shipment.name if hasattr(shipment, 'name') else ''
+                    shipment_id = shipment.id if hasattr(shipment, 'id') else None
                     
                     logger.debug(f"[_find_matching_inbound_shipment] 🔍 Controllo shipment ID {shipment_id}, nome: '{current_name}'")
                     
@@ -738,11 +738,13 @@ class WebhookEventProcessor:
                 
                 # DEBUG: Mostra i primi 5 nomi per debug
                 if len(shipments) > 0:
-                    sample_names = [getattr(s, 'name', 'NO_NAME') for s in shipments[:5]]
+                    sample_names = [s.name if hasattr(s, 'name') else 'NO_NAME' for s in shipments[:5]]
                     logger.info(f"[_find_matching_inbound_shipment] 🔍 Primi 5 nomi trovati: {sample_names}")
                 
             else:
-                logger.error(f"[_find_matching_inbound_shipment] ❌ Risposta API non ha attributo 'shipments': {dir(shipments_response)}")
+                logger.error(f"[_find_matching_inbound_shipment] ❌ Risposta API non ha struttura attesa: {dir(shipments_response)}")
+                if hasattr(shipments_response, 'data'):
+                    logger.error(f"[_find_matching_inbound_shipment] ❌ Struttura data: {dir(shipments_response.data)}")
             
             return None
                 
