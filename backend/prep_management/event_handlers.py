@@ -167,10 +167,10 @@ class WebhookEventProcessor:
             # Prepara dati base per notifica
             notification_data = {
                 'shipment_id': update.shipment_id,
-                'shipment_name': update.payload.get('name', '') if isinstance(update.payload, dict) else '',
-                'tracking_number': update.payload.get('tracking_number') if isinstance(update.payload, dict) else None,
-                'carrier': update.payload.get('carrier') if isinstance(update.payload, dict) else None,
-                'notes': update.payload.get('notes', '') if isinstance(update.payload, dict) else '',
+                'shipment_name': update.payload.get('data', {}).get('name', '') if isinstance(update.payload, dict) else '',
+                'tracking_number': update.payload.get('data', {}).get('tracking_number') if isinstance(update.payload, dict) else None,
+                'carrier': update.payload.get('data', {}).get('carrier') if isinstance(update.payload, dict) else None,
+                'notes': update.payload.get('data', {}).get('notes', '') if isinstance(update.payload, dict) else '',
                 'products_count': None,  # Sarà aggiornato se disponibile
                 'expected_count': None,  # Sarà aggiornato se disponibile
                 'received_count': None   # Sarà aggiornato se disponibile
