@@ -85,7 +85,6 @@ class WebhookEventProcessor:
         except Exception as e:
             logger.error(f"[WebhookEventProcessor.__init__] ❌ Errore inizializzazione client completo: {str(e)}")
             logger.exception("Traceback completo:")
-            # NON USARE PIÙ IL FALLBACK WRAPPER!
             self.client = None
         
         logger.info("[WebhookEventProcessor.__init__] Fine inizializzazione.")
@@ -216,153 +215,154 @@ class WebhookEventProcessor:
     
     def _process_outbound_shipment_closed(self, update: ShipmentStatusUpdate) -> Dict[str, Any]:
         """
-        Elabora l'evento di chiusura di una spedizione in uscita.
-        Implementa la logica per creare inbound residuali automaticamente.
+        Elabora un evento di chiusura outbound shipment.
+        
+        Args:
+            update: Aggiornamento da elaborare
+            
+        Returns:
+            Dict con i risultati dell'elaborazione
         """
-        logger.info(f"[_process_outbound_shipment_closed] 🚀 Inizio elaborazione outbound shipment closed")
+        logger.info(f"[_process_outbound_shipment_closed] 🔄 Elaborazione outbound shipment closed per Update ID: {update.id}")
         
         try:
-            # Estrai i dati dalla payload del webhook
-            payload = update.payload or {}
+            # Estrai dati dal payload
+            payload = update.payload
+            if not isinstance(payload, dict):
+                logger.error(f"[_process_outbound_shipment_closed] ❌ Payload non è un dict: {type(payload)}")
+                return {
+                    'success': False,
+                    'message': 'Payload non valido',
+                    'error': 'invalid_payload'
+                }
             
-            # HOTFIX: Gestisci sia il formato reale (payload.data) che quello di test (payload root)
-            shipment_data = payload.get('data', {})
-            if not shipment_data:
-                # Se non c'è 'data', prova a usare il payload root (formato test)
-                shipment_data = payload
-                logger.info(f"[_process_outbound_shipment_closed] 🔧 Usando payload root come shipment_data (formato test)")
-            else:
-                logger.info(f"[_process_outbound_shipment_closed] 🔧 Usando payload.data come shipment_data (formato reale)")
+            # Estrai dati shipment
+            shipment_id = str(payload.get('id', ''))
+            shipment_name = payload.get('name', '')
+            merchant_id = str(payload.get('team_id', ''))
+            tracking_number = payload.get('tracking_number')
+            carrier = payload.get('carrier')
+            notes = payload.get('notes', '')
+            shipped_at = payload.get('shipped_at')
+            warehouse_id = payload.get('warehouse_id')
             
-            if not shipment_data:
-                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun dato shipment nella payload")
-                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Payload keys: {list(payload.keys())}")
+            # Validazione dati obbligatori
+            if not shipment_id or not shipment_name or not merchant_id:
+                logger.error(f"[_process_outbound_shipment_closed] ❌ Dati shipment mancanti: id={shipment_id}, name={shipment_name}, merchant_id={merchant_id}")
                 return {
                     'success': False,
                     'message': 'Dati shipment mancanti nella payload webhook',
+                    'error': 'missing_shipment_data'
                 }
             
-            shipment_id = shipment_data.get('id') or shipment_data.get('shipment_id')
-            shipment_name = shipment_data.get('name', '')
+            logger.info(f"[_process_outbound_shipment_closed] 📦 Dati shipment: id={shipment_id}, name={shipment_name}, merchant_id={merchant_id}")
             
-            # Prova diversi modi per ottenere merchant_id dal payload
-            merchant_id = (
-                shipment_data.get('merchant_id') or
-                shipment_data.get('merchantId') or  
-                shipment_data.get('client_id') or
-                shipment_data.get('team_id') or  # AGGIUNTO: team_id per formato test
-                update.merchant_id or  # Fallback dal modello update
-                ''
-            )
-            
-            # Validazione merchant_id
-            if not merchant_id or merchant_id == '':
-                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Merchant ID mancante o vuoto nei dati webhook")
-                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Payload shipment_data keys: {list(shipment_data.keys())}")
-                logger.warning(f"[_process_outbound_shipment_closed] 🔍 Update merchant_id: {update.merchant_id}")
-                return {
-                    'success': False,
-                    'message': 'Merchant ID mancante nei dati webhook - impossibile procedere con inbound residual',
-                }
-            
-            if not shipment_id:
-                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Shipment ID mancante")
-                return {
-                    'success': False,
-                    'message': 'Shipment ID mancante nei dati webhook',
-                }
-            
-            logger.info(f"[_process_outbound_shipment_closed] 📦 Processing shipment ID: {shipment_id}, name: '{shipment_name}', merchant: {merchant_id}")
-            
-            # 1. Recupera gli items della spedizione outbound appena chiusa
-            logger.info(f"[_process_outbound_shipment_closed] 📋 Step 1: Recupero items outbound shipment {shipment_id}")
-            outbound_items = self._get_outbound_shipment_items(str(shipment_id))
+            # Step 1: Recupera items outbound
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 1: Recupero items outbound shipment {shipment_id}")
+            outbound_items = self._get_outbound_shipment_items(shipment_id)
             
             if not outbound_items:
-                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun item trovato nell'outbound shipment {shipment_id}")
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun item trovato per outbound shipment {shipment_id}")
                 return {
                     'success': True,
-                    'message': f'Outbound shipment {shipment_id} chiuso ma nessun item trovato - nessun residual necessario',
+                    'message': f'Outbound shipment {shipment_id} chiuso ma nessun item trovato - nessun residual necessario'
                 }
             
-            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovati {len(outbound_items)} items nell'outbound")
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovati {len(outbound_items)} items per outbound shipment {shipment_id}")
             
-            # 2. Trova l'inbound shipment corrispondente (stesso nome)
+            # Step 2: Cerca inbound shipment corrispondente
             logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 2: Ricerca inbound shipment con nome '{shipment_name}'")
-            inbound_shipment = self._find_matching_inbound_shipment(shipment_name, str(merchant_id))
+            inbound_shipment = self._find_matching_inbound_shipment(shipment_name, merchant_id)
             
             if not inbound_shipment:
                 logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun inbound shipment trovato con nome '{shipment_name}'")
                 return {
                     'success': True,
-                    'message': f'Nessun inbound shipment trovato con nome "{shipment_name}" - nessun residual necessario',
+                    'message': f'Nessun inbound shipment trovato con nome "{shipment_name}" - nessun residual necessario'
                 }
             
-            inbound_id = inbound_shipment.get('id')
-            warehouse_id = inbound_shipment.get('warehouse_id')
-            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovato inbound shipment ID: {inbound_id}")
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovato inbound shipment: {inbound_shipment.get('id')}")
             
-            # 3. Recupera gli items dell'inbound shipment
-            logger.info(f"[_process_outbound_shipment_closed] 📋 Step 3: Recupero items inbound shipment {inbound_id}")
-            inbound_items = self._get_inbound_shipment_items(str(inbound_id))
+            # Step 3: Recupera items inbound
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 3: Recupero items inbound shipment {inbound_shipment.get('id')}")
+            inbound_items = self._get_inbound_shipment_items(str(inbound_shipment.get('id')))
             
             if not inbound_items:
-                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun item trovato nell'inbound shipment {inbound_id}")
+                logger.warning(f"[_process_outbound_shipment_closed] ⚠️ Nessun item trovato per inbound shipment {inbound_shipment.get('id')}")
                 return {
                     'success': True,
-                    'message': f'Inbound shipment {inbound_id} trovato ma nessun item - nessun residual necessario',
+                    'message': f'Inbound shipment {inbound_shipment.get("id")} trovato ma nessun item presente - nessun residual necessario'
                 }
             
-            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovati {len(inbound_items)} items nell'inbound")
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Trovati {len(inbound_items)} items per inbound shipment {inbound_shipment.get('id')}")
             
-            # 4. Calcola i prodotti residuali
-            logger.info(f"[_process_outbound_shipment_closed] 🧮 Step 4: Calcolo prodotti residuali")
+            # Step 4: Calcola items residuali
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 4: Calcolo items residuali")
             residual_items = self._calculate_residual_items(inbound_items, outbound_items)
             
             if not residual_items:
-                logger.info(f"[_process_outbound_shipment_closed] ✅ Nessun prodotto residuale calcolato - tutto spedito")
+                logger.info(f"[_process_outbound_shipment_closed] ✅ Nessun item residuale da creare")
                 return {
                     'success': True,
-                    'message': 'Tutti i prodotti sono stati spediti - nessun residual necessario',
+                    'message': 'Nessun item residuale da creare - tutti gli items sono stati spediti'
                 }
             
-            logger.info(f"[_process_outbound_shipment_closed] ✅ Calcolati {len(residual_items)} prodotti residuali")
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Calcolati {len(residual_items)} items residuali")
             
-            # 5. Genera nome per il nuovo inbound residual
-            logger.info(f"[_process_outbound_shipment_closed] 🏷️ Step 5: Generazione nome per inbound residual")
-            residual_name = self._generate_residual_name(shipment_name, str(merchant_id))
-            logger.info(f"[_process_outbound_shipment_closed] ✅ Nome generato: '{residual_name}'")
+            # Step 5: Genera nome per residual
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 5: Generazione nome residual")
+            residual_name = self._generate_residual_name(shipment_name, merchant_id)
             
-            # 6. Crea il nuovo inbound shipment residual
-            logger.info(f"[_process_outbound_shipment_closed] 🚀 Step 6: Creazione inbound residual")
-            residual_id = self._create_residual_inbound_shipment(residual_name, inbound_shipment, residual_items)
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Nome residual generato: '{residual_name}'")
             
-            if residual_id:
-                logger.info(f"[_process_outbound_shipment_closed] 🎉 SUCCESS: Inbound residual creato con ID: {residual_id}")
-                return {
-                    'success': True,
-                    'message': f'Inbound residual creato con successo - ID: {residual_id}, Nome: "{residual_name}"',
-                    'residual_inbound_id': residual_id,
-                    'residual_name': residual_name,
-                    'residual_items_count': len(residual_items)
-                }
-            else:
-                logger.error(f"[_process_outbound_shipment_closed] ❌ ERRORE: Creazione inbound residual fallita")
+            # Step 6: Crea inbound residual
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 6: Creazione inbound residual '{residual_name}'")
+            residual_shipment_id = self._create_residual_inbound_shipment(residual_name, inbound_shipment, residual_items)
+            
+            if not residual_shipment_id:
+                logger.error(f"[_process_outbound_shipment_closed] ❌ Errore creazione inbound residual '{residual_name}'")
                 return {
                     'success': False,
-                    'message': 'Errore durante la creazione dell\'inbound residual',
+                    'message': f'Errore creazione inbound residual: {residual_name}',
+                    'error': 'residual_creation_failed'
                 }
-                
+            
+            logger.info(f"[_process_outbound_shipment_closed] ✅ Inbound residual creato con ID: {residual_shipment_id}")
+            
+            # Step 7: Prepara dati per notifica
+            notification_data = {
+                'shipment_id': shipment_id,
+                'shipment_name': shipment_name,
+                'tracking_number': tracking_number,
+                'carrier': carrier,
+                'notes': notes,
+                'products_count': len(outbound_items),
+                'expected_count': len(inbound_items),
+                'received_count': len(residual_items)
+            }
+            
+            # Step 8: Invia notifica Telegram
+            logger.info(f"[_process_outbound_shipment_closed] 🔍 Step 8: Invio notifica Telegram")
+            self._send_telegram_notification_if_needed(update, notification_data)
+            
+            return {
+                'success': True,
+                'message': f'Inbound residual creato con successo: {residual_name} (ID: {residual_shipment_id})',
+                'residual_shipment_id': residual_shipment_id,
+                'residual_name': residual_name,
+                'items_count': len(residual_items)
+            }
+            
         except Exception as e:
-            logger.error(f"[_process_outbound_shipment_closed] ❌ ECCEZIONE: {str(e)}")
-            logger.exception("Traceback completo:")
+            logger.error(f"[_process_outbound_shipment_closed] ❌ Errore elaborazione outbound shipment closed: {str(e)}")
+            logger.exception("Traceback:")
             return {
                 'success': False,
-                'message': f'Errore durante l\'elaborazione outbound shipment closed: {str(e)}',
-                'error': 'processing_exception'
+                'message': f'Errore elaborazione outbound shipment closed: {str(e)}',
+                'error': 'processing_error'
             }
     
-    def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate):
+    def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate, notification_data: Dict[str, Any]):
         """
         Invia una notifica Telegram se l'evento lo richiede.
         """
@@ -393,38 +393,13 @@ class WebhookEventProcessor:
             
             logger.info(f"[_send_telegram_notification_if_needed] Email merchant trovata: {merchant_email}")
             
-            # Estrai i dati della spedizione dal payload del webhook
-            shipment_data = {}
-            if update.payload and 'data' in update.payload:
-                raw_data = update.payload['data']
-                
-                # Mappa i dati con i nomi di campo corretti per il formattatore
-                shipment_data = {
-                    'shipment_id': update.shipment_id,
-                    'shipment_name': raw_data.get('name'),  # Mappa 'name' a 'shipment_name'
-                    'tracking_number': raw_data.get('tracking_number'),
-                    'carrier': raw_data.get('carrier'),
-                    'notes': raw_data.get('notes'),
-                    'products_count': raw_data.get('products_count'),
-                    'expected_count': raw_data.get('expected_count'),
-                    'received_count': raw_data.get('received_count')
-                }
-                
-                logger.info(f"[_send_telegram_notification_if_needed] Dati spedizione mappati: {shipment_data}")
-            else:
-                # Se non ci sono dati nel payload, almeno passa l'ID
-                shipment_data = {
-                    'shipment_id': update.shipment_id
-                }
-                logger.warning(f"[_send_telegram_notification_if_needed] Nessun dato spedizione nel payload, usando solo shipment_id")
-            
             # Invia la notifica (la formattazione del messaggio sarà gestita internamente)
             success = send_telegram_notification(
                 email=merchant_email,
                 message=None,  # Verrà formattato internamente
                 event_type=update.event_type,
                 shipment_id=update.shipment_id,
-                shipment_data=shipment_data  # Passiamo i dati per la formattazione
+                shipment_data=notification_data  # Passiamo i dati per la formattazione
             )
             
             if success:
