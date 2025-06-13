@@ -429,9 +429,9 @@ class WebhookEventProcessor:
         """
         # Lista degli eventi per cui inviare notifiche
         notify_events = [
-            'inbound_shipment.created',    
+            'inbound_shipment.created',
             'inbound_shipment.received',
-            'inbound_shipment.shipped', 
+            'inbound_shipment.shipped',
             'outbound_shipment.created',
             'outbound_shipment.closed',
             'order.created',
@@ -439,11 +439,14 @@ class WebhookEventProcessor:
         ]
         
         # Controlla se l'evento richiede una notifica
+        logger.info(f"[_send_telegram_notification_if_needed] 🔔 CONTROLLO NOTIFICA - Evento {update.event_type} per spedizione {update.shipment_id}")
+        logger.info(f"[_send_telegram_notification_if_needed] Lista eventi che richiedono notifica: {notify_events}")
+
         if update.event_type not in notify_events:
-            logger.info(f"[_send_telegram_notification_if_needed] Evento {update.event_type} non richiede notifica.")
+            logger.info(f"[_send_telegram_notification_if_needed] ❌ Evento {update.event_type} NON richiede notifica Telegram")
             return
         
-        logger.info(f"[_send_telegram_notification_if_needed] Invio notifica per evento {update.event_type}")
+        logger.info(f"[_send_telegram_notification_if_needed] ✅ Evento {update.event_type} RICHIEDE notifica Telegram")
         
         try:
             # Recupera l'email del merchant

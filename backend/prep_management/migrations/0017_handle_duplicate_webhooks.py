@@ -35,7 +35,7 @@ def remove_duplicate_webhooks(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('prep_management', '0017_handle_duplicate_webhooks'),
+        ('prep_management', '0016_alter_outgoingmessage_message_id_and_more'),
     ]
 
     operations = [
