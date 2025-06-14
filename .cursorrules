@@ -26,14 +26,34 @@ gtimeout 60 railway logs -s [nome_servizio]
 ```
 
 **NOTA**: Usare sempre `gtimeout` invece di `railway logs` diretto per evitare timeout.
-### 🚀 **MONITORAGGIO DEPLOYMENT INTELLIGENTE**
+### 🚀 **MONITORAGGIO DEPLOYMENT INTELLIGENTE (SISTEMA VERSIONING)**
 
 **❌ MAI usare tempi di attesa fissi** come `sleep 30` per aspettare il deployment.
-**✅ SEMPRE usare lo script di monitoraggio intelligente** che verifica attivamente lo stato.
+**✅ SEMPRE usare lo script di monitoraggio intelligente** basato su sistema di versioning.
+
+#### **Sistema di Versioning per Deployment**
+Il sistema utilizza un approccio semplice e affidabile:
+
+1. **Variabile VERSION**: Definita in `backend/prep_center/settings.py`
+   ```python
+   # Prep Center Version
+   VERSION = "0.4"  # Incrementa ad ogni deployment
+   ```
+
+2. **File di Versione**: Scritto all'avvio dell'applicazione in `backend/prep_center/wsgi.py`
+   ```python
+   # Scrivi versione su file all'avvio
+   with open('/tmp/prep_center_version.txt', 'w') as f:
+       f.write(settings.VERSION)
+   ```
+
+3. **Endpoint Versione**: Accessibile via `/prep_management/version-file/`
+   - Legge il contenuto del file `/tmp/prep_center_version.txt`
+   - Restituisce la versione attualmente attiva in produzione
 
 #### **Script di Monitoraggio Deployment**
 ```bash
-# ✅ COMANDO CORRETTO - Monitoraggio intelligente
+# ✅ COMANDO CORRETTO - Monitoraggio basato su versioning
 ./scripts/wait_for_deployment.sh
 
 # ❌ MAI FARE - Attesa fissa
@@ -43,23 +63,24 @@ sleep 30 && railway logs
 sleep 60 && curl https://backend.fbaprepcenteritaly.com/
 ```
 
-#### **Funzionalità dello Script Intelligente**
-- **✅ Verifica commit hash**: Controlla che il deployment corrisponda al commit locale
-- **✅ Health check**: Testa che il backend risponda correttamente
-- **✅ Test endpoint**: Verifica endpoint specifici come `/prep_management/api-debug/`
-- **✅ Timeout intelligente**: Massimo 5 minuti con controlli ogni 10 secondi
-- **✅ Logging colorato**: Output chiaro con stati di progresso
-- **✅ Exit codes**: Ritorna 0 per successo, 1 per errore
+#### **Come Funziona lo Script**
+1. **Lettura Iniziale**: Legge il contenuto attuale del file (es. "0.3")
+2. **Monitoraggio Cambiamenti**: Controlla periodicamente se il contenuto cambia
+3. **Rilevamento Deployment**: Quando il contenuto cambia (es. "0.4"), il deployment è completato
+4. **Gestione Errori**: Se il file non è disponibile, aspetta che diventi accessibile
 
 #### **Workflow Corretto Post-Commit**
 ```bash
-# 1. Commit e push
+# 1. Incrementa versione (se necessario)
+# Modifica VERSION in backend/prep_center/settings.py
+
+# 2. Commit e push
 git add -A && git commit -m "Fix description" && git push origin main
 
-# 2. Monitoraggio intelligente (NON attesa fissa)
+# 3. Monitoraggio intelligente (NON attesa fissa)
 ./scripts/wait_for_deployment.sh
 
-# 3. Se successo, procedi con verifiche
+# 4. Se successo, procedi con verifiche
 if [ $? -eq 0 ]; then
     echo "✅ Deployment completato, sistema operativo"
     # Eventuali test aggiuntivi...
@@ -69,19 +90,44 @@ else
 fi
 ```
 
-#### **Vantaggi del Monitoraggio Intelligente**
-- **⚡ Più veloce**: Non aspetta tempo inutile se il deployment è già pronto
-- **🔍 Più preciso**: Verifica effettivamente che il sistema funzioni
-- **📊 Più informativo**: Mostra lo stato di progresso in tempo reale
-- **🛡️ Più sicuro**: Rileva problemi di deployment prima di procedere
-- **🎯 Più affidabile**: Non dipende da tempi fissi che possono variare
+#### **Esempio di Output dello Script**
+```bash
+[INFO] 🚀 Monitoraggio deployment Railway (controllo cambio file)
+[INFO] Contenuto iniziale: '0.3'
+[INFO] Monitoraggio cambiamenti del file...
+[INFO] Controllo 1/30...
+[INFO] Contenuto attuale: '0.3'
+[INFO] Contenuto invariato, deployment in corso...
+[INFO] Attesa 10s prima del prossimo controllo...
+...
+[INFO] Controllo 8/30...
+[INFO] Contenuto attuale: '0.4'
+[SUCCESS] ✅ Deployment completato! Contenuto cambiato da '0.3' a '0.4'
+```
 
-#### **Personalizzazione Script**
-Lo script può essere personalizzato modificando:
-- `MAX_ATTEMPTS=30` - Numero massimo di tentativi
+#### **Vantaggi del Sistema Versioning**
+- **🎯 Semplicità**: Controlla solo se il contenuto del file cambia
+- **⚡ Velocità**: Rileva immediatamente quando il nuovo codice è attivo
+- **🔍 Precisione**: Non dipende da health check complessi o hash commit
+- **🛡️ Affidabilità**: Funziona anche se l'applicazione ha problemi temporanei
+- **📊 Chiarezza**: Output semplice e comprensibile
+- **🚀 Robustezza**: Gestisce automaticamente errori temporanei
+
+#### **Configurazione Script**
+Parametri modificabili in `scripts/wait_for_deployment.sh`:
+- `MAX_ATTEMPTS=30` - Numero massimo di controlli (5 minuti totali)
 - `SLEEP_INTERVAL=10` - Intervallo tra controlli (secondi)
-- `BACKEND_URL` - URL del backend da testare
-- Endpoint specifici da testare nel test finale
+- `VERSION_FILE_URL` - URL endpoint per leggere la versione
+
+#### **Incremento Versione**
+Per deployment che richiedono test del versioning:
+```bash
+# Incrementa manualmente la versione
+sed -i '' 's/VERSION = "0.4"/VERSION = "0.5"/' backend/prep_center/settings.py
+
+# Oppure modifica direttamente il file
+# backend/prep_center/settings.py: VERSION = "0.5"
+```
 
 **REGOLA**: Ogni volta che devi aspettare un deployment, usa SEMPRE `./scripts/wait_for_deployment.sh`
 
