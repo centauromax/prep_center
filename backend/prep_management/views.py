@@ -123,7 +123,7 @@ def merchants_list(request):
         return render(request, 'prep_management/merchants_list.html', {'error': 'Client API non configurato.'})
 
     try:
-        merchants_response = client.get_merchants(enabled=None) # Get all
+        merchants_response = client.get_merchants() # Get all merchants
         merchants = merchants_response.merchants if merchants_response else []
         
         # Converte i modelli Pydantic in dizionari per il template
@@ -1666,7 +1666,7 @@ def telegram_merchants_debug(request):
         
         # Ottieni tutti i merchant
         merchants_response = client.get_merchants()
-        merchants = merchants_response if merchants_response else []
+        merchants = merchants_response.merchants if merchants_response else []
         
         # Estrai info merchant
         merchant_info = []

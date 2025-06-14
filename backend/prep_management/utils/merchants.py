@@ -41,17 +41,42 @@ def get_merchants(active_only: bool = False) -> List[Dict[str, Any]]:
         logger.info("[get_merchants] Esecuzione chiamata API get_merchants")
         merchants_response = client.get_merchants()
         
-        # Il client originale restituisce direttamente una lista
-        if isinstance(merchants_response, list):
-            merchant_list = merchants_response
+        # Gestisci la risposta Pydantic MerchantsResponse
+        if hasattr(merchants_response, 'data'):
+            # La risposta ha un attributo 'data' che contiene la lista
+            merchant_list = merchants_response.data.data
+            logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da MerchantsResponse.data")
+        elif hasattr(merchants_response, 'data'):
+            # Fallback: risposta diretta come lista
+            merchant_list = merchants_response.data
+            logger.info(f"[get_merchants] Risposta diretta come lista: {len(merchant_list)} merchants")
         else:
             logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
-            merchant_list = []
+            # Prova ad accedere all'attributo merchants se esiste
+            if hasattr(merchants_response, 'merchants'):
+                merchant_list = merchants_response.data.merchants
+                logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da .merchants")
+            else:
+                merchant_list = []
         
         logger.info(f"[get_merchants] Recuperati {len(merchant_list)} merchants da Prep Business")
         
-        # I dati sono già dizionari con il client originale
-        merchant_dicts = merchant_list
+        # Converti gli oggetti Pydantic in dizionari se necessario
+        merchant_dicts = []
+        for merchant in merchant_list:
+            if hasattr(merchant, 'model_dump'):
+                # È un oggetto Pydantic, convertilo in dict
+                merchant_dicts.append(merchant.model_dump())
+            elif isinstance(merchant, dict):
+                # È già un dizionario
+                merchant_dicts.append(merchant)
+            else:
+                # Prova a convertirlo in dict
+                try:
+                    merchant_dicts.append(dict(merchant))
+                except:
+                    logger.warning(f"[get_merchants] Impossibile convertire merchant: {type(merchant)}")
+                    continue
         
         # Filtra per enabled se richiesto
         if active_only:

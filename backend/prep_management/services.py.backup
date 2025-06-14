@@ -154,22 +154,11 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         # Ottieni tutti i merchants
         client = get_client()
         merchants_response = client.get_merchants()
-        # Gestisci la risposta Pydantic
+        # Gestisci la risposta Pydantic\n        if hasattr(merchants_response, 'data'):\n            merchants = merchants_response.data\n        elif isinstance(merchants_response, list):\n            merchants = merchants_response\n        else:\n            merchants = []
         
         # Cerca tutti i merchants con questa email
         matching_merchants = []
-        # Converti oggetti Pydantic in dict se necessario
-        merchant_dicts = []
-        for merchant in merchants:
-            if hasattr(merchant, 'model_dump'):
-                merchant_dicts.append(merchant.model_dump())
-            elif isinstance(merchant, dict):
-                merchant_dicts.append(merchant)
-            else:
-                merchant_dicts.append(dict(merchant))
-        
-        # Cerca tutti i merchants con questa email
-        for merchant in merchant_dicts:
+        # Converti oggetti Pydantic in dict\n        merchant_dicts = []\n        for merchant in merchants:\n            if hasattr(merchant, 'model_dump'):\n                merchant_dicts.append(merchant.model_dump())\n            elif isinstance(merchant, dict):\n                merchant_dicts.append(merchant)\n            else:\n                merchant_dicts.append(dict(merchant))\n        \n        # Cerca tutti i merchants con questa email\n        for merchant in merchant_dicts:
             merchant_email = merchant.get('primaryEmail')
             if merchant_email and merchant_email.lower() == email:
                 matching_merchants.append(merchant)
