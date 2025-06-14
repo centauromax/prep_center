@@ -4,7 +4,7 @@ from django.utils import timezone
 
 # Import diretto del client ufficiale
 from libs.prepbusiness.client import PrepBusinessClient
-from libs.prepbusiness.models import PrepBusinessError, AuthenticationError
+from libs.prepbusiness.models import PrepBusinessError, AuthenticationError, Carrier, ExpectedItemUpdate, ActualItemUpdate
 
 from .models import ShipmentStatusUpdate, PrepBusinessConfig
 from .services import format_shipment_notification
@@ -212,38 +212,55 @@ class WebhookEventProcessor:
             shipment_id = created_shipment_resp.shipment_id
             logger.info(f"Shipment {creation_type} vuoto creato con ID: {shipment_id}")
 
-            # Step 2: Aggiunge gli items uno a uno
-            logger.info(f"Aggiungo {len(items_data)} items allo shipment {shipment_id}")
-            for item in items_data:
-                sku = item.get("sku")
+            # Step 2: Aggiungi tutti gli items allo shipment
+            for item_data in items_data:
+                sku = item_data.get('sku')
+                expected_qty = item_data.get('expected_quantity')
+                actual_qty = item_data.get('actual_quantity')
                 
-                # Per RESIDUAL: usa expected_quantity, per PARTIAL: usa expected_quantity (che è = actual_quantity)
-                expected_qty = item.get("expected_quantity", item.get("quantity", 0))
-                actual_qty = item.get("actual_quantity", expected_qty)  # Default = expected se non specificato
+                logger.info(f"Aggiungendo item {sku} con quantità expected: {expected_qty}, actual: {actual_qty}")
                 
-                logger.info(f"Item {sku}: Expected={expected_qty}, Actual={actual_qty}")
+                # Cerca l'item nel sistema per ottenere l'item_id
+                inventory_resp = self.client.search_inventory(sku)
+                if not inventory_resp.items:
+                    logger.error(f"Item con SKU {sku} non trovato nell'inventario")
+                    continue
+                    
+                item_id = inventory_resp.items[0].id
                 
-                # Cerca l'item_id dallo SKU
-                try:
-                    inventory_resp = self.client.search_inventory(query=sku)
-                    if inventory_resp and inventory_resp.items:
-                        # Prende il primo item che corrisponde allo SKU
-                        matching_item = next((i for i in inventory_resp.items if i.merchant_sku == sku), None)
-                        if matching_item:
-                            # Aggiunge con quantità expected (per ora, poi aggiorneremo actual se diversa)
-                            self.client.add_item_to_shipment(
-                                shipment_id=shipment_id,
-                                item_id=matching_item.id,
-                                quantity=expected_qty,
-                                merchant_id=merchant_id
-                            )
-                            logger.info(f"Aggiunto item SKU {sku} (ID: {matching_item.id}) con quantità expected {expected_qty}")
-                        else:
-                            logger.warning(f"Nessun item trovato per SKU {sku}")
-                    else:
-                        logger.warning(f"Nessun risultato dalla ricerca per SKU {sku}")
-                except Exception as e:
-                    logger.error(f"Errore durante l'aggiunta dell'item SKU {sku}: {e}")
+                # Aggiungi l'item con la quantità expected
+                self.client.add_item_to_shipment(
+                    shipment_id=shipment_id,
+                    item_id=item_id,
+                    quantity=expected_qty,
+                    merchant_id=merchant_id
+                )
+                logger.info(f"Item {sku} aggiunto con quantità expected: {expected_qty}")
+                
+                # 🆕 Se è PARTIAL, aggiorna anche la quantità actual
+                if creation_type == "partial" and actual_qty != expected_qty:
+                    logger.info(f"Aggiornando quantità actual per PARTIAL: {sku} → {actual_qty}")
+                    try:
+                        expected_update = ExpectedItemUpdate(
+                            quantity=expected_qty,
+                            item_group_configurations=[]
+                        )
+                        actual_update = ActualItemUpdate(
+                            quantity=actual_qty,
+                            item_group_configurations=[]
+                        )
+                        
+                        self.client.update_shipment_item(
+                            shipment_id=shipment_id,
+                            item_id=item_id,
+                            expected=expected_update,
+                            actual=actual_update,
+                            merchant_id=merchant_id
+                        )
+                        logger.info(f"✅ Quantità actual aggiornata per {sku}: {actual_qty}")
+                    except Exception as e:
+                        logger.error(f"❌ Errore nell'aggiornare quantità actual per {sku}: {e}")
+                        # Non bloccare il processo, continua comunque
             
             # Step 3: Se è PARTIAL, settalo come Shipped
             if creation_type == "partial":
@@ -252,8 +269,8 @@ class WebhookEventProcessor:
                     # Usa API Submit per settare come shipped
                     self.client.submit_inbound_shipment(
                         shipment_id=shipment_id,
-                        carrier="no_tracking",
-                        tracking_numbers="",
+                        carrier=Carrier.NO_TRACKING,
+                        tracking_numbers=[],
                         merchant_id=merchant_id
                     )
                     logger.info(f"✅ Shipment PARTIAL {shipment_id} settato come Shipped")
