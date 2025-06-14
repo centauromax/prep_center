@@ -3261,13 +3261,12 @@ def test_outbound_closed_process(request):
         
         # Crea il record ShipmentStatusUpdate
         update = ShipmentStatusUpdate.objects.create(
+            shipment_id=str(outbound_id),  # ✅ Campo corretto
             event_type="outbound_shipment.closed",
-            entity_type="shipment",
-            entity_id=str(outbound_id),
+            new_status="closed",  # ✅ Campo corretto
             merchant_id="1", 
-            status="closed",
+            entity_type="shipment",
             payload=webhook_data,
-            signature_verified=True,
             processed=False
         )
         
