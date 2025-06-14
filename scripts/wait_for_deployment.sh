@@ -52,7 +52,18 @@ check_backend_health() {
 
 # Funzione per ottenere lo status del deployment da Railway
 get_deployment_status() {
-    railway status --json 2>/dev/null | jq -r '.services.edges[0].node.serviceInstances.edges[0].node.latestDeployment.meta.commitHash' 2>/dev/null || echo "unknown"
+    # Prova prima con railway status, poi fallback su test HTTP
+    local railway_hash
+    railway_hash=$(railway status --json 2>/dev/null | jq -r '.services.edges[0].node.serviceInstances.edges[0].node.latestDeployment.meta.commitHash' 2>/dev/null || echo "unknown")
+    
+    if [[ "$railway_hash" != "unknown" && "$railway_hash" != "null" ]]; then
+        echo "$railway_hash"
+    else
+        # Fallback: prova a ottenere info dal backend stesso
+        local backend_info
+        backend_info=$(curl -s "$BACKEND_URL/prep_management/api-debug/" 2>/dev/null | grep -o '"commit_hash":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+        echo "$backend_info"
+    fi
 }
 
 # Funzione per verificare se il deployment è completo
@@ -60,10 +71,40 @@ check_deployment_complete() {
     local current_commit_hash
     current_commit_hash=$(get_deployment_status)
     
-    if [[ "$current_commit_hash" == "$EXPECTED_COMMIT_HASH" ]]; then
+    # Se non riusciamo a ottenere l'hash, consideriamo il deployment non completo
+    if [[ "$current_commit_hash" == "unknown" || "$current_commit_hash" == "null" || -z "$current_commit_hash" ]]; then
+        return 1
+    fi
+    
+    # Confronta gli hash (primi 8 caratteri per compatibilità)
+    local expected_short="${EXPECTED_COMMIT_HASH:0:8}"
+    local current_short="${current_commit_hash:0:8}"
+    
+    if [[ "$current_short" == "$expected_short" ]]; then
         return 0  # Deployment complete
     else
         return 1  # Still deploying
+    fi
+}
+
+# Funzione per test più robusto del backend
+check_backend_health_robust() {
+    local health_checks=0
+    local max_health_checks=3
+    
+    # Test multipli per essere sicuri
+    for i in $(seq 1 $max_health_checks); do
+        if check_backend_health; then
+            ((health_checks++))
+        fi
+        sleep 2
+    done
+    
+    # Richiede almeno 2 su 3 test positivi
+    if [[ $health_checks -ge 2 ]]; then
+        return 0
+    else
+        return 1
     fi
 }
 
@@ -92,7 +133,7 @@ main() {
     
     # Verifica iniziale
     log_info "Verifica stato iniziale..."
-    if check_backend_health; then
+    if check_backend_health_robust; then
         log_info "✅ Backend risponde"
     else
         log_warning "⚠️  Backend non risponde ancora"
@@ -118,7 +159,7 @@ main() {
         fi
         
         # Controlla se il backend è healthy
-        if check_backend_health; then
+        if check_backend_health_robust; then
             if [[ "$backend_healthy" == false ]]; then
                 log_success "✅ Backend risponde correttamente"
                 backend_healthy=true

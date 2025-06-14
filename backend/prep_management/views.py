@@ -217,9 +217,18 @@ def shipment_status_webhook(request):
                 logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: status=closed + shipped_at presente → probabilmente OUTBOUND")
                 is_outbound = True
             
-            # 4. NUOVO: Se ha warehouse_id, potrebbe essere outbound (spedizione verso Amazon)
-            if not is_outbound and 'warehouse_id' in shipment_data:
-                logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: warehouse_id presente → possibile OUTBOUND")
+            # 4. RIMOSSO: warehouse_id non è un indicatore affidabile
+            # Sia inbound che outbound possono avere warehouse_id
+            # if not is_outbound and 'warehouse_id' in shipment_data:
+            #     logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: warehouse_id presente → possibile OUTBOUND")
+            #     is_outbound = True
+            
+            # 5. NUOVO: Controllo più specifico per outbound
+            # Se ha ship_from_address_id o è case_forwarding, è probabilmente outbound
+            if not is_outbound and ('ship_from_address_id' in shipment_data or 
+                                   shipment_data.get('is_case_forwarding') or 
+                                   shipment_data.get('is_case_packed')):
+                logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: caratteristiche outbound specifiche → OUTBOUND")
                 is_outbound = True
             
             # Logica per determinare il tipo di evento
@@ -2931,6 +2940,7 @@ def test_residual_version(request):
     try:
         from datetime import datetime
         from .event_handlers import WebhookEventProcessor
+        from .services import format_shipment_notification
         
         # Test semplice senza git
         processor = WebhookEventProcessor()
@@ -2951,11 +2961,11 @@ def test_residual_version(request):
         
         mock_outbound = [
             {
-                'item': {'merchant_sku': 'TEST-001'},
+                'item': {'merchant_sku': 'TEST-001', 'title': 'Prodotto Test 1'},
                 'quantity': 7
             },
             {
-                'item': {'merchant_sku': 'TEST-002'},
+                'item': {'merchant_sku': 'TEST-002', 'title': 'Prodotto Test 2'},
                 'quantity': 3
             }
         ]
@@ -2963,42 +2973,7 @@ def test_residual_version(request):
         # Test calcolo residuali
         residual_items = processor._calculate_residual_items(mock_inbound, mock_outbound)
         
-        return JsonResponse({
-            'success': True,
-            'version_info': {
-                'timestamp': datetime.now().isoformat(),
-                'residual_logic_version': 'V4',
-                'test_passed': len(residual_items) == 2,
-                'expected_residuals': [
-                    {'sku': 'TEST-001', 'quantity': 3},  # 10 - 7 = 3
-                    {'sku': 'TEST-002', 'quantity': 2}   # 5 - 3 = 2
-                ],
-                'actual_residuals': residual_items
-            },
-            'deployment_status': 'V4 logic deployed' if len(residual_items) == 2 else 'Old logic still active'
-        })
-        
-    except Exception as e:
-        logger.exception("Errore nel test versione residuale:")
-        return JsonResponse({
-            'success': False,
-            'error': str(e),
-            'version_info': {
-                'residual_logic_version': 'unknown',
-                'test_passed': False
-            }
-        }, status=500)
-
-@api_view(['GET'])
-@permission_classes([])
-def test_inbound_message_formatting(request):
-    """
-    Test specifico per verificare la formattazione del messaggio inbound_shipment.created.
-    """
-    try:
-        from .services import format_shipment_notification
-        
-        # Dati di test per inbound residuale
+        # Test formattazione messaggio inbound
         shipment_data = {
             'shipment_id': 'RESIDUAL-123',
             'shipment_name': 'Test Shipment - RESIDUAL',
