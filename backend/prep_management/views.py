@@ -2922,4 +2922,86 @@ def reprocess_webhook_for_debug(request, update_id):
         logger.error(f"Errore durante la rielaborazione di debug: {e}", exc_info=True)
         return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
+@api_view(['GET'])
+@permission_classes([])
+def test_residual_version(request):
+    """
+    Endpoint per verificare la versione del codice residuale deployato.
+    """
+    try:
+        import subprocess
+        import os
+        from datetime import datetime
+        from .event_handlers import WebhookEventProcessor
+        
+        # Ottieni commit hash corrente
+        try:
+            commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
+                                                cwd='/opt/render/project/src/backend' if os.path.exists('/opt/render') else '.',
+                                                stderr=subprocess.DEVNULL).decode().strip()[:8]
+        except:
+            try:
+                commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
+                                                    stderr=subprocess.DEVNULL).decode().strip()[:8]
+            except:
+                commit_hash = "unknown"
+        
+        # Verifica versione del codice residuale
+        processor = WebhookEventProcessor()
+        
+        # Test della logica di calcolo con dati mock
+        mock_inbound = [
+            {
+                'item': {'merchant_sku': 'TEST-001', 'title': 'Prodotto Test 1'},
+                'actual': {'quantity': 10},
+                'expected': {'quantity': 10}
+            },
+            {
+                'item': {'merchant_sku': 'TEST-002', 'title': 'Prodotto Test 2'},
+                'actual': {'quantity': 5},
+                'expected': {'quantity': 5}
+            }
+        ]
+        
+        mock_outbound = [
+            {
+                'item': {'merchant_sku': 'TEST-001'},
+                'quantity': 7
+            },
+            {
+                'item': {'merchant_sku': 'TEST-002'},
+                'quantity': 3
+            }
+        ]
+        
+        # Test calcolo residuali
+        residual_items = processor._calculate_residual_items(mock_inbound, mock_outbound)
+        
+        return JsonResponse({
+            'success': True,
+            'version_info': {
+                'commit_hash': commit_hash,
+                'timestamp': datetime.now().isoformat(),
+                'residual_logic_version': 'V4',
+                'test_passed': len(residual_items) == 2,
+                'expected_residuals': [
+                    {'sku': 'TEST-001', 'quantity': 3},  # 10 - 7 = 3
+                    {'sku': 'TEST-002', 'quantity': 2}   # 5 - 3 = 2
+                ],
+                'actual_residuals': residual_items
+            },
+            'deployment_status': 'V4 logic deployed' if len(residual_items) == 2 else 'Old logic still active'
+        })
+        
+    except Exception as e:
+        logger.exception("Errore nel test versione residuale:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'version_info': {
+                'residual_logic_version': 'unknown',
+                'test_passed': False
+            }
+        }, status=500)
+
 # Debug function removed to fix crash
