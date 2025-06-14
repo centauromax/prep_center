@@ -198,32 +198,45 @@ def shipment_status_webhook(request):
             status = shipment_data.get('status', '').lower()
             shipped_at = shipment_data.get('shipped_at')
             shipment_id = shipment_data.get('id')
+            shipment_name = shipment_data.get('name', '')
+            notes = shipment_data.get('notes', '')
             
             # Determina se è inbound o outbound dai campi presenti
             has_outbound_items = 'outbound_items' in shipment_data
             has_inbound_items = 'inbound_items' in shipment_data or 'items' in shipment_data
             
+            # CONTROLLO PRIORITARIO: Se è un RESIDUAL, è sempre INBOUND
+            is_residual = 'RESIDUAL' in shipment_name.upper() or 'residual' in notes.lower()
+            if is_residual:
+                logger.info(f"[infer_event_type] 🎯 Shipment {shipment_id}: RESIDUAL rilevato → FORZATO INBOUND")
+                # Per i residual, determina solo il tipo di evento inbound
+                if status == 'open':
+                    return 'inbound_shipment.created'
+                elif status == 'received':
+                    return 'inbound_shipment.received'
+                elif shipped_at:
+                    return 'inbound_shipment.shipped'
+                else:
+                    return 'inbound_shipment.updated'
+            
             # MIGLIORAMENTO: Logica più intelligente per riconoscere outbound shipments
             # 1. Se ha outbound_items espliciti
             is_outbound = has_outbound_items
             
-            # 2. Se contiene "outbound" nel payload
+            # 2. Se contiene "outbound" nel payload (MA NON nei residual)
             if not is_outbound:
-                is_outbound = 'outbound' in str(shipment_data).lower()
+                payload_str = str(shipment_data).lower()
+                # Escludi i residual da questa logica
+                if 'outbound' in payload_str and not is_residual:
+                    is_outbound = True
             
-            # 3. NUOVO: Se è status="closed" con shipped_at, probabilmente è outbound
+            # 3. Se è status="closed" con shipped_at, probabilmente è outbound
             # (gli inbound raramente hanno status="closed", più spesso "received")
             if not is_outbound and status == 'closed' and shipped_at:
                 logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: status=closed + shipped_at presente → probabilmente OUTBOUND")
                 is_outbound = True
             
-            # 4. RIMOSSO: warehouse_id non è un indicatore affidabile
-            # Sia inbound che outbound possono avere warehouse_id
-            # if not is_outbound and 'warehouse_id' in shipment_data:
-            #     logger.info(f"[infer_event_type] 🔍 Shipment {shipment_id}: warehouse_id presente → possibile OUTBOUND")
-            #     is_outbound = True
-            
-            # 5. NUOVO: Controllo più specifico per outbound
+            # 4. Controllo più specifico per outbound
             # Se ha ship_from_address_id o è case_forwarding, è probabilmente outbound
             if not is_outbound and ('ship_from_address_id' in shipment_data or 
                                    shipment_data.get('is_case_forwarding') or 
