@@ -205,11 +205,14 @@ def shipment_status_webhook(request):
             has_outbound_items = 'outbound_items' in shipment_data
             has_inbound_items = 'inbound_items' in shipment_data or 'items' in shipment_data
             
-            # CONTROLLO PRIORITARIO: Se è un RESIDUAL, è sempre INBOUND
+            # CONTROLLO PRIORITARIO: Se è un RESIDUAL o PARTIAL, è sempre INBOUND
             is_residual = 'RESIDUAL' in shipment_name.upper() or 'residual' in notes.lower()
-            if is_residual:
-                logger.info(f"[infer_event_type] 🎯 Shipment {shipment_id}: RESIDUAL rilevato → FORZATO INBOUND")
-                # Per i residual, determina solo il tipo di evento inbound
+            is_partial = 'PARTIAL' in shipment_name.upper() or 'partial' in notes.lower()
+            
+            if is_residual or is_partial:
+                shipment_type = "RESIDUAL" if is_residual else "PARTIAL"
+                logger.info(f"[infer_event_type] 🎯 Shipment {shipment_id}: {shipment_type} rilevato → FORZATO INBOUND")
+                # Per i residual e partial, determina solo il tipo di evento inbound
                 if status == 'open':
                     return 'inbound_shipment.created'
                 elif status == 'received':
@@ -223,11 +226,11 @@ def shipment_status_webhook(request):
             # 1. Se ha outbound_items espliciti
             is_outbound = has_outbound_items
             
-            # 2. Se contiene "outbound" nel payload (MA NON nei residual)
+            # 2. Se contiene "outbound" nel payload (MA NON nei residual o partial)
             if not is_outbound:
                 payload_str = str(shipment_data).lower()
-                # Escludi i residual da questa logica
-                if 'outbound' in payload_str and not is_residual:
+                # Escludi i residual e partial da questa logica
+                if 'outbound' in payload_str and not (is_residual or is_partial):
                     is_outbound = True
             
             # 3. Se è status="closed" con shipped_at, probabilmente è outbound
