@@ -2989,4 +2989,54 @@ def test_residual_version(request):
             }
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([])
+def test_inbound_message_formatting(request):
+    """
+    Test specifico per verificare la formattazione del messaggio inbound_shipment.created.
+    """
+    try:
+        from .services import format_shipment_notification
+        
+        # Dati di test per inbound residuale
+        shipment_data = {
+            'shipment_id': 'RESIDUAL-123',
+            'shipment_name': 'Test Shipment - RESIDUAL',
+            'merchant_name': 'Test Merchant',
+        }
+        
+        # Test formattazione in italiano
+        message_it = format_shipment_notification(
+            event_type='inbound_shipment.created',
+            shipment_data=shipment_data,
+            user_language='it'
+        )
+        
+        # Test formattazione in inglese
+        message_en = format_shipment_notification(
+            event_type='inbound_shipment.created',
+            shipment_data=shipment_data,
+            user_language='en'
+        )
+        
+        return Response({
+            'success': True,
+            'event_type': 'inbound_shipment.created',
+            'test_data': shipment_data,
+            'message_it': message_it,
+            'message_en': message_en,
+            'contains_inbound_it': 'entrata' in message_it.lower(),
+            'contains_outbound_it': 'uscita' in message_it.lower(),
+            'contains_inbound_en': 'inbound' in message_en.lower(),
+            'contains_outbound_en': 'outbound' in message_en.lower(),
+        })
+        
+    except Exception as e:
+        import traceback
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
 # Debug function removed to fix crash
