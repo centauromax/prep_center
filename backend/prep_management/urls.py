@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/telegram/test-outbound-closed-products-full/', views.test_outbound_closed_with_products, name='test_outbound_closed_products_full'),
     path('api/telegram/test-outbound-created-with-name/', views.test_outbound_created_with_name, name='test_outbound_created_with_name'),
     path('api/test-client-get-shipments/', views.test_client_get_shipments, name='test_client_get_shipments'),
+    path('api/test-client-detailed/', views.test_client_detailed, name='test_client_detailed'),
     path('api/telegram/test-inbound-received/', views.test_inbound_received_notification, name='test_inbound_received'),
     path('api/telegram/test-inbound-received-more/', views.test_inbound_received_more, name='test_inbound_received_more'),
     path('api/telegram/test-inbound-received-less/', views.test_inbound_received_less, name='test_inbound_received_less'),

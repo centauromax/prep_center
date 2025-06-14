@@ -2818,4 +2818,102 @@ def test_client_get_shipments(request):
             'message': 'Errore nel test get_shipments'
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_client_detailed(request):
+    """
+    Test dettagliato per verificare tutti i metodi del client PrepBusiness.
+    """
+    try:
+        from libs.api_client.prep_business import PrepBusinessClient
+        
+        client = PrepBusinessClient()
+        
+        # Test con merchant_id specifico
+        merchant_id = 7812  # Merchant di test
+        
+        logger.info(f"[test_client_detailed] Test dettagliato per merchant {merchant_id}")
+        
+        results = {}
+        
+        # Test 1: get_inbound_shipments
+        try:
+            inbound_shipments = client.get_inbound_shipments(merchant_id=merchant_id)
+            results['inbound_shipments'] = {
+                'success': True,
+                'count': len(inbound_shipments),
+                'sample': inbound_shipments[:2] if inbound_shipments else []
+            }
+            logger.info(f"[test_client_detailed] ✅ get_inbound_shipments: {len(inbound_shipments)} spedizioni")
+        except Exception as e:
+            results['inbound_shipments'] = {
+                'success': False,
+                'error': str(e)
+            }
+            logger.error(f"[test_client_detailed] ❌ get_inbound_shipments: {e}")
+        
+        # Test 2: get_outbound_shipments
+        try:
+            outbound_shipments = client.get_outbound_shipments(merchant_id=merchant_id)
+            results['outbound_shipments'] = {
+                'success': True,
+                'count': len(outbound_shipments),
+                'sample': outbound_shipments[:2] if outbound_shipments else []
+            }
+            logger.info(f"[test_client_detailed] ✅ get_outbound_shipments: {len(outbound_shipments)} spedizioni")
+        except Exception as e:
+            results['outbound_shipments'] = {
+                'success': False,
+                'error': str(e)
+            }
+            logger.error(f"[test_client_detailed] ❌ get_outbound_shipments: {e}")
+        
+        # Test 3: get_shipments (combinato)
+        try:
+            all_shipments = client.get_shipments(merchant_id=merchant_id)
+            results['get_shipments'] = {
+                'success': True,
+                'count': len(all_shipments),
+                'sample': all_shipments[:2] if all_shipments else []
+            }
+            logger.info(f"[test_client_detailed] ✅ get_shipments: {len(all_shipments)} spedizioni")
+        except Exception as e:
+            results['get_shipments'] = {
+                'success': False,
+                'error': str(e)
+            }
+            logger.error(f"[test_client_detailed] ❌ get_shipments: {e}")
+        
+        # Test 4: get_merchants per verificare che il client funzioni
+        try:
+            merchants = client.get_merchants()
+            results['get_merchants'] = {
+                'success': True,
+                'count': len(merchants),
+                'target_merchant_found': any(str(m.get('id')) == str(merchant_id) for m in merchants)
+            }
+            logger.info(f"[test_client_detailed] ✅ get_merchants: {len(merchants)} merchants")
+        except Exception as e:
+            results['get_merchants'] = {
+                'success': False,
+                'error': str(e)
+            }
+            logger.error(f"[test_client_detailed] ❌ get_merchants: {e}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Test dettagliato completato',
+            'merchant_id': merchant_id,
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"[test_client_detailed] ❌ Errore generale: {e}")
+        logger.exception("Traceback completo:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore nel test dettagliato'
+        }, status=500)
+
 # Debug function removed to fix crash
