@@ -220,11 +220,153 @@ class WebhookEventProcessor:
     def _process_outbound_shipment_created(self, update: ShipmentStatusUpdate) -> Dict[str, Any]:
         """
         Elabora l'evento di creazione di una spedizione in uscita.
+        Verifica se esiste un inbound corrispondente e invia notifica se mancante.
         """
-        return {
-            'success': True,
-            'message': 'Evento outbound shipment created elaborato',
-        }
+        logger.info(f"[_process_outbound_shipment_created] 🚀 Elaborazione outbound_shipment.created per shipment_id: {update.shipment_id}")
+        
+        try:
+            # Verifica disponibilità client API
+            if not self.client:
+                logger.error("[_process_outbound_shipment_created] ❌ Client API non disponibile")
+                return {
+                    'success': False,
+                    'message': 'Client API non disponibile',
+                    'error': 'client_unavailable'
+                }
+            
+            # Estrai i dati dal payload
+            payload = update.payload
+            if not isinstance(payload, dict):
+                logger.error(f"[_process_outbound_shipment_created] ❌ Payload non valido: {payload}")
+                return {
+                    'success': False,
+                    'message': 'Payload non valido',
+                    'error': 'invalid_payload'
+                }
+            
+            data = payload.get('data', {})
+            if not isinstance(data, dict):
+                logger.error(f"[_process_outbound_shipment_created] ❌ Campo data non valido: {data}")
+                return {
+                    'success': False,
+                    'message': 'Campo data non valido nel payload',
+                    'error': 'invalid_data'
+                }
+            
+            # Estrai i dati base
+            shipment_id = str(data.get('id', ''))
+            shipment_name = str(data.get('name', ''))
+            merchant_id = str(data.get('team_id', ''))
+            
+            logger.info(f"[_process_outbound_shipment_created] Dati estratti: id={shipment_id}, name='{shipment_name}', merchant_id={merchant_id}")
+            
+            # Verifica dati obbligatori
+            if not shipment_id or not shipment_name or not merchant_id:
+                logger.error(f"[_process_outbound_shipment_created] ❌ Dati shipment mancanti: id={shipment_id}, name='{shipment_name}', merchant_id={merchant_id}")
+                return {
+                    'success': False,
+                    'message': 'Dati shipment mancanti nel payload',
+                    'error': 'missing_data'
+                }
+            
+            # Cerca spedizioni inbound per questo merchant
+            try:
+                logger.info(f"[_process_outbound_shipment_created] 🔍 Ricerca spedizioni inbound per merchant {merchant_id}")
+                inbound_shipments_response = self.client.get_shipments(merchant_id=int(merchant_id))
+                
+                # Estrai la lista di shipments dal response
+                if hasattr(inbound_shipments_response, 'data'):
+                    inbound_shipments = [s.model_dump() for s in inbound_shipments_response.data]
+                elif hasattr(inbound_shipments_response, 'shipments'):
+                    inbound_shipments = [s.model_dump() for s in inbound_shipments_response.shipments]
+                else:
+                    inbound_shipments = inbound_shipments_response if isinstance(inbound_shipments_response, list) else []
+                
+                logger.info(f"[_process_outbound_shipment_created] Ricevute {len(inbound_shipments)} spedizioni totali")
+                
+                # Filtra solo le spedizioni inbound non archiviate
+                active_inbound_shipments = [
+                    s for s in inbound_shipments 
+                    if s.get('archived_at') is None and s.get('warehouse_id') is not None
+                ]
+                logger.info(f"[_process_outbound_shipment_created] {len(active_inbound_shipments)} spedizioni inbound attive")
+                
+                # Log dei nomi per debug
+                inbound_names = [s.get('name', '') for s in active_inbound_shipments]
+                logger.info(f"[_process_outbound_shipment_created] Nomi spedizioni inbound attive: {inbound_names}")
+                logger.info(f"[_process_outbound_shipment_created] Cerco corrispondenza CASE-INSENSITIVE per: '{shipment_name}'")
+                
+                # Cerca una spedizione con lo stesso nome (confronto case-insensitive)
+                matching_shipment = next(
+                    (s for s in active_inbound_shipments if s.get('name', '').lower() == shipment_name.lower()), 
+                    None
+                )
+                
+                if matching_shipment:
+                    logger.info(f"[_process_outbound_shipment_created] ✅ TROVATA corrispondenza: spedizione inbound ID {matching_shipment.get('id')} con nome '{matching_shipment.get('name')}'")
+                    return {
+                        'success': True,
+                        'message': f'Trovata spedizione in entrata corrispondente: {matching_shipment.get("id")}',
+                        'related_inbound_id': matching_shipment.get('id'),
+                        'related_inbound_status': matching_shipment.get('status'),
+                        'outbound_shipment_id': shipment_id,
+                        'outbound_shipment_name': shipment_name
+                    }
+                else:
+                    logger.warning(f"[_process_outbound_shipment_created] ❌ NESSUNA corrispondenza trovata per '{shipment_name}' tra le {len(active_inbound_shipments)} spedizioni inbound attive")
+                    
+                    # Recupera il nome del merchant
+                    merchant_name = update.merchant_name
+                    if not merchant_name and merchant_id:
+                        try:
+                            logger.info(f"[_process_outbound_shipment_created] Nome merchant non disponibile, chiamata API get_merchants...")
+                            merchants_response = self.client.get_merchants()
+                            
+                            # Estrai la lista di merchants dal response
+                            if hasattr(merchants_response, 'data'):
+                                merchants_list = [m.model_dump() for m in merchants_response.data]
+                            elif hasattr(merchants_response, 'merchants'):
+                                merchants_list = [m.model_dump() for m in merchants_response.merchants]
+                            else:
+                                merchants_list = merchants_response if isinstance(merchants_response, list) else []
+                            
+                            merchant = next((m for m in merchants_list if str(m.get('id', '')) == str(merchant_id)), None)
+                            merchant_name = merchant.get('name') if merchant else str(merchant_id)
+                            logger.info(f"[_process_outbound_shipment_created] Nome merchant recuperato: {merchant_name}")
+                        except Exception as e:
+                            logger.error(f"[_process_outbound_shipment_created] Errore durante il recupero del nome del merchant via API: {str(e)}")
+                            merchant_name = str(merchant_id)
+                    
+                    # Invia notifica per spedizione outbound senza corrispondente inbound
+                    logger.info(f"[_process_outbound_shipment_created] 🚨 Invio notifica OUTBOUND_WITHOUT_INBOUND per '{shipment_name}' (merchant: {merchant_name})")
+                    
+                    # Importa e usa la funzione di notifica esistente
+                    from .utils.messaging import send_outbound_without_inbound_notification
+                    send_outbound_without_inbound_notification(merchant_name, shipment_name)
+                    
+                    return {
+                        'success': False,
+                        'message': f'Nessuna spedizione in entrata trovata con nome: {shipment_name}',
+                        'error': 'missing_inbound_shipment',
+                        'outbound_shipment_id': shipment_id,
+                        'outbound_shipment_name': shipment_name
+                    }
+                    
+            except Exception as e:
+                logger.error(f"[_process_outbound_shipment_created] ❌ Errore ricerca spedizioni inbound: {e}")
+                return {
+                    'success': False,
+                    'message': f'Errore durante la verifica della spedizione in entrata: {str(e)}',
+                    'error': 'api_error'
+                }
+                
+        except Exception as e:
+            logger.error(f"[_process_outbound_shipment_created] ❌ Errore generale: {e}")
+            return {
+                'success': False,
+                'message': f'Errore generale: {e}',
+                'error': 'general_error'
+            }
     
     def _process_inbound_shipment_event(self, update: ShipmentStatusUpdate) -> Dict[str, Any]:
         """
