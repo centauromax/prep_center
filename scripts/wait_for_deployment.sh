@@ -87,6 +87,25 @@ check_deployment_complete() {
     fi
 }
 
+# Funzione per verificare che la nuova versione sia effettivamente deployata
+check_new_version_deployed() {
+    # Test 1: Verifica che un endpoint specifico risponda con la nuova versione
+    local version_endpoint="/prep_management/api/test-residual-version/"
+    local response
+    response=$(curl -s "$BACKEND_URL$version_endpoint" 2>/dev/null || echo "")
+    
+    if [[ -z "$response" ]]; then
+        return 1  # Endpoint non risponde
+    fi
+    
+    # Test 2: Verifica che la risposta contenga dati della nuova versione
+    if echo "$response" | grep -q "deployment_status\|test_passed" 2>/dev/null; then
+        return 0  # Nuova versione deployata
+    else
+        return 1  # Versione vecchia o errore
+    fi
+}
+
 # Funzione per test più robusto del backend
 check_backend_health_robust() {
     local health_checks=0
@@ -123,6 +142,42 @@ test_specific_endpoint() {
     fi
 }
 
+# Funzione combinata per verificare deployment completo
+check_deployment_really_complete() {
+    # Deve passare tutti e tre i test:
+    # 1. Hash commit corretto (se disponibile)
+    # 2. Backend risponde
+    # 3. Nuova versione effettivamente deployata
+    
+    local hash_ok=false
+    local backend_ok=false
+    local version_ok=false
+    
+    # Test 1: Hash commit (opzionale, potrebbe non essere affidabile)
+    if check_deployment_complete; then
+        hash_ok=true
+    fi
+    
+    # Test 2: Backend health
+    if check_backend_health_robust; then
+        backend_ok=true
+    fi
+    
+    # Test 3: Nuova versione deployata (CRITICO)
+    if check_new_version_deployed; then
+        version_ok=true
+    fi
+    
+    log_info "Test deployment: hash=$hash_ok, backend=$backend_ok, version=$version_ok"
+    
+    # Richiede almeno backend + version OK
+    if [[ "$backend_ok" == true && "$version_ok" == true ]]; then
+        return 0  # Deployment veramente completo
+    else
+        return 1  # Ancora in deploy
+    fi
+}
+
 # Main function
 main() {
     log_info "🚀 Monitoraggio deployment Railway intelligente"
@@ -142,36 +197,23 @@ main() {
     # Loop di monitoraggio
     local attempt=1
     local deployment_ready=false
-    local backend_healthy=false
     
     while [[ $attempt -le $MAX_ATTEMPTS ]]; do
         log_info "Tentativo $attempt/$MAX_ATTEMPTS..."
         
-        # Controlla se il deployment è completo
-        if check_deployment_complete; then
+        # Controlla se il deployment è realmente completo
+        if check_deployment_really_complete; then
             if [[ "$deployment_ready" == false ]]; then
-                log_success "✅ Deployment completato (commit hash corretto)"
+                log_success "✅ Deployment realmente completato (nuova versione attiva)"
                 deployment_ready=true
             fi
         else
-            current_hash=$(get_deployment_status)
-            log_info "Deployment in corso... (hash attuale: $current_hash)"
+            log_info "Deployment ancora in corso..."
         fi
         
-        # Controlla se il backend è healthy
-        if check_backend_health_robust; then
-            if [[ "$backend_healthy" == false ]]; then
-                log_success "✅ Backend risponde correttamente"
-                backend_healthy=true
-            fi
-        else
-            log_warning "⚠️  Backend non risponde ancora"
-            backend_healthy=false
-        fi
-        
-        # Se entrambi sono pronti, esci
-        if [[ "$deployment_ready" == true && "$backend_healthy" == true ]]; then
-            log_success "🎉 Deployment completato e backend operativo!"
+        # Se il deployment è pronto, esci
+        if [[ "$deployment_ready" == true ]]; then
+            log_success "🎉 Deployment completato e nuova versione operativa!"
             
             # Test opzionali di endpoint specifici
             log_info "Test endpoint specifici..."
