@@ -160,7 +160,31 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         matching_merchants = []
         # Converti oggetti Pydantic in dict se necessario
         merchant_dicts = []
-        for merchant in (merchants_response if isinstance(merchants_response, list) else []):
+        # Gestisci la risposta - può essere una lista diretta o un oggetto Pydantic
+        logger.info(f"[get_merchant_name_by_email] Tipo di risposta ricevuta: {type(merchants_response)}")
+        
+        if isinstance(merchants_response, list):
+            # Risposta diretta come lista
+            merchant_list = merchants_response
+            logger.info(f"[get_merchant_name_by_email] Risposta diretta come lista: {len(merchant_list)} merchants")
+        elif hasattr(merchants_response, 'data'):
+            # La risposta ha un attributo 'data' che potrebbe contenere la lista
+            if hasattr(merchants_response.data, 'data'):
+                # Struttura annidata: response.data.data
+                merchant_list = merchants_response.data.data
+                logger.info(f"[get_merchant_name_by_email] Estratti {len(merchant_list)} merchants da response.data.data")
+            elif isinstance(merchants_response.data, list):
+                # Struttura semplice: response.data è già la lista
+                merchant_list = merchants_response.data
+                logger.info(f"[get_merchant_name_by_email] Estratti {len(merchant_list)} merchants da response.data")
+            else:
+                logger.warning(f"[get_merchant_name_by_email] response.data non è una lista: {type(merchants_response.data)}")
+                merchant_list = []
+        else:
+            logger.warning(f"[get_merchant_name_by_email] Tipo di risposta non riconosciuto: {type(merchants_response)}")
+            merchant_list = []
+        
+        for merchant in merchant_list:
             if hasattr(merchant, 'model_dump'):
                 merchant_dicts.append(merchant.model_dump())
             elif isinstance(merchant, dict):
