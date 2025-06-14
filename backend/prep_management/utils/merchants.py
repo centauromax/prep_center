@@ -41,23 +41,33 @@ def get_merchants(active_only: bool = False) -> List[Dict[str, Any]]:
         logger.info("[get_merchants] Esecuzione chiamata API get_merchants")
         merchants_response = client.get_merchants()
         
-        # Gestisci la risposta Pydantic MerchantsResponse
-        if hasattr(merchants_response, 'data'):
-            # La risposta ha un attributo 'data' che contiene la lista
-            merchant_list = merchants_response.data.data
-            logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da MerchantsResponse.data")
-        elif hasattr(merchants_response, 'data'):
-            # Fallback: risposta diretta come lista
-            merchant_list = merchants_response.data
+        # Gestisci la risposta - può essere una lista diretta o un oggetto Pydantic
+        logger.info(f"[get_merchants] Tipo di risposta ricevuta: {type(merchants_response)}")
+        
+        if isinstance(merchants_response, list):
+            # Risposta diretta come lista
+            merchant_list = merchants_response
             logger.info(f"[get_merchants] Risposta diretta come lista: {len(merchant_list)} merchants")
+        elif hasattr(merchants_response, 'data'):
+            # La risposta ha un attributo 'data' che potrebbe contenere la lista
+            if hasattr(merchants_response.data, 'data'):
+                # Struttura annidata: response.data.data
+                merchant_list = merchants_response.data.data
+                logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da response.data.data")
+            elif isinstance(merchants_response.data, list):
+                # Struttura semplice: response.data è già la lista
+                merchant_list = merchants_response.data
+                logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da response.data")
+            else:
+                logger.warning(f"[get_merchants] response.data non è una lista: {type(merchants_response.data)}")
+                merchant_list = []
+        elif hasattr(merchants_response, 'merchants'):
+            # Prova ad accedere all'attributo merchants se esiste
+            merchant_list = merchants_response.merchants
+            logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da .merchants")
         else:
             logger.warning(f"[get_merchants] Tipo di risposta non riconosciuto: {type(merchants_response)}")
-            # Prova ad accedere all'attributo merchants se esiste
-            if hasattr(merchants_response, 'merchants'):
-                merchant_list = merchants_response.data.merchants
-                logger.info(f"[get_merchants] Estratti {len(merchant_list)} merchants da .merchants")
-            else:
-                merchant_list = []
+            merchant_list = []
         
         logger.info(f"[get_merchants] Recuperati {len(merchant_list)} merchants da Prep Business")
         
