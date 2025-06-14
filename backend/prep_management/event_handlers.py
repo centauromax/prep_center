@@ -430,8 +430,8 @@ class WebhookEventProcessor:
             # Recupera gli items dell'outbound shipment
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Recupero items per outbound shipment {shipment_id}")
-                # Usa get_shipment_items che funziona sia per inbound che outbound
-                outbound_items = self.client.get_shipment_items(
+                # Usa get_outbound_shipment_items specifico per outbound
+                outbound_items = self.client.get_outbound_shipment_items(
                     shipment_id=int(shipment_id),  # Converti in int per sicurezza
                     merchant_id=int(merchant_id)   # Passa il merchant_id
                 )
@@ -449,10 +449,10 @@ class WebhookEventProcessor:
                 logger.info(f"[_process_outbound_shipment_closed] Ricerca inbound shipment con nome '{shipment_name}' per merchant {merchant_id}")
                 inbound_shipments = self.client.get_shipments(merchant_id=merchant_id)
                 
-                # Filtra per nome esatto
+                # Filtra per nome esatto e tipo inbound
                 matching_inbounds = [
                     s for s in inbound_shipments 
-                    if s.get('name') == shipment_name
+                    if s.get('name') == shipment_name and s.get('shipment_type') == 'inbound'
                 ]
                 
                 if not matching_inbounds:
@@ -478,7 +478,11 @@ class WebhookEventProcessor:
             try:
                 inbound_shipment_id = inbound_shipment.get('id')
                 logger.info(f"[_process_outbound_shipment_closed] Recupero items per inbound shipment {inbound_shipment_id}")
-                inbound_items = self.client.get_shipment_items(inbound_shipment_id)
+                # Usa get_inbound_shipment_items specifico per inbound
+                inbound_items = self.client.get_inbound_shipment_items(
+                    shipment_id=int(inbound_shipment_id),
+                    merchant_id=int(merchant_id)
+                )
                 logger.info(f"[_process_outbound_shipment_closed] Recuperati {len(inbound_items)} items per inbound shipment {inbound_shipment_id}")
             except Exception as e:
                 logger.error(f"[_process_outbound_shipment_closed] ❌ Errore recupero items inbound shipment {inbound_shipment_id}: {e}")
