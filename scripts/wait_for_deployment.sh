@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script semplificato per monitorare il deployment Railway
-# Monitora il file di versione scritto dall'applicazione all'avvio
+# Script semplicissimo per monitorare il deployment Railway
+# Controlla solo se il contenuto del file di versione cambia
 
 set -e
 
@@ -24,56 +24,76 @@ log_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Funzione per ottenere la versione attesa dal codice locale
-get_expected_version() {
-    grep "VERSION = " backend/prep_center/settings.py | cut -d'"' -f2 2>/dev/null || echo "unknown"
-}
-
-# Funzione per ottenere la versione corrente dal file remoto
-get_current_version() {
-    curl -s "$VERSION_FILE_URL" 2>/dev/null || echo "unknown"
+# Funzione per ottenere il contenuto del file remoto
+get_file_content() {
+    curl -s "$VERSION_FILE_URL" 2>/dev/null || echo "error"
 }
 
 # Main function
 main() {
-    log_info "🚀 Monitoraggio deployment Railway (versione semplificata)"
+    log_info "🚀 Monitoraggio deployment Railway (controllo cambio file)"
     
-    # Ottieni la versione attesa
-    local expected_version
-    expected_version=$(get_expected_version)
-    log_info "Versione attesa: $expected_version"
+    # Leggi il contenuto iniziale
+    local initial_content
+    initial_content=$(get_file_content)
+    log_info "Contenuto iniziale: '$initial_content'"
     
-    if [[ "$expected_version" == "unknown" ]]; then
-        log_error "❌ Impossibile leggere la versione dal file settings.py"
-        return 1
+    # Se il contenuto iniziale è un errore, aspetta che diventi disponibile
+    if [[ "$initial_content" == "error" || "$initial_content" == *"error"* || "$initial_content" == *"502"* || "$initial_content" == *"Not Found"* ]]; then
+        log_info "File non ancora disponibile, aspetto che diventi accessibile..."
+        
+        # Aspetta che il file diventi disponibile
+        local attempt=1
+        while [[ $attempt -le $MAX_ATTEMPTS ]]; do
+            log_info "Tentativo $attempt/$MAX_ATTEMPTS (aspetto disponibilità)..."
+            
+            local current_content
+            current_content=$(get_file_content)
+            
+            # Se il contenuto non è più un errore, abbiamo il contenuto iniziale
+            if [[ "$current_content" != "error" && "$current_content" != *"error"* && "$current_content" != *"502"* && "$current_content" != *"Not Found"* ]]; then
+                initial_content="$current_content"
+                log_info "File ora disponibile con contenuto: '$initial_content'"
+                break
+            fi
+            
+            if [[ $attempt -lt $MAX_ATTEMPTS ]]; then
+                log_info "Attesa ${SLEEP_INTERVAL}s..."
+                sleep $SLEEP_INTERVAL
+            fi
+            
+            ((attempt++))
+        done
+        
+        # Se ancora non disponibile, esci con errore
+        if [[ "$initial_content" == "error" || "$initial_content" == *"error"* || "$initial_content" == *"502"* || "$initial_content" == *"Not Found"* ]]; then
+            log_error "❌ File non è mai diventato disponibile"
+            return 1
+        fi
     fi
     
-    # Loop di monitoraggio
+    # Ora monitora i cambiamenti
+    log_info "Monitoraggio cambiamenti del file..."
     local attempt=1
     
     while [[ $attempt -le $MAX_ATTEMPTS ]]; do
-        log_info "Tentativo $attempt/$MAX_ATTEMPTS..."
+        log_info "Controllo $attempt/$MAX_ATTEMPTS..."
         
-        # Ottieni la versione corrente
-        local current_version
-        current_version=$(get_current_version)
+        local current_content
+        current_content=$(get_file_content)
         
-        log_info "Versione corrente: $current_version"
+        log_info "Contenuto attuale: '$current_content'"
         
-        # Controlla se le versioni coincidono
-        if [[ "$current_version" == "$expected_version" ]]; then
-            log_success "✅ Deployment completato! Versione $current_version attiva"
+        # Se il contenuto è cambiato, deployment completato
+        if [[ "$current_content" != "$initial_content" ]]; then
+            log_success "✅ Deployment completato! Contenuto cambiato da '$initial_content' a '$current_content'"
             return 0
         else
-            log_info "Deployment in corso... (attesa: $expected_version, corrente: $current_version)"
+            log_info "Contenuto invariato, deployment in corso..."
         fi
         
         # Aspetta prima del prossimo tentativo
@@ -87,7 +107,7 @@ main() {
     
     # Timeout raggiunto
     log_error "❌ Timeout raggiunto dopo $((MAX_ATTEMPTS * SLEEP_INTERVAL)) secondi"
-    log_error "Deployment potrebbe non essere completato"
+    log_error "Il contenuto del file non è cambiato"
     return 1
 }
 
