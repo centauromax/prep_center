@@ -160,7 +160,7 @@ def get_merchant_name_by_email(email: str) -> Optional[str]:
         matching_merchants = []
         # Converti oggetti Pydantic in dict se necessario
         merchant_dicts = []
-        for merchant in merchants:
+        for merchant in (merchants_response if isinstance(merchants_response, list) else []):
             if hasattr(merchant, 'model_dump'):
                 merchant_dicts.append(merchant.model_dump())
             elif isinstance(merchant, dict):
