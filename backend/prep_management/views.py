@@ -2929,24 +2929,10 @@ def test_residual_version(request):
     Endpoint per verificare la versione del codice residuale deployato.
     """
     try:
-        import subprocess
-        import os
         from datetime import datetime
         from .event_handlers import WebhookEventProcessor
         
-        # Ottieni commit hash corrente
-        try:
-            commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
-                                                cwd='/opt/render/project/src/backend' if os.path.exists('/opt/render') else '.',
-                                                stderr=subprocess.DEVNULL).decode().strip()[:8]
-        except:
-            try:
-                commit_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
-                                                    stderr=subprocess.DEVNULL).decode().strip()[:8]
-            except:
-                commit_hash = "unknown"
-        
-        # Verifica versione del codice residuale
+        # Test semplice senza git
         processor = WebhookEventProcessor()
         
         # Test della logica di calcolo con dati mock
@@ -2980,7 +2966,6 @@ def test_residual_version(request):
         return JsonResponse({
             'success': True,
             'version_info': {
-                'commit_hash': commit_hash,
                 'timestamp': datetime.now().isoformat(),
                 'residual_logic_version': 'V4',
                 'test_passed': len(residual_items) == 2,
