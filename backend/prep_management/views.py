@@ -2249,6 +2249,7 @@ def test_residual_inbound_creation(request):
         
         # Crea un mock update object per testare il processor
         mock_update = type('MockUpdate', (), {
+            'id': 99999,  # Aggiungi l'attributo id mancante
             'shipment_id': outbound_shipment_id,
             'merchant_id': merchant_id,
             'event_type': 'outbound_shipment.closed',
@@ -2257,7 +2258,8 @@ def test_residual_inbound_creation(request):
                 'data': {
                     'id': int(outbound_shipment_id),
                     'name': f'Test Outbound {test_scenario}',
-                    'status': 'closed'
+                    'status': 'closed',
+                    'team_id': int(merchant_id)
                 }
             }
         })()
@@ -2765,6 +2767,55 @@ def test_outbound_created_with_name(request):
             'success': False,
             'error': str(e),
             'traceback': traceback.format_exc()
+        }, status=500)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def test_client_get_shipments(request):
+    """
+    Test per verificare che il metodo get_shipments del client funzioni.
+    """
+    try:
+        from libs.api_client.prep_business import PrepBusinessClient
+        
+        client = PrepBusinessClient()
+        
+        # Test con merchant_id specifico
+        merchant_id = 7812  # Merchant di test
+        
+        logger.info(f"[test_client_get_shipments] Test get_shipments per merchant {merchant_id}")
+        
+        # Testa il metodo get_shipments
+        shipments = client.get_shipments(merchant_id=merchant_id)
+        
+        logger.info(f"[test_client_get_shipments] Recuperate {len(shipments)} spedizioni")
+        
+        # Filtra solo inbound per il test
+        inbound_shipments = [s for s in shipments if s.get('shipment_type') == 'inbound']
+        outbound_shipments = [s for s in shipments if s.get('shipment_type') == 'outbound']
+        
+        # Cerca spedizioni con nome "test2"
+        test2_shipments = [s for s in shipments if 'test2' in s.get('name', '').lower()]
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Client get_shipments funziona correttamente',
+            'merchant_id': merchant_id,
+            'total_shipments': len(shipments),
+            'inbound_count': len(inbound_shipments),
+            'outbound_count': len(outbound_shipments),
+            'test2_shipments': len(test2_shipments),
+            'test2_names': [s.get('name') for s in test2_shipments],
+            'sample_shipments': shipments[:3] if shipments else []  # Prime 3 per debug
+        })
+        
+    except Exception as e:
+        logger.error(f"[test_client_get_shipments] ❌ Errore: {e}")
+        logger.exception("Traceback completo:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore nel test get_shipments'
         }, status=500)
 
 # Debug function removed to fix crash
