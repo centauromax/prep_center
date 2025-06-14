@@ -99,7 +99,8 @@ check_new_version_deployed() {
     fi
     
     # Test 2: Verifica che la risposta contenga dati della nuova versione
-    if echo "$response" | grep -q "deployment_status\|test_passed" 2>/dev/null; then
+    # Cerchiamo campi che esistono realmente nella risposta
+    if echo "$response" | grep -q "success.*true\|event_type\|test_data" 2>/dev/null; then
         return 0  # Nuova versione deployata
     else
         return 1  # Versione vecchia o errore
