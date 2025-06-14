@@ -468,15 +468,20 @@ class WebhookEventProcessor:
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Ricerca inbound shipment con nome '{shipment_name}' per merchant {merchant_id}")
 
-                # --- SOLUZIONE DEFINITIVA V3 (BYPASS TOTALE) ---
-                # A causa di problemi di deploy persistenti con il client wrapper,
-                # eseguo le chiamate API direttamente con `requests` per garantire l'esecuzione.
-                logger.info("!!! BYPASS TOTALE DEL CLIENT WRAPPER per il recupero delle spedizioni.")
+                # --- SOLUZIONE DEFINITIVA V4 (BYPASS TOTALE E CONFIG DIRETTA) ---
+                # A causa di problemi di deploy persistenti, eseguo le chiamate API
+                # importando la configurazione direttamente, senza toccare self.client.
+                logger.info("!!! BYPASS TOTALE del client wrapper. Uso config e requests diretti.")
                 import requests
+                from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY
 
-                api_url = self.client.api_url
-                headers = self.client._get_headers()
-                params = {'merchant_id': int(merchant_id), 'per_page': 250} # Aumento per_page per sicurezza
+                api_url = PREP_BUSINESS_API_URL
+                headers = {
+                    'Authorization': f'Bearer {PREP_BUSINESS_API_KEY}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                }
+                params = {'merchant_id': int(merchant_id), 'per_page': 250}
 
                 # Recupero INBOUND
                 try:
@@ -509,7 +514,7 @@ class WebhookEventProcessor:
                     s['shipment_type'] = 'outbound'
                     all_shipments.append(s)
                 logger.info(f"Chiamata API diretta: {len(all_shipments)} spedizioni totali combinate.")
-                # --- FINE SOLUZIONE DEFINITIVA ---
+                # --- FINE SOLUZIONE ---
 
                 # Filtra per nome esatto e tipo inbound
                 matching_inbounds = [
