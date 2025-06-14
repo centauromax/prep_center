@@ -344,11 +344,39 @@ class PrepBusinessClient:
                 shipment_id=shipment_id,
                 merchant_id=merchant_id
             )
-            # Estrai i dati dal response object
-            if hasattr(response, 'items'):
+            
+            # Gestione robusta del response object
+            logger.debug(f"Response type: {type(response)}")
+            
+            # Prova diversi modi per estrarre i dati
+            if hasattr(response, 'items') and response.items:
+                # Response con attributo items (lista di oggetti Pydantic)
                 return [item.model_dump() for item in response.items]
+            elif hasattr(response, 'data') and response.data:
+                # Response con attributo data
+                if isinstance(response.data, list):
+                    return [item.model_dump() if hasattr(item, 'model_dump') else item for item in response.data]
+                else:
+                    return response.data if isinstance(response.data, list) else []
+            elif hasattr(response, 'model_dump'):
+                # Response è un oggetto Pydantic
+                dumped = response.model_dump()
+                if 'items' in dumped:
+                    return dumped['items']
+                elif 'data' in dumped:
+                    return dumped['data'] if isinstance(dumped['data'], list) else []
+                else:
+                    return []
+            elif isinstance(response, dict):
+                # Response è un dict
+                return response.get('data', response.get('items', []))
+            elif isinstance(response, list):
+                # Response è già una lista
+                return response
             else:
-                return response.get('data', []) if isinstance(response, dict) else []
+                logger.warning(f"Formato response non riconosciuto: {type(response)}")
+                return []
+                
         except Exception as e:
             logger.error(f"Errore recupero items inbound shipment {shipment_id}: {e}")
             return []
@@ -404,11 +432,39 @@ class PrepBusinessClient:
                 shipment_id=shipment_id,
                 merchant_id=merchant_id
             )
-            # Estrai i dati dal response object
-            if hasattr(response, 'items'):
+            
+            # Gestione robusta del response object
+            logger.debug(f"Response type: {type(response)}")
+            
+            # Prova diversi modi per estrarre i dati
+            if hasattr(response, 'items') and response.items:
+                # Response con attributo items (lista di oggetti Pydantic)
                 return [item.model_dump() for item in response.items]
+            elif hasattr(response, 'data') and response.data:
+                # Response con attributo data
+                if isinstance(response.data, list):
+                    return [item.model_dump() if hasattr(item, 'model_dump') else item for item in response.data]
+                else:
+                    return response.data if isinstance(response.data, list) else []
+            elif hasattr(response, 'model_dump'):
+                # Response è un oggetto Pydantic
+                dumped = response.model_dump()
+                if 'items' in dumped:
+                    return dumped['items']
+                elif 'data' in dumped:
+                    return dumped['data'] if isinstance(dumped['data'], list) else []
+                else:
+                    return []
+            elif isinstance(response, dict):
+                # Response è un dict
+                return response.get('data', response.get('items', []))
+            elif isinstance(response, list):
+                # Response è già una lista
+                return response
             else:
-                return response.get('data', []) if isinstance(response, dict) else []
+                logger.warning(f"Formato response non riconosciuto: {type(response)}")
+                return []
+                
         except Exception as e:
             logger.error(f"Errore recupero items outbound shipment {shipment_id}: {e}")
             return []
