@@ -114,12 +114,10 @@ class WebhookEventProcessor:
         merchant_id = int(data.get('team_id'))
 
         try:
-            # 1. Recupero items dall'outbound chiuso
             outbound_items_resp = self.client.get_outbound_shipment_items(shipment_id=outbound_id, merchant_id=merchant_id)
             outbound_items = [i.model_dump() for i in outbound_items_resp.items] if outbound_items_resp else []
             logger.info(f"Recuperati {len(outbound_items)} items da outbound {outbound_id}")
 
-            # 2. Cerco l'inbound originale corrispondente
             inbound_resp = self.client.get_inbound_shipments(merchant_id=merchant_id, name=shipment_name, per_page=1)
             if not (inbound_resp and inbound_resp.shipments):
                 return {'success': True, 'message': f"Nessun inbound corrispondente a '{shipment_name}' trovato."}
@@ -127,20 +125,17 @@ class WebhookEventProcessor:
             inbound_original_model = inbound_resp.shipments[0]
             inbound_original_id = inbound_original_model.id
             
-            # 3. Recupero items dall'inbound originale
             inbound_items_resp = self.client.get_inbound_shipment_items(shipment_id=inbound_original_id, merchant_id=merchant_id)
             inbound_items = [i.model_dump() for i in inbound_items_resp.items] if inbound_items_resp else []
             logger.info(f"Recuperati {len(inbound_items)} items da inbound originale {inbound_original_id}")
 
-            # 4. Calcolo i residuali
             residual_items_data = self._calculate_residual_items(inbound_items, outbound_items)
             if not residual_items_data:
                 return {'success': True, 'message': 'Nessun item residuale da creare.'}
             
             logger.info(f"Calcolati {len(residual_items_data)} items residuali.")
 
-            # 5. Creo il nuovo inbound residuale
-            residual_name = f"{shipment_name} - RESIDUAL" # TODO: Gestire nomi duplicati
+            residual_name = f"{shipment_name} - RESIDUAL"
             
             items_to_create = [InboundShipmentItemCreate(**item_data) for item_data in residual_items_data]
             
@@ -152,6 +147,7 @@ class WebhookEventProcessor:
                 notes=f"Creato automaticamente da outbound {outbound_id}"
             )
             
+            # Qui usiamo il metodo corretto del client completo
             new_shipment_resp = self.client.create_inbound_shipment(shipment_data=shipment_to_create)
             
             if new_shipment_resp and new_shipment_resp.shipment:
@@ -165,38 +161,24 @@ class WebhookEventProcessor:
             return {'success': False, 'message': str(e)}
 
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
-        """Calcola la differenza di items tra inbound e outbound."""
         outbound_sku_map = {item.get('sku'): item.get('quantity', 0) for item in outbound_items}
         residual_items = []
         for item in inbound_items:
             shipped_qty = outbound_sku_map.get(item.get('sku'), 0)
-            original_qty = item.get('quantity', 0)
-            if original_qty <= 0:
-                original_qty = item.get('actual_quantity', 0)
+            original_qty = item.get('quantity', 0) or item.get('actual_quantity', 0)
 
             residual_qty = original_qty - shipped_qty
             if residual_qty > 0:
                 residual_data = {
-                    "sku": item.get('sku'),
-                    "quantity": residual_qty,
-                    "name": item.get('name'),
-                    "asin": item.get('asin'),
-                    "fnsku": item.get('fnsku'),
-                    "photo_url": item.get('photo_url'),
+                    "sku": item.get('sku'), "quantity": residual_qty, "name": item.get('name'),
+                    "asin": item.get('asin'), "fnsku": item.get('fnsku'), "photo_url": item.get('photo_url'),
                 }
                 residual_items.append(residual_data)
         return residual_items
 
     def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate, result: Dict[str, Any]):
-        """Accoda l'invio di una notifica Telegram se l'evento è nella lista."""
-        notify_events = [
-            'inbound_shipment.created',
-            'inbound_shipment.received',
-            'outbound_shipment.created',
-            'outbound_shipment.closed',
-        ]
-        if update.event_type not in notify_events:
-            return
+        notify_events = ['inbound_shipment.created', 'inbound_shipment.received', 'outbound_shipment.created', 'outbound_shipment.closed']
+        if update.event_type not in notify_events: return
 
         try:
             merchant_email = self._get_merchant_email(update.merchant_id)
@@ -206,22 +188,16 @@ class WebhookEventProcessor:
             
             message = format_shipment_notification(update.event_type, update.payload, result)
             
-            queue_telegram_notification(
-                email=merchant_email,
-                message=message,
-                event_type=update.event_type,
-                shipment_id=update.shipment_id
-            )
+            queue_telegram_notification(email=merchant_email, message=message, event_type=update.event_type, shipment_id=update.shipment_id)
             logger.info(f"Notifica Telegram per merchant {update.merchant_id} accodata con successo.")
         except Exception as e:
             logger.error(f"Errore durante l'accodamento della notifica Telegram: {e}", exc_info=True)
 
     def _get_merchant_email(self, merchant_id: str) -> Optional[str]:
-        """Recupera l'email di un merchant tramite API."""
         try:
             merchant_resp = self.client.get_merchant(merchant_id=int(merchant_id))
             if merchant_resp and merchant_resp.merchant:
                 return merchant_resp.merchant.primary_email
         except Exception as e:
             logger.error(f"Impossibile recuperare email per merchant {merchant_id}: {e}")
-        return None
+        return None 
