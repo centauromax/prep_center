@@ -3048,4 +3048,24 @@ def get_current_version(request):
             'error': str(e)
         }, status=500)
 
+@api_view(['GET'])
+def version_file(request):
+    """
+    Endpoint per leggere il file di versione scritto all'avvio
+    """
+    import os
+    
+    version_file_path = '/tmp/prep_center_version.txt'
+    
+    try:
+        if os.path.exists(version_file_path):
+            with open(version_file_path, 'r') as f:
+                version = f.read().strip()
+            return HttpResponse(version, content_type='text/plain')
+        else:
+            return HttpResponse('unknown', content_type='text/plain')
+    except Exception as e:
+        logger.error(f"Errore lettura file versione: {e}")
+        return HttpResponse('error', content_type='text/plain')
+
 # Debug function removed to fix crash

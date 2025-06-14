@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION_FILE_URL="https://backend.fbaprepcenteritaly.com/tmp/prep_center_version.txt"
+VERSION_FILE_URL="https://backend.fbaprepcenteritaly.com/prep_management/version-file/"
 MAX_ATTEMPTS=30
 SLEEP_INTERVAL=10
 
