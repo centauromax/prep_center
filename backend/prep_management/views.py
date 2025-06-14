@@ -3084,4 +3084,72 @@ def version_file(request):
         logger.error(f"Errore lettura file versione: {e}")
         return HttpResponse('error', content_type='text/plain')
 
-# Debug function removed to fix crash
+@api_view(['POST'])
+@permission_classes([])
+def test_partial_inbound_creation(request):
+    """
+    Endpoint di test per simulare la creazione di un inbound partial.
+    Testa scenari dove inbound e outbound hanno quantità uguali.
+    """
+    try:
+        # Parametri di test dal request
+        outbound_shipment_id = request.data.get('outbound_shipment_id', '88888')
+        merchant_id = request.data.get('merchant_id', '123')
+        test_scenario = request.data.get('scenario', 'partial_equal')
+        
+        logger.info(f"[test_partial_inbound_creation] 🧪 Test partial creation - Scenario: {test_scenario}")
+        
+        # Crea un mock update object per testare il processor
+        mock_update = type('MockUpdate', (), {
+            'id': 88888,  # ID diverso dai residual
+            'shipment_id': outbound_shipment_id,
+            'merchant_id': merchant_id,
+            'event_type': 'outbound_shipment.closed',
+            'payload': {
+                'type': 'outbound_shipment.closed',
+                'data': {
+                    'id': int(outbound_shipment_id),
+                    'name': f'Test Partial {test_scenario}',
+                    'status': 'closed',
+                    'team_id': int(merchant_id)
+                }
+            }
+        })()
+        
+        # Inizializza il processor
+        from .event_handlers import WebhookEventProcessor
+        processor = WebhookEventProcessor()
+        
+        if not processor.client:
+            return JsonResponse({
+                'success': False,
+                'error': 'PrepBusiness client non disponibile per test',
+                'message': 'Client API non inizializzato'
+            }, status=500)
+        
+        logger.info(f"[test_partial_inbound_creation] 🚀 Inizio elaborazione mock update")
+        
+        # Esegui il test del processore
+        result = processor._process_outbound_shipment_closed(mock_update)
+        
+        logger.info(f"[test_partial_inbound_creation] 📋 Risultato elaborazione: {result}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Test partial inbound creation completato',
+            'test_scenario': test_scenario,
+            'outbound_shipment_id': outbound_shipment_id,
+            'merchant_id': merchant_id,
+            'processing_result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"[test_partial_inbound_creation] ❌ Errore durante test: {str(e)}")
+        logger.exception("Traceback completo:")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore durante test partial creation'
+        }, status=500)
+
+@csrf_exempt
