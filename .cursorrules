@@ -26,6 +26,65 @@ gtimeout 60 railway logs -s [nome_servizio]
 ```
 
 **NOTA**: Usare sempre `gtimeout` invece di `railway logs` diretto per evitare timeout.
+### 🚀 **MONITORAGGIO DEPLOYMENT INTELLIGENTE**
+
+**❌ MAI usare tempi di attesa fissi** come `sleep 30` per aspettare il deployment.
+**✅ SEMPRE usare lo script di monitoraggio intelligente** che verifica attivamente lo stato.
+
+#### **Script di Monitoraggio Deployment**
+```bash
+# ✅ COMANDO CORRETTO - Monitoraggio intelligente
+./scripts/wait_for_deployment.sh
+
+# ❌ MAI FARE - Attesa fissa
+sleep 30 && railway logs
+
+# ❌ MAI FARE - Attesa arbitraria
+sleep 60 && curl https://backend.fbaprepcenteritaly.com/
+```
+
+#### **Funzionalità dello Script Intelligente**
+- **✅ Verifica commit hash**: Controlla che il deployment corrisponda al commit locale
+- **✅ Health check**: Testa che il backend risponda correttamente
+- **✅ Test endpoint**: Verifica endpoint specifici come `/prep_management/api-debug/`
+- **✅ Timeout intelligente**: Massimo 5 minuti con controlli ogni 10 secondi
+- **✅ Logging colorato**: Output chiaro con stati di progresso
+- **✅ Exit codes**: Ritorna 0 per successo, 1 per errore
+
+#### **Workflow Corretto Post-Commit**
+```bash
+# 1. Commit e push
+git add -A && git commit -m "Fix description" && git push origin main
+
+# 2. Monitoraggio intelligente (NON attesa fissa)
+./scripts/wait_for_deployment.sh
+
+# 3. Se successo, procedi con verifiche
+if [ $? -eq 0 ]; then
+    echo "✅ Deployment completato, sistema operativo"
+    # Eventuali test aggiuntivi...
+else
+    echo "❌ Deployment fallito o timeout"
+    # Gestione errori...
+fi
+```
+
+#### **Vantaggi del Monitoraggio Intelligente**
+- **⚡ Più veloce**: Non aspetta tempo inutile se il deployment è già pronto
+- **🔍 Più preciso**: Verifica effettivamente che il sistema funzioni
+- **📊 Più informativo**: Mostra lo stato di progresso in tempo reale
+- **🛡️ Più sicuro**: Rileva problemi di deployment prima di procedere
+- **🎯 Più affidabile**: Non dipende da tempi fissi che possono variare
+
+#### **Personalizzazione Script**
+Lo script può essere personalizzato modificando:
+- `MAX_ATTEMPTS=30` - Numero massimo di tentativi
+- `SLEEP_INTERVAL=10` - Intervallo tra controlli (secondi)
+- `BACKEND_URL` - URL del backend da testare
+- Endpoint specifici da testare nel test finale
+
+**REGOLA**: Ogni volta che devi aspettare un deployment, usa SEMPRE `./scripts/wait_for_deployment.sh`
+
 
 ## 🎯 Panoramica del Progetto
 
