@@ -3152,4 +3152,3 @@ def test_partial_inbound_creation(request):
             'message': 'Errore durante test partial creation'
         }, status=500)
 
-@csrf_exempt
