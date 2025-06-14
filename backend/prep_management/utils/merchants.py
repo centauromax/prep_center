@@ -30,9 +30,11 @@ def get_merchants(active_only: bool = False) -> List[Dict[str, Any]]:
         # RIATTIVO LA CHIAMATA API PER I MERCHANTS
         logger.info("[get_merchants] Inizializzazione client PrepBusinessClient per chiamata get_merchants reale")
         
+        # Estrai il dominio dall'URL API
+        domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
         client = PrepBusinessClient(
-            api_url=PREP_BUSINESS_API_URL,
-            api_key=PREP_BUSINESS_API_KEY
+            api_key=PREP_BUSINESS_API_KEY,
+            company_domain=domain
         )
         logger.info("[get_merchants] PrepBusinessClient inizializzato correttamente")
         

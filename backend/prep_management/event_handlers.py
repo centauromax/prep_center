@@ -248,7 +248,7 @@ class WebhookEventProcessor:
                 logger.warning(f"Email per merchant {update.merchant_id} non trovata. Notifica saltata.")
                 return
             
-            message = format_shipment_notification(update.event_type, update.payload, result)
+            message = format_shipment_notification(update.event_type, update.payload, 'it')
             
             send_telegram_notification(email=merchant_email, message=message, event_type=update.event_type, shipment_id=update.shipment_id)
             logger.info(f"Notifica Telegram per merchant {update.merchant_id} accodata con successo.")

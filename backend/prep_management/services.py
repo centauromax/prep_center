@@ -15,9 +15,11 @@ class PrepBusinessAPI:
         self.headers = {"Authorization": f"Bearer {api_key}"}
         
         # Inizializza il client PrepBusiness
+        # Estrai il dominio dall'URL API
+        domain = PREP_BUSINESS_API_URL.replace('https://', '').replace('http://', '').split('/')[0]
         self.client = PrepBusinessClient(
-            api_url=PREP_BUSINESS_API_URL,
-            api_key=api_key
+            api_key=api_key,
+            company_domain=domain
         )
     
     def get_open_inbound_shipments(self):
