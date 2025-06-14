@@ -1,6 +1,8 @@
 """
 Client API per il servizio Prep Business.
 WRAPPER DI COMPATIBILITÀ - Usa internamente il client completo libs.prepbusiness.client
+
+AGGIORNAMENTO: Metodi get_shipments e get_shipment_items aggiunti per supporto inbound residuale
 """
 import requests
 import logging
