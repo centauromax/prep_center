@@ -2286,7 +2286,7 @@ def test_residual_inbound_creation(request):
             'test_scenario': test_scenario,
             'outbound_shipment_id': outbound_shipment_id,
             'merchant_id': merchant_id,
-            'processing_result': result
+            'process_result': result
         })
         
     except Exception as e:
@@ -2930,7 +2930,7 @@ def reprocess_webhook_for_debug(request, update_id):
         # Svuoto il risultato precedente per forzare una nuova elaborazione
         update = ShipmentStatusUpdate.objects.get(id=update_id)
         update.processed = False
-        update.processing_result = {}
+        update.process_result = {}
         update.save()
 
         # Eseguo l'elaborazione
@@ -3140,7 +3140,7 @@ def test_partial_inbound_creation(request):
             'test_scenario': test_scenario,
             'outbound_shipment_id': outbound_shipment_id,
             'merchant_id': merchant_id,
-            'processing_result': result
+            'process_result': result
         })
         
     except Exception as e:
@@ -3304,7 +3304,7 @@ def debug_last_update(request):
             'processed_at': last_update.processed_at.isoformat() if last_update.processed_at else None,
             'process_success': last_update.process_success,
             'process_message': last_update.process_message,
-            'processing_result': last_update.processing_result,
+            'process_result': last_update.process_result,  # ✅ Campo corretto
             'payload': last_update.payload
         })
         

@@ -70,7 +70,7 @@ class WebhookEventProcessor:
 
         update.processed = True
         update.process_success = result.get('success', False)
-        update.processing_result = result
+        update.process_result = result
         update.processed_at = timezone.now()
         update.save()
         
