@@ -3255,7 +3255,9 @@ def test_outbound_closed_process(request):
             "data": {
                 "id": outbound_id,
                 "name": f"Test Outbound {outbound_id}",
-                "status": "closed"
+                "status": "closed",
+                "team_id": 1,  # ✅ Campo necessario per merchant_id
+                "warehouse_id": 1  # ✅ Campo necessario per warehouse
             }
         }
         
