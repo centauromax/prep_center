@@ -8,7 +8,7 @@ from libs.prepbusiness.models import PrepBusinessError, AuthenticationError
 
 from .models import ShipmentStatusUpdate, PrepBusinessConfig
 from .services import format_shipment_notification
-from .tasks import queue_telegram_notification
+from .tasks import send_telegram_notification
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +250,7 @@ class WebhookEventProcessor:
             
             message = format_shipment_notification(update.event_type, update.payload, result)
             
-            queue_telegram_notification(email=merchant_email, message=message, event_type=update.event_type, shipment_id=update.shipment_id)
+            send_telegram_notification(email=merchant_email, message=message, event_type=update.event_type, shipment_id=update.shipment_id)
             logger.info(f"Notifica Telegram per merchant {update.merchant_id} accodata con successo.")
         except Exception as e:
             logger.error(f"Errore durante l'accodamento della notifica Telegram: {e}", exc_info=True)

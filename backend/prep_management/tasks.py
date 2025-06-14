@@ -2,7 +2,7 @@ import logging
 from celery import shared_task
 from django.db import transaction
 from django.core.cache import cache
-from .models import SearchResultItem, TelegramUser, TelegramNotification
+from .models import SearchResultItem, TelegramNotification
 from .utils.extractors import extract_product_info_from_dict
 from libs.prepbusiness.client import PrepBusinessClient as OfficialPrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL, PREP_BUSINESS_API_TIMEOUT
@@ -419,7 +419,7 @@ def notify_telegram_users_about_shipment(merchant_id: str, message: str, event_t
             logger.warning(f"Merchant {merchant_id} non ha un'email primaria configurata.")
             return
 
-        users_to_notify = TelegramUser.objects.filter(email__iexact=merchant_email, is_active=True)
+        users_to_notify = TelegramNotification.objects.filter(email__iexact=merchant_email, is_active=True)
         if not users_to_notify.exists():
             logger.info(f"Nessun utente Telegram attivo trovato per l'email {merchant_email} (merchant {merchant_id}).")
             return
