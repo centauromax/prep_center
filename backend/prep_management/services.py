@@ -593,6 +593,10 @@ def format_shipment_notification(event_type, shipment_data, user_language='it'):
     
     message = f"{icon} <b>{title}</b>\n\n"
     
+    # Aggiungi il nome del cliente se disponibile
+    if shipment_data.get('merchant_name'):
+        message += f"👤 <b>Cliente:</b> {shipment_data['merchant_name']}\n"
+    
     if shipment_data.get('shipment_id'):
         id_label = get_text('notification_labels', lang=user_language, subkey='id')
         message += f"🆔 <b>{id_label}:</b> {shipment_data['shipment_id']}\n"

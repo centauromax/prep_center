@@ -248,7 +248,40 @@ class WebhookEventProcessor:
                 logger.warning(f"Email per merchant {update.merchant_id} non trovata. Notifica saltata.")
                 return
             
-            message = format_shipment_notification(update.event_type, update.payload, 'it')
+            # Ottieni il nome del merchant
+            merchant_name = self._get_merchant_name(update.merchant_id)
+            
+            # Estrai i dati dal payload del webhook
+            data = update.payload.get('data', {})
+            
+            # Formatta i dati per la notifica
+            shipment_data = {
+                'shipment_id': data.get('id', update.shipment_id),
+                'shipment_name': data.get('name', ''),
+                'merchant_name': merchant_name or 'Cliente',
+                'tracking_number': data.get('tracking_number', ''),
+                'carrier': data.get('carrier', ''),
+                'notes': data.get('notes', ''),
+            }
+            
+            # Aggiungi informazioni sui prodotti se disponibili nel payload
+            if update.payload.get('products_summary'):
+                # Estrai il numero di prodotti dal summary
+                summary = update.payload.get('products_summary', '')
+                if 'prodotti' in summary:
+                    try:
+                        # Estrai il numero dal formato "3 prodotti, 17 unità totali"
+                        products_count = int(summary.split(' ')[0])
+                        shipment_data['products_count'] = products_count
+                    except (ValueError, IndexError):
+                        pass
+            
+            # Per eventi di spedizione in entrata ricevuta, aggiungi conteggi
+            if update.event_type == 'inbound_shipment.received':
+                shipment_data['expected_count'] = data.get('expected_count')
+                shipment_data['received_count'] = data.get('received_count')
+            
+            message = format_shipment_notification(update.event_type, shipment_data, 'it')
             
             send_telegram_notification(email=merchant_email, message=message, event_type=update.event_type, shipment_id=update.shipment_id)
             logger.info(f"Notifica Telegram per merchant {update.merchant_id} accodata con successo.")
@@ -265,4 +298,17 @@ class WebhookEventProcessor:
                     return merchant.primaryEmail
         except Exception as e:
             logger.error(f"Impossibile recuperare email per merchant {merchant_id}: {e}")
+        return None
+
+    def _get_merchant_name(self, merchant_id: str) -> Optional[str]:
+        """Ottiene il nome del merchant dal suo ID."""
+        try:
+            merchants_resp = self.client.get_merchants()
+            if merchants_resp and merchants_resp.data:
+                # Cerca il merchant specifico nella lista
+                merchant = next((m for m in merchants_resp.data if str(m.id) == str(merchant_id)), None)
+                if merchant:
+                    return merchant.name
+        except Exception as e:
+            logger.error(f"Impossibile recuperare nome per merchant {merchant_id}: {e}")
         return None 
