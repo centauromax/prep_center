@@ -544,3 +544,84 @@ class PrepBusinessClient:
         except Exception as e:
             logger.error(f"❌ Errore submit inbound shipment {shipment_id}: {e}")
             raise 
+
+    def get_shipments(self, merchant_id: Optional[int] = None, page: int = 1, per_page: int = 50) -> List[Dict[str, Any]]:
+        """
+        Recupera tutte le spedizioni (inbound e outbound) per un merchant.
+        
+        Args:
+            merchant_id: ID del merchant (opzionale)
+            page: Numero di pagina (default: 1)
+            per_page: Elementi per pagina (default: 50)
+            
+        Returns:
+            Lista di spedizioni combinate (inbound + outbound)
+        """
+        try:
+            logger.info(f"Recupero spedizioni per merchant {merchant_id}")
+            
+            # Recupera inbound shipments
+            inbound_shipments = self.get_inbound_shipments(merchant_id=merchant_id, page=page, per_page=per_page)
+            logger.info(f"Recuperati {len(inbound_shipments)} inbound shipments")
+            
+            # Recupera outbound shipments
+            outbound_shipments = self.get_outbound_shipments(merchant_id=merchant_id, page=page, per_page=per_page)
+            logger.info(f"Recuperati {len(outbound_shipments)} outbound shipments")
+            
+            # Combina le liste aggiungendo un campo per distinguere il tipo
+            all_shipments = []
+            
+            # Aggiungi inbound con tipo
+            for shipment in inbound_shipments:
+                shipment['shipment_type'] = 'inbound'
+                all_shipments.append(shipment)
+            
+            # Aggiungi outbound con tipo
+            for shipment in outbound_shipments:
+                shipment['shipment_type'] = 'outbound'
+                all_shipments.append(shipment)
+            
+            logger.info(f"Totale spedizioni combinate: {len(all_shipments)}")
+            return all_shipments
+            
+        except Exception as e:
+            logger.error(f"Errore recupero spedizioni per merchant {merchant_id}: {e}")
+            raise
+
+    def get_shipment_items(self, shipment_id: int, merchant_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Recupera gli items di una spedizione (prova prima inbound, poi outbound).
+        
+        Args:
+            shipment_id: ID della spedizione
+            merchant_id: ID del merchant (opzionale)
+            
+        Returns:
+            Lista degli items della spedizione
+        """
+        try:
+            logger.info(f"Recupero items per spedizione {shipment_id}")
+            
+            # Prima prova con inbound
+            try:
+                items = self.get_inbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
+                logger.info(f"Trovati {len(items)} items inbound per spedizione {shipment_id}")
+                return items
+            except Exception as e:
+                logger.debug(f"Spedizione {shipment_id} non è inbound: {e}")
+            
+            # Se fallisce, prova con outbound
+            try:
+                items = self.get_outbound_shipment_items(shipment_id=shipment_id, merchant_id=merchant_id)
+                logger.info(f"Trovati {len(items)} items outbound per spedizione {shipment_id}")
+                return items
+            except Exception as e:
+                logger.debug(f"Spedizione {shipment_id} non è outbound: {e}")
+            
+            # Se entrambi falliscono
+            logger.warning(f"Nessun item trovato per spedizione {shipment_id}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Errore recupero items spedizione {shipment_id}: {e}")
+            raise 
