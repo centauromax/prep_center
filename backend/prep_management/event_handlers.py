@@ -2,9 +2,9 @@ import logging
 from typing import Dict, Any, Optional
 from django.utils import timezone
 
-# Import diretto del client ufficiale e dei suoi modelli
+# Import diretto del client ufficiale
 from libs.prepbusiness.client import PrepBusinessClient
-from libs.prepbusiness.models import InboundShipmentCreate, InboundShipmentItemCreate, PrepBusinessError, AuthenticationError
+from libs.prepbusiness.models import PrepBusinessError, AuthenticationError
 
 from .models import ShipmentStatusUpdate, PrepBusinessConfig
 from .services import format_shipment_notification
@@ -89,8 +89,8 @@ class WebhookEventProcessor:
         merchant_id = int(data.get('team_id'))
 
         try:
-            inbound_response = self.client.get_inbound_shipments(merchant_id=merchant_id, per_page=500, status='open')
-            active_inbounds = inbound_response.shipments if inbound_response else []
+            inbound_response = self.client.get_inbound_shipments(merchant_id=merchant_id, per_page=500)
+            active_inbounds = inbound_response.data if inbound_response else []
             
             matching_shipment = next((s for s in active_inbounds if s.name.lower() == shipment_name.lower()), None)
             
@@ -120,11 +120,16 @@ class WebhookEventProcessor:
             logger.info(f"Recuperati {len(outbound_items)} items da outbound {outbound_id}")
 
             # 2. Cerco l'inbound originale corrispondente
-            inbound_resp = self.client.get_inbound_shipments(merchant_id=merchant_id, name=shipment_name, per_page=1)
-            if not (inbound_resp and inbound_resp.shipments):
+            inbound_resp = self.client.get_inbound_shipments(merchant_id=merchant_id, per_page=500)
+            if not (inbound_resp and inbound_resp.data):
+                return {'success': True, 'message': f"Nessun inbound trovato per merchant {merchant_id}."}
+            
+            # Filtra per nome
+            matching_inbounds = [s for s in inbound_resp.data if s.name.lower() == shipment_name.lower()]
+            if not matching_inbounds:
                 return {'success': True, 'message': f"Nessun inbound corrispondente a '{shipment_name}' trovato."}
             
-            inbound_original_model = inbound_resp.shipments[0]
+            inbound_original_model = matching_inbounds[0]
             inbound_original_id = inbound_original_model.id
             
             # 3. Recupero items dall'inbound originale
@@ -144,25 +149,42 @@ class WebhookEventProcessor:
             
             # Step 1: Crea lo shipment vuoto
             logger.info(f"Creo lo shipment residuale vuoto con nome: {residual_name}")
-            create_payload = {
-                "name": residual_name,
-                "warehouse_id": inbound_original_model.warehouse_id,
-                "notes": f"Creato automaticamente da outbound {outbound_id}",
-                "merchant_id": merchant_id
-            }
-            created_shipment_resp = self.client.create_inbound_shipment(create_payload)
+            created_shipment_resp = self.client.create_inbound_shipment(
+                name=residual_name,
+                warehouse_id=inbound_original_model.warehouse_id,
+                notes=f"Creato automaticamente da outbound {outbound_id}",
+                merchant_id=merchant_id
+            )
             shipment_id = created_shipment_resp.shipment_id
             logger.info(f"Shipment residuale vuoto creato con ID: {shipment_id}")
 
             # Step 2: Aggiunge gli items uno a uno
             logger.info(f"Aggiungo {len(residual_items_data)} items allo shipment {shipment_id}")
             for item in residual_items_data:
-                self.client.add_item_to_shipment(
-                    shipment_id=shipment_id,
-                    item_sku=item.get("sku"),
-                    quantity=item.get("quantity"),
-                    merchant_id=merchant_id
-                )
+                sku = item.get("sku")
+                quantity = item.get("quantity")
+                
+                # Cerca l'item_id dallo SKU
+                try:
+                    inventory_resp = self.client.search_inventory(query=sku)
+                    if inventory_resp and inventory_resp.items:
+                        # Prende il primo item che corrisponde allo SKU
+                        matching_item = next((i for i in inventory_resp.items if i.merchant_sku == sku), None)
+                        if matching_item:
+                            self.client.add_item_to_shipment(
+                                shipment_id=shipment_id,
+                                item_id=matching_item.id,
+                                quantity=quantity,
+                                merchant_id=merchant_id
+                            )
+                            logger.info(f"Aggiunto item SKU {sku} (ID: {matching_item.id}) con quantità {quantity}")
+                        else:
+                            logger.warning(f"Nessun item trovato per SKU {sku}")
+                    else:
+                        logger.warning(f"Nessun risultato dalla ricerca per SKU {sku}")
+                except Exception as e:
+                    logger.error(f"Errore durante l'aggiunta dell'item SKU {sku}: {e}")
+                    
             logger.info("Tutti gli items sono stati aggiunti allo shipment residuale.")
             
             msg = f"Creato inbound residuale ID {shipment_id}"
@@ -171,6 +193,7 @@ class WebhookEventProcessor:
         except Exception as e:
             logger.error(f"Errore in _process_outbound_shipment_closed: {e}", exc_info=True)
             return {'success': False, 'message': str(e)}
+        
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
         """Calcola la differenza di items tra inbound e outbound in modo robusto."""
         logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V3) ---")
@@ -214,41 +237,6 @@ class WebhookEventProcessor:
         
         logger.info(f"--- Fine Calcolo Residuali: {len(residual_items)} items totali ---")
         return residual_items
-    
-        """Calcola la differenza di items tra inbound e outbound in modo robusto."""
-        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato) ---")
-        
-        outbound_sku_map = {item.get('sku'): item.get('quantity', 0) for item in outbound_items}
-        residual_items = []
-        
-        logger.info(f"MAPPA OUTBOUND: {outbound_sku_map}")
-
-        for item in inbound_items:
-            sku = item.get('sku')
-            shipped_qty = outbound_sku_map.get(sku, 0)
-            
-            # Logica di quantità robusta: prende la quantità inbound disponibile,
-            # che sia 'actual' o 'expected'.
-            inbound_qty = item.get('actual_quantity', 0) or item.get('expected_quantity', 0) or item.get('quantity', 0)
-
-            residual_qty = inbound_qty - shipped_qty
-            
-            logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Outbound: {shipped_qty} | ==> RESIDUALE: {residual_qty}")
-
-            if residual_qty > 0:
-                residual_data = {
-                    "sku": sku,
-                    "quantity": residual_qty,
-                    "name": item.get('name'),
-                    "asin": item.get('asin'),
-                    "fnsku": item.get('fnsku'),
-                    "photo_url": item.get('photo_url'),
-                }
-                residual_items.append(residual_data)
-                logger.info(f"  -> ✅ AGGIUNTO: SKU {sku} con quantità residuale {residual_qty}")
-        
-        logger.info(f"--- Fine Calcolo Residuali: {len(residual_items)} items totali ---")
-        return residual_items
 
     def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate, result: Dict[str, Any]):
         notify_events = ['inbound_shipment.created', 'inbound_shipment.received', 'outbound_shipment.created', 'outbound_shipment.closed']
@@ -269,9 +257,12 @@ class WebhookEventProcessor:
 
     def _get_merchant_email(self, merchant_id: str) -> Optional[str]:
         try:
-            merchant_resp = self.client.get_merchant(merchant_id=int(merchant_id))
-            if merchant_resp and merchant_resp.merchant:
-                return merchant_resp.merchant.primary_email
+            merchants_resp = self.client.get_merchants()
+            if merchants_resp and merchants_resp.data:
+                # Cerca il merchant specifico nella lista
+                merchant = next((m for m in merchants_resp.data if str(m.id) == str(merchant_id)), None)
+                if merchant:
+                    return merchant.primaryEmail
         except Exception as e:
             logger.error(f"Impossibile recuperare email per merchant {merchant_id}: {e}")
         return None 
