@@ -69,4 +69,7 @@ urlpatterns = [
     path('debug/webhook-processor/', views.debug_webhook_processor, name='debug_webhook_processor'),
     path('debug/payload/<int:update_id>/', views.debug_webhook_payload_simple, name='debug_webhook_payload_simple'),
     path('debug/reprocess/<int:update_id>/', views.reprocess_webhook_for_debug, name='reprocess_webhook_for_debug'),
+
+    # 🆕 Test endpoints
+    path('test_outbound_closed_process/', views.test_outbound_closed_process, name='test_outbound_closed_process'),  # 🆕 Test processo outbound closed
 ]

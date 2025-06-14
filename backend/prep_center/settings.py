@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 # Prep Center Version
-VERSION = "1.2"
+VERSION = "1.3"
 
 import os
 from pathlib import Path

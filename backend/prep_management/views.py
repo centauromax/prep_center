@@ -3235,3 +3235,54 @@ def test_partial_only_creation(request):
             'message': 'Errore durante test partial only'
         }, status=500)
 
+@csrf_exempt
+def test_outbound_closed_process(request):
+    """Endpoint di test per simulare il processo outbound_shipment.closed"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        outbound_id = data.get('outbound_id', 396855)  # Default al più recente
+        
+        # Simula un webhook outbound_shipment.closed
+        webhook_data = {
+            "event_type": "outbound_shipment.closed",
+            "entity_type": "shipment", 
+            "entity_id": str(outbound_id),
+            "merchant_id": "1",
+            "status": "closed",
+            "data": {
+                "id": outbound_id,
+                "name": f"Test Outbound {outbound_id}",
+                "status": "closed"
+            }
+        }
+        
+        # Crea il record ShipmentStatusUpdate
+        update = ShipmentStatusUpdate.objects.create(
+            event_type="outbound_shipment.closed",
+            entity_type="shipment",
+            entity_id=str(outbound_id),
+            merchant_id="1", 
+            status="closed",
+            payload=webhook_data,
+            signature_verified=True,
+            processed=False
+        )
+        
+        # Processa l'evento
+        processor = WebhookEventProcessor()
+        result = processor.process_event(update.id)
+        
+        return JsonResponse({
+            'success': True,
+            'update_id': update.id,
+            'result': result,
+            'message': f'Test processo outbound_shipment.closed per ID {outbound_id}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore nel test outbound closed: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
