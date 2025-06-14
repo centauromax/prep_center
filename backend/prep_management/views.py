@@ -25,7 +25,7 @@ import uuid
 from .event_handlers import WebhookEventProcessor
 from django.utils import timezone
 from datetime import timedelta
-from libs.api_client.prep_business import PrepBusinessClient
+from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 from enum import Enum
 from functools import wraps
@@ -49,6 +49,8 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
 from django.db.models import Q
+from libs.prepbusiness.client import PrepBusinessClient as OfficialPrepBusinessClient
+from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -99,104 +101,75 @@ def open_shipments(request):
     data = api.get_open_inbound_shipments()
     return JsonResponse(data, safe=False)
 
+def get_prep_business_client():
+    """Helper function to initialize the official client."""
+    try:
+        domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+        return OfficialPrepBusinessClient(
+            api_key=PREP_BUSINESS_API_KEY,
+            company_domain=domain,
+            timeout=PREP_BUSINESS_API_TIMEOUT
+        )
+    except Exception as e:
+        logger.error(f"Errore inizializzazione client PrepBusiness in views: {e}")
+        return None
+
 def merchants_list(request):
     """
-    View per visualizzare la lista dei merchants da Prep Business.
+    Mostra la lista dei merchants recuperati tramite il client API ufficiale.
     """
-    # Ottieni tutti i merchants (anche non attivi se specificato)
-    show_inactive = request.GET.get('show_inactive', 'false').lower() == 'true'
-    merchants = get_merchants(active_only=not show_inactive)
-    
-    # Prepara il contesto per il template
-    context = {
-        'merchants': merchants,
-        'total_merchants': len(merchants),
-        'show_inactive': show_inactive,
-        'title': 'Merchants Prep Business'
-    }
-    
-    return render(request, 'prep_management/merchants.html', context)
+    client = get_prep_business_client()
+    if not client:
+        return render(request, 'prep_management/merchants_list.html', {'error': 'Client API non configurato.'})
+
+    try:
+        merchants_response = client.get_merchants(enabled=None) # Get all
+        merchants = merchants_response.merchants if merchants_response else []
+        
+        # Converte i modelli Pydantic in dizionari per il template
+        merchants_data = [m.model_dump() for m in merchants]
+        
+        context = {
+            'merchants': merchants_data,
+            'merchants_count': len(merchants_data),
+        }
+    except Exception as e:
+        logger.error(f"Errore durante il recupero dei merchants: {e}", exc_info=True)
+        context = {'error': str(e)}
+        
+    return render(request, 'prep_management/merchants_list.html', context)
 
 def api_config_debug(request):
     """
-    View di debug per visualizzare e testare le configurazioni API.
-    Solo per sviluppo e debug.
+    Mostra una pagina di debug con la configurazione API e lo stato del client ufficiale.
     """
-    # Raccogli info sulle variabili d'ambiente
-    env_vars = {
-        'PREP_BUSINESS_API_URL': os.environ.get('PREP_BUSINESS_API_URL', 'non impostata'),
-        'PREP_BUSINESS_API_KEY': os.environ.get('PREP_BUSINESS_API_KEY', 'non impostata')[:4] + '...' if os.environ.get('PREP_BUSINESS_API_KEY') and len(os.environ.get('PREP_BUSINESS_API_KEY')) > 4 else 'non impostata',
-        'PREP_BUSINESS_API_TIMEOUT': os.environ.get('PREP_BUSINESS_API_TIMEOUT', 'non impostata'),
-        'PREP_BUSINESS_MAX_RETRIES': os.environ.get('PREP_BUSINESS_MAX_RETRIES', 'non impostata'),
-        'PREP_BUSINESS_RETRY_BACKOFF': os.environ.get('PREP_BUSINESS_RETRY_BACKOFF', 'non impostata'),
-    }
+    client = get_prep_business_client()
+    config_data = {}
+    client_status = {}
     
-    # Raccogli info sulle configurazioni correnti
-    current_config = {
-        'API_URL': PREP_BUSINESS_API_URL,
-        'API_KEY': PREP_BUSINESS_API_KEY[:4] + '...' if PREP_BUSINESS_API_KEY and len(PREP_BUSINESS_API_KEY) > 4 else 'non impostata',
-        'API_TIMEOUT': PREP_BUSINESS_API_TIMEOUT,
-        'MAX_RETRIES': PREP_BUSINESS_MAX_RETRIES,
-        'RETRY_BACKOFF': PREP_BUSINESS_RETRY_BACKOFF,
-    }
-    
-    # Test di connessione all'API
-    test_result = None
-    
-    if request.GET.get('test_api') == 'true':
-        try:
-            logger.info(f"Test connessione API a {PREP_BUSINESS_API_URL}")
-            
-            # Utilizziamo PrepBusinessClient invece di chiamate dirette con requests
-            client = PrepBusinessClient(
-                api_url=PREP_BUSINESS_API_URL,
-                api_key=PREP_BUSINESS_API_KEY
-            )
-            
-            # Test di connessione all'endpoint merchants
-            logger.info("Test connessione all'endpoint merchants usando PrepBusinessClient")
-            merchants_response = client.get_merchants()
-            
-            # Converti la risposta nel formato atteso per la visualizzazione
-            test_result = {
-                'success': True,
-                'status_code': 200,  # Assumiamo 200 se la chiamata non ha sollevato eccezioni
-                'status_text': "OK",
-                'headers': {"Content-Type": "application/json"},  # Minimale per UI
-                'content': str(merchants_response)[:500] + ('...' if len(str(merchants_response)) > 500 else ''),
-                'json': {
-                    'data': [
-                        {
-                            'id': merchant.get('id'),
-                            'name': merchant.get('name'),
-                            'email': merchant.get('primaryEmail', 'N/A')
-                        } 
-                        for merchant in merchants_response[:5]  # Mostra solo i primi 5
-                    ],
-                    'count': len(merchants_response)
-                }
-            }
-                
-            logger.info(f"Test API completato con successo: {test_result['json']['count']} merchants trovati")
-            
-        except Exception as e:
-            logger.error(f"Errore nel test API: {str(e)}")
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            
-            test_result = {
-                'success': False,
-                'error': str(e),
-                'traceback': traceback.format_exc(),
-            }
-    
+    # Dati di configurazione
+    try:
+        from libs.config import get_prep_business_config
+        config_data = get_prep_business_config()
+    except Exception as e:
+        config_data = {'error': str(e)}
+
+    # Stato del client
+    if client:
+        client_status = {
+            'status': '✅ Inizializzato Correttamente',
+            'api_key': f"************{client.api_key[-4:]}" if client.api_key else "Non impostata",
+            'company_domain': client.company_domain,
+            'timeout': client.timeout,
+        }
+    else:
+        client_status = {'status': '❌ Errore di inizializzazione'}
+        
     context = {
-        'env_vars': env_vars,
-        'current_config': current_config,
-        'test_result': test_result,
-        'title': 'Debug configurazione API',
+        'config': config_data,
+        'client_status': client_status
     }
-    
-    return render(request, 'prep_management/api_debug.html', context)
+    return render(request, 'prep_management/api_config_debug.html', context)
 
 
 @csrf_exempt
@@ -1668,7 +1641,7 @@ def telegram_merchants_debug(request):
     Utile per troubleshooting delle registrazioni Telegram.
     """
     try:
-        from libs.api_client.prep_business import PrepBusinessClient
+        from libs.prepbusiness.client import PrepBusinessClient
         import os
         
         # Ottieni configurazione dalle variabili d'ambiente
@@ -2776,7 +2749,7 @@ def test_client_get_shipments(request):
     Test per verificare che il metodo get_shipments del client funzioni.
     """
     try:
-        from libs.api_client.prep_business import PrepBusinessClient
+        from libs.prepbusiness.client import PrepBusinessClient
         
         client = PrepBusinessClient()
         
@@ -2825,7 +2798,7 @@ def test_client_detailed(request):
     Test dettagliato per verificare tutti i metodi del client PrepBusiness.
     """
     try:
-        from libs.api_client.prep_business import PrepBusinessClient
+        from libs.prepbusiness.client import PrepBusinessClient
         
         client = PrepBusinessClient()
         

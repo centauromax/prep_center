@@ -6,7 +6,7 @@ import traceback
 from typing import List, Dict, Any, Optional
 
 # Correggo l'import del client
-from libs.api_client.prep_business import PrepBusinessClient
+from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY
 
 # Configura il logger

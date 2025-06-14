@@ -2,22 +2,30 @@ import logging
 from celery import shared_task
 from django.db import transaction
 from django.core.cache import cache
-from .models import SearchResultItem
+from .models import SearchResultItem, TelegramUser, TelegramNotification
 from .utils.extractors import extract_product_info_from_dict
-from libs.api_client.prep_business import PrepBusinessClient
-from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
+from libs.prepbusiness.client import PrepBusinessClient as OfficialPrepBusinessClient
+from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL, PREP_BUSINESS_API_TIMEOUT
 from .utils.clients import get_client
 import traceback
 from django.utils import timezone
 from datetime import timedelta
+from .services import send_telegram_notification as send_notification_service
 
 logger = logging.getLogger(__name__)
 
-def get_client():
-    return PrepBusinessClient(
-        api_url=PREP_BUSINESS_API_URL,
-        api_key=PREP_BUSINESS_API_KEY
-    )
+def _get_client():
+    """Helper to initialize the official client in a Celery task."""
+    try:
+        domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+        return OfficialPrepBusinessClient(
+            api_key=PREP_BUSINESS_API_KEY,
+            company_domain=domain,
+            timeout=PREP_BUSINESS_API_TIMEOUT
+        )
+    except Exception as e:
+        logger.error(f"Errore inizializzazione client PrepBusiness in Celery task: {e}")
+        return None
 
 @shared_task(bind=True, max_retries=3)
 def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_type='outbound'):
@@ -40,7 +48,7 @@ def process_shipment_batch(self, search_id, shipment_ids, merchant_id, shipment_
                 'search_id': search_id
             }
         
-        client = get_client()
+        client = _get_client()
         results = []
         
         logger.info(f"[CELERY_TASK] Inizio elaborazione {len(shipment_ids)} spedizioni")
@@ -248,7 +256,7 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
     import time
     start_time = time.time()
     logger.info(f"[CELERY_SEARCH_TASK] INIZIO: search_id={search_id}, merchant_id={merchant_id}, status={shipment_status}, max={max_shipments_to_analyze}")
-    client = get_client()
+    client = _get_client()
     shipments_collected_from_api = []
     current_api_page = 1
     shipments_matching_criteria = []
@@ -382,3 +390,48 @@ def process_shipment_search_task(self, search_id, search_terms, merchant_id, shi
         if not cache.get(f"{search_id}_done"):
             logger.warning(f"[CELERY_SEARCH_TASK] [finally] Flag {search_id}_done non impostato, lo imposto ora (fallback)")
             cache.set(f"{search_id}_done", True, timeout=600) 
+
+@shared_task(name="prep_management.send_telegram_notification")
+def send_telegram_notification(email: str, message: str, event_type: str = "generic", shipment_id: str = None):
+    # This task is a proxy to the actual service function.
+    send_notification_service(email=email, message=message, event_type=event_type, shipment_id=shipment_id)
+
+@shared_task(name="prep_management.notify_telegram_users_about_shipment")
+def notify_telegram_users_about_shipment(merchant_id: str, message: str, event_type: str, shipment_id: str):
+    """
+    Invia una notifica a tutti gli utenti Telegram associati a un merchant.
+    """
+    logger.info(f"Task Celery: Avvio notifica per merchant {merchant_id}, evento {event_type}, shipment {shipment_id}")
+    
+    client = _get_client()
+    if not client:
+        logger.error(f"Impossibile notificare per merchant {merchant_id}: client non inizializzato.")
+        return
+
+    try:
+        merchant_response = client.get_merchant(merchant_id=int(merchant_id))
+        if not merchant_response or not merchant_response.merchant:
+            logger.error(f"Merchant {merchant_id} non trovato tramite API.")
+            return
+            
+        merchant_email = merchant_response.merchant.primary_email
+        if not merchant_email:
+            logger.warning(f"Merchant {merchant_id} non ha un'email primaria configurata.")
+            return
+
+        users_to_notify = TelegramUser.objects.filter(email__iexact=merchant_email, is_active=True)
+        if not users_to_notify.exists():
+            logger.info(f"Nessun utente Telegram attivo trovato per l'email {merchant_email} (merchant {merchant_id}).")
+            return
+
+        for user in users_to_notify:
+            logger.info(f"Invio notifica a {user.email} (Chat ID: {user.chat_id})")
+            send_notification_service(
+                email=user.email,
+                message=message,
+                event_type=event_type,
+                shipment_id=shipment_id
+            )
+
+    except Exception as e:
+        logger.error(f"Errore durante l'invio di notifiche per merchant {merchant_id}: {e}", exc_info=True) 
