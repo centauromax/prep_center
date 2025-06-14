@@ -467,12 +467,37 @@ class WebhookEventProcessor:
             # Cerca l'inbound shipment corrispondente
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Ricerca inbound shipment con nome '{shipment_name}' per merchant {merchant_id}")
-                inbound_shipments = self.client.get_shipments(merchant_id=merchant_id)
+
+                # --- SOLUZIONE DEFINITIVA ---
+                # Eseguo la logica direttamente qui per bypassare problemi di deploy del client.
+                # Questo approccio è più resiliente a problemi di caching dei moduli su Railway.
+                logger.info("Eseguo logica di recupero spedizioni direttamente nell'handler.")
                 
+                try:
+                    # Metodo preferito: usa il wrapper se funziona
+                    logger.info("Tentativo di usare self.client.get_shipments (metodo corretto)")
+                    all_shipments = self.client.get_shipments(merchant_id=int(merchant_id))
+                    logger.info(f"Metodo get_shipments ha funzionato, {len(all_shipments)} spedizioni trovate.")
+                except (AttributeError, TypeError) as e:
+                    logger.warning(f"Metodo get_shipments non trovato o fallito ({e})! Fallback su metodi specifici.")
+                    inbound_list = self.client.get_inbound_shipments(merchant_id=int(merchant_id))
+                    outbound_list = self.client.get_outbound_shipments(merchant_id=int(merchant_id))
+                    
+                    # Combina manualmente le liste
+                    all_shipments = []
+                    for s in inbound_list:
+                        s['shipment_type'] = 'inbound'
+                        all_shipments.append(s)
+                    for s in outbound_list:
+                        s['shipment_type'] = 'outbound'
+                        all_shipments.append(s)
+                    logger.info(f"Fallback riuscito. {len(all_shipments)} spedizioni combinate.")
+                # --- FINE SOLUZIONE DEFINITIVA ---
+
                 # Filtra per nome esatto e tipo inbound
                 matching_inbounds = [
-                    s for s in inbound_shipments 
-                    if s.get('name') == shipment_name and s.get('shipment_type') == 'inbound'
+                    s for s in all_shipments 
+                    if s.get('name', '').lower() == shipment_name.lower() and s.get('shipment_type') == 'inbound'
                 ]
                 
                 if not matching_inbounds:
@@ -488,6 +513,7 @@ class WebhookEventProcessor:
                 
             except Exception as e:
                 logger.error(f"[_process_outbound_shipment_closed] ❌ Errore ricerca inbound shipment: {e}")
+                logger.exception("Traceback completo dell'errore:")
                 return {
                     'success': False,
                     'message': f'Errore ricerca inbound shipment: {e}',
