@@ -2889,4 +2889,37 @@ def test_client_detailed(request):
             'message': 'Errore nel test dettagliato'
         }, status=500)
 
+@csrf_exempt
+def reprocess_webhook_for_debug(request, update_id):
+    """
+    Riesegue l'elaborazione di un webhook specifico per il debug.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Usa il metodo POST'}, status=405)
+        
+    try:
+        from .event_handlers import WebhookEventProcessor
+        # Aggiungo log extra qui per essere sicuro
+        logger.info(f"--- DEBUG REPROCESS: Avvio rielaborazione per Update ID: {update_id} ---")
+        
+        # Svuoto il risultato precedente per forzare una nuova elaborazione
+        update = ShipmentStatusUpdate.objects.get(id=update_id)
+        update.processed = False
+        update.processing_result = {}
+        update.save()
+
+        # Eseguo l'elaborazione
+        processor = WebhookEventProcessor()
+        result = processor.process_event(update_id)
+        
+        logger.info(f"--- DEBUG REPROCESS: Fine rielaborazione. Risultato: {result} ---")
+        
+        return JsonResponse(result)
+        
+    except ShipmentStatusUpdate.DoesNotExist:
+        return JsonResponse({'success': False, 'message': f'Update {update_id} non trovato.'}, status=404)
+    except Exception as e:
+        logger.error(f"Errore durante la rielaborazione di debug: {e}", exc_info=True)
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
 # Debug function removed to fix crash

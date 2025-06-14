@@ -161,19 +161,82 @@ class WebhookEventProcessor:
             return {'success': False, 'message': str(e)}
 
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
+        """Calcola la differenza di items tra inbound e outbound in modo robusto."""
+        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V3) ---")
+        
         outbound_sku_map = {item.get('sku'): item.get('quantity', 0) for item in outbound_items}
         residual_items = []
-        for item in inbound_items:
-            shipped_qty = outbound_sku_map.get(item.get('sku'), 0)
-            original_qty = item.get('quantity', 0) or item.get('actual_quantity', 0)
+        
+        logger.info(f"MAPPA SKU OUTBOUND: {outbound_sku_map}")
 
-            residual_qty = original_qty - shipped_qty
+        for item in inbound_items:
+            sku = item.get('sku')
+            if not sku:
+                logger.warning("Trovato item inbound senza SKU, verrà ignorato.")
+                continue
+
+            shipped_qty = outbound_sku_map.get(sku, 0)
+            
+            # Logica robusta per la quantità inbound: prende la prima quantità valida che trova.
+            # Questo gestisce casi dove la quantità potrebbe essere in campi diversi.
+            inbound_qty = item.get('actual_quantity')
+            if inbound_qty is None:
+                inbound_qty = item.get('expected_quantity')
+            if inbound_qty is None:
+                inbound_qty = item.get('quantity', 0)
+
+            residual_qty = inbound_qty - shipped_qty
+            
+            logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Spedita: {shipped_qty} | ==> RESIDUALE: {residual_qty}")
+
             if residual_qty > 0:
                 residual_data = {
-                    "sku": item.get('sku'), "quantity": residual_qty, "name": item.get('name'),
-                    "asin": item.get('asin'), "fnsku": item.get('fnsku'), "photo_url": item.get('photo_url'),
+                    "sku": sku,
+                    "quantity": residual_qty,
+                    "name": item.get('name'),
+                    "asin": item.get('asin'),
+                    "fnsku": item.get('fnsku'),
+                    "photo_url": item.get('photo_url'),
                 }
                 residual_items.append(residual_data)
+                logger.info(f"  -> ✅ AGGIUNTO: SKU {sku} con quantità residuale {residual_qty}")
+        
+        logger.info(f"--- Fine Calcolo Residuali: {len(residual_items)} items totali ---")
+        return residual_items
+    
+        """Calcola la differenza di items tra inbound e outbound in modo robusto."""
+        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato) ---")
+        
+        outbound_sku_map = {item.get('sku'): item.get('quantity', 0) for item in outbound_items}
+        residual_items = []
+        
+        logger.info(f"MAPPA OUTBOUND: {outbound_sku_map}")
+
+        for item in inbound_items:
+            sku = item.get('sku')
+            shipped_qty = outbound_sku_map.get(sku, 0)
+            
+            # Logica di quantità robusta: prende la quantità inbound disponibile,
+            # che sia 'actual' o 'expected'.
+            inbound_qty = item.get('actual_quantity', 0) or item.get('expected_quantity', 0) or item.get('quantity', 0)
+
+            residual_qty = inbound_qty - shipped_qty
+            
+            logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Outbound: {shipped_qty} | ==> RESIDUALE: {residual_qty}")
+
+            if residual_qty > 0:
+                residual_data = {
+                    "sku": sku,
+                    "quantity": residual_qty,
+                    "name": item.get('name'),
+                    "asin": item.get('asin'),
+                    "fnsku": item.get('fnsku'),
+                    "photo_url": item.get('photo_url'),
+                }
+                residual_items.append(residual_data)
+                logger.info(f"  -> ✅ AGGIUNTO: SKU {sku} con quantità residuale {residual_qty}")
+        
+        logger.info(f"--- Fine Calcolo Residuali: {len(residual_items)} items totali ---")
         return residual_items
 
     def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate, result: Dict[str, Any]):

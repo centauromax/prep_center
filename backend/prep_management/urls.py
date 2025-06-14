@@ -63,4 +63,5 @@ urlpatterns = [
     path('debug/webhook/<int:update_id>/', views.debug_webhook_payload, name='debug_webhook_payload'),
     path('debug/webhook-processor/', views.debug_webhook_processor, name='debug_webhook_processor'),
     path('debug/payload/<int:update_id>/', views.debug_webhook_payload_simple, name='debug_webhook_payload_simple'),
+    path('debug/reprocess/<int:update_id>/', views.reprocess_webhook_for_debug, name='reprocess_webhook_for_debug'),
 ]
