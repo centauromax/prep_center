@@ -468,30 +468,47 @@ class WebhookEventProcessor:
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Ricerca inbound shipment con nome '{shipment_name}' per merchant {merchant_id}")
 
-                # --- SOLUZIONE DEFINITIVA ---
-                # Eseguo la logica direttamente qui per bypassare problemi di deploy del client.
-                # Questo approccio è più resiliente a problemi di caching dei moduli su Railway.
-                logger.info("Eseguo logica di recupero spedizioni direttamente nell'handler.")
-                
+                # --- SOLUZIONE DEFINITIVA V3 (BYPASS TOTALE) ---
+                # A causa di problemi di deploy persistenti con il client wrapper,
+                # eseguo le chiamate API direttamente con `requests` per garantire l'esecuzione.
+                logger.info("!!! BYPASS TOTALE DEL CLIENT WRAPPER per il recupero delle spedizioni.")
+                import requests
+
+                api_url = self.client.api_url
+                headers = self.client._get_headers()
+                params = {'merchant_id': int(merchant_id), 'per_page': 250} # Aumento per_page per sicurezza
+
+                # Recupero INBOUND
                 try:
-                    # Metodo preferito: usa il wrapper se funziona
-                    logger.info("Tentativo di usare self.client.get_shipments (metodo corretto)")
-                    all_shipments = self.client.get_shipments(merchant_id=int(merchant_id))
-                    logger.info(f"Metodo get_shipments ha funzionato, {len(all_shipments)} spedizioni trovate.")
-                except (AttributeError, TypeError) as e:
-                    logger.warning(f"Metodo get_shipments non trovato o fallito ({e})! Fallback su metodi specifici.")
-                    inbound_list = self.client.get_inbound_shipments(merchant_id=int(merchant_id))
-                    outbound_list = self.client.get_outbound_shipments(merchant_id=int(merchant_id))
-                    
-                    # Combina manualmente le liste
-                    all_shipments = []
-                    for s in inbound_list:
-                        s['shipment_type'] = 'inbound'
-                        all_shipments.append(s)
-                    for s in outbound_list:
-                        s['shipment_type'] = 'outbound'
-                        all_shipments.append(s)
-                    logger.info(f"Fallback riuscito. {len(all_shipments)} spedizioni combinate.")
+                    inbound_response = requests.get(f"{api_url}/shipments/inbound", headers=headers, params=params, timeout=15)
+                    inbound_response.raise_for_status()
+                    inbound_data = inbound_response.json()
+                    inbound_list = inbound_data.get('data', [])
+                    logger.info(f"Chiamata API diretta: recuperati {len(inbound_list)} inbound shipments.")
+                except Exception as api_e:
+                    logger.error(f"Errore chiamata API diretta per INBOUND: {api_e}")
+                    inbound_list = []
+
+                # Recupero OUTBOUND
+                try:
+                    outbound_response = requests.get(f"{api_url}/shipments/outbound", headers=headers, params=params, timeout=15)
+                    outbound_response.raise_for_status()
+                    outbound_data = outbound_response.json()
+                    outbound_list = outbound_data.get('data', [])
+                    logger.info(f"Chiamata API diretta: recuperati {len(outbound_list)} outbound shipments.")
+                except Exception as api_e:
+                    logger.error(f"Errore chiamata API diretta per OUTBOUND: {api_e}")
+                    outbound_list = []
+
+                # Combina manualmente le liste
+                all_shipments = []
+                for s in inbound_list:
+                    s['shipment_type'] = 'inbound'
+                    all_shipments.append(s)
+                for s in outbound_list:
+                    s['shipment_type'] = 'outbound'
+                    all_shipments.append(s)
+                logger.info(f"Chiamata API diretta: {len(all_shipments)} spedizioni totali combinate.")
                 # --- FINE SOLUZIONE DEFINITIVA ---
 
                 # Filtra per nome esatto e tipo inbound
