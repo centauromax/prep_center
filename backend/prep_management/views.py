@@ -3152,3 +3152,86 @@ def test_partial_inbound_creation(request):
             'message': 'Errore durante test partial creation'
         }, status=500)
 
+@api_view(['POST'])
+@permission_classes([])
+def test_partial_only_creation(request):
+    """
+    Test specifico per partial puri (senza residual).
+    Simula uno scenario dove tutte le quantità sono uguali.
+    """
+    try:
+        logger.info("[test_partial_only_creation] 🧪 Test PARTIAL PURO - Solo quantità uguali")
+        
+        # Dati mock per test partial puro
+        mock_inbound_items = [
+            {
+                'item': {'merchant_sku': 'PARTIAL-001', 'title': 'Prodotto Partial 1'},
+                'actual': {'quantity': 5},
+                'expected': {'quantity': 5}
+            },
+            {
+                'item': {'merchant_sku': 'PARTIAL-002', 'title': 'Prodotto Partial 2'},
+                'actual': {'quantity': 3},
+                'expected': {'quantity': 3}
+            }
+        ]
+        
+        mock_outbound_items = [
+            {
+                'item': {'merchant_sku': 'PARTIAL-001'},
+                'quantity': 5  # Uguale a inbound
+            },
+            {
+                'item': {'merchant_sku': 'PARTIAL-002'},
+                'quantity': 3  # Uguale a inbound
+            }
+        ]
+        
+        # Test calcolo con processor reale
+        from .event_handlers import WebhookEventProcessor
+        processor = WebhookEventProcessor()
+        
+        # Calcola residual (dovrebbe essere vuoto)
+        residual_items = processor._calculate_residual_items(mock_inbound_items, mock_outbound_items)
+        
+        # Calcola partial (dovrebbe trovare tutti gli items)
+        partial_items = processor._calculate_partial_items(mock_inbound_items, mock_outbound_items)
+        
+        # Simula la logica di decisione
+        create_residual = len(residual_items) > 0
+        create_partial = len(partial_items) > 0 and not create_residual
+        
+        logger.info(f"[test_partial_only_creation] Residual items: {len(residual_items)}")
+        logger.info(f"[test_partial_only_creation] Partial items: {len(partial_items)}")
+        logger.info(f"[test_partial_only_creation] Create residual: {create_residual}")
+        logger.info(f"[test_partial_only_creation] Create partial: {create_partial}")
+        
+        return JsonResponse({
+            'success': True,
+            'test_type': 'partial_only',
+            'mock_data': {
+                'inbound_items': mock_inbound_items,
+                'outbound_items': mock_outbound_items
+            },
+            'calculation_results': {
+                'residual_items': residual_items,
+                'residual_count': len(residual_items),
+                'partial_items': partial_items,
+                'partial_count': len(partial_items)
+            },
+            'decision_logic': {
+                'create_residual': create_residual,
+                'create_partial': create_partial,
+                'would_create': 'PARTIAL' if create_partial else ('RESIDUAL' if create_residual else 'NOTHING')
+            },
+            'message': f'Test completato: {"PARTIAL verrebbe creato" if create_partial else "PARTIAL NON verrebbe creato"}'
+        })
+        
+    except Exception as e:
+        logger.error(f"[test_partial_only_creation] ❌ Errore: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'message': 'Errore durante test partial only'
+        }, status=500)
+

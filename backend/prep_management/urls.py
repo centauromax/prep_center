@@ -55,6 +55,7 @@ urlpatterns = [
     path('api/test-residual-logic/', views.test_residual_logic_simple, name='test_residual_logic_simple'),
     path('api/test-residual-version/', views.test_residual_version, name='test_residual_version'),
     path('api/test-partial-inbound/', views.test_partial_inbound_creation, name='test_partial_inbound_creation'),
+    path('api/test-partial-only/', views.test_partial_only_creation, name='test_partial_only_creation'),
     path('version-file/', views.version_file, name='version_file'),
 
     path('api/test-outbound-closed-test2/', views.test_outbound_closed_test2, name='test_outbound_closed_test2'),
