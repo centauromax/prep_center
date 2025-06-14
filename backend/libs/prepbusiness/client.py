@@ -888,47 +888,42 @@ class PrepBusinessClient:
         
         return CreateInboundShipmentResponse.model_validate(response)
 
-    def update_inbound_shipment(
-        self,
-        shipment_id: int,
-        name: Optional[str] = None,
-        notes: Optional[str] = None,
-        internal_notes: Optional[str] = None,
-        merchant_id: Optional[int] = None
-    ) -> UpdateInboundShipmentResponse:
-        """Update an existing inbound shipment.
-
-        Args:
-            shipment_id: The ID of the shipment to update
-            name: Optional new name for the shipment
-            notes: Optional new notes about the shipment
-            internal_notes: Optional new internal notes for warehouse/staff
-            merchant_id: Optional merchant ID to use for this request
-
-        Returns:
-            UpdateInboundShipmentResponse containing the updated shipment details
-
-        Raises:
-            PrepBusinessError: If the API request fails
+    def create_inbound_shipment_with_items(self, shipment_data: Dict[str, Any]) -> CreateInboundShipmentResponse:
         """
-        data = {}
-        if name is not None:
-            data["name"] = name
-        if notes is not None:
-            data["notes"] = notes
-        if internal_notes is not None:
-            data["internal_notes"] = internal_notes
+        Crea un nuovo inbound shipment e aggiunge gli items in un'unica operazione.
+        """
+        # Step 1: Crea lo shipment vuoto
+        create_payload = {
+            "name": shipment_data.get("name"),
+            "warehouse_id": shipment_data.get("warehouse_id"),
+            "notes": shipment_data.get("notes", ""),
+            "merchant_id": shipment_data.get("merchant_id")
+        }
+        created_shipment_resp = self.create_inbound_shipment(create_payload)
+        shipment_id = created_shipment_resp.shipment_id
 
-        response = self._request(
-            "PUT",
-            f"/shipments/inbound/{shipment_id}",
-            json=data,
-            merchant_id=merchant_id
-        )
+        # Step 2: Aggiunge gli items uno a uno
+        items_data = shipment_data.get("items", [])
+        for item in items_data:
+            self.add_item_to_shipment(
+                shipment_id=shipment_id,
+                item_sku=item.get("sku"),
+                quantity=item.get("quantity"),
+                merchant_id=shipment_data.get("merchant_id")
+            )
         
-        print("Raw API Response:", response)  # Debug print
-        
-        return UpdateInboundShipmentResponse.model_validate(response)
+        return created_shipment_resp
+
+    def update_inbound_shipment(self, shipment_id: int, name: str, notes: str, warehouse_id: int) -> UpdateInboundShipmentResponse:
+        """Update an inbound shipment."""
+        endpoint = f"shipments/inbound/{shipment_id}"
+        data = {
+            "name": name,
+            "notes": notes,
+            "warehouse_id": warehouse_id
+        }
+        response = self._request("PUT", endpoint, json=data)
+        return UpdateInboundShipmentResponse(**response)
 
     def submit_inbound_shipment(
         self,

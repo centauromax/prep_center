@@ -4,7 +4,7 @@ from django.utils import timezone
 
 # Import diretto del client ufficiale e dei suoi modelli
 from libs.prepbusiness.client import PrepBusinessClient
-from libs.prepbusiness.models import InboundShipmentCreate, InboundShipmentItemCreate
+from libs.prepbusiness.models import InboundShipmentCreate, InboundShipmentItemCreate, PrepBusinessError, AuthenticationError
 
 from .models import ShipmentStatusUpdate, PrepBusinessConfig
 from .services import format_shipment_notification
@@ -114,10 +114,12 @@ class WebhookEventProcessor:
         merchant_id = int(data.get('team_id'))
 
         try:
+            # 1. Recupero items dall'outbound chiuso
             outbound_items_resp = self.client.get_outbound_shipment_items(shipment_id=outbound_id, merchant_id=merchant_id)
-            outbound_items = [i.model_dump() for i in outbound_items_resp.items] if outbound_items_resp else []
+            outbound_items = [i.model_dump() for i in outbound_items_resp.items] if outbound_items_resp and outbound_items_resp.items else []
             logger.info(f"Recuperati {len(outbound_items)} items da outbound {outbound_id}")
 
+            # 2. Cerco l'inbound originale corrispondente
             inbound_resp = self.client.get_inbound_shipments(merchant_id=merchant_id, name=shipment_name, per_page=1)
             if not (inbound_resp and inbound_resp.shipments):
                 return {'success': True, 'message': f"Nessun inbound corrispondente a '{shipment_name}' trovato."}
@@ -125,41 +127,50 @@ class WebhookEventProcessor:
             inbound_original_model = inbound_resp.shipments[0]
             inbound_original_id = inbound_original_model.id
             
+            # 3. Recupero items dall'inbound originale
             inbound_items_resp = self.client.get_inbound_shipment_items(shipment_id=inbound_original_id, merchant_id=merchant_id)
-            inbound_items = [i.model_dump() for i in inbound_items_resp.items] if inbound_items_resp else []
+            inbound_items = [i.model_dump() for i in inbound_items_resp.items] if inbound_items_resp and inbound_items_resp.items else []
             logger.info(f"Recuperati {len(inbound_items)} items da inbound originale {inbound_original_id}")
 
+            # 4. Calcolo i residuali
             residual_items_data = self._calculate_residual_items(inbound_items, outbound_items)
             if not residual_items_data:
                 return {'success': True, 'message': 'Nessun item residuale da creare.'}
             
             logger.info(f"Calcolati {len(residual_items_data)} items residuali.")
 
+            # 5. Creo il nuovo inbound residuale (logica a 2 step)
             residual_name = f"{shipment_name} - RESIDUAL"
             
-            items_to_create = [InboundShipmentItemCreate(**item_data) for item_data in residual_items_data]
+            # Step 1: Crea lo shipment vuoto
+            logger.info(f"Creo lo shipment residuale vuoto con nome: {residual_name}")
+            create_payload = {
+                "name": residual_name,
+                "warehouse_id": inbound_original_model.warehouse_id,
+                "notes": f"Creato automaticamente da outbound {outbound_id}",
+                "merchant_id": merchant_id
+            }
+            created_shipment_resp = self.client.create_inbound_shipment(create_payload)
+            shipment_id = created_shipment_resp.shipment_id
+            logger.info(f"Shipment residuale vuoto creato con ID: {shipment_id}")
+
+            # Step 2: Aggiunge gli items uno a uno
+            logger.info(f"Aggiungo {len(residual_items_data)} items allo shipment {shipment_id}")
+            for item in residual_items_data:
+                self.client.add_item_to_shipment(
+                    shipment_id=shipment_id,
+                    item_sku=item.get("sku"),
+                    quantity=item.get("quantity"),
+                    merchant_id=merchant_id
+                )
+            logger.info("Tutti gli items sono stati aggiunti allo shipment residuale.")
             
-            shipment_to_create = InboundShipmentCreate(
-                name=residual_name,
-                warehouse_id=inbound_original_model.warehouse_id,
-                merchant_id=merchant_id,
-                items=items_to_create,
-                notes=f"Creato automaticamente da outbound {outbound_id}"
-            )
-            
-            # Qui usiamo il metodo corretto del client completo
-            new_shipment_resp = self.client.create_inbound_shipment(shipment_data=shipment_to_create)
-            
-            if new_shipment_resp and new_shipment_resp.shipment:
-                msg = f"Creato inbound residuale ID {new_shipment_resp.shipment.id}"
-                return {'success': True, 'message': msg, 'residual_shipment_id': new_shipment_resp.shipment.id}
-            else:
-                raise Exception("La creazione dell'inbound residuale non ha restituito un ID valido.")
+            msg = f"Creato inbound residuale ID {shipment_id}"
+            return {'success': True, 'message': msg, 'residual_shipment_id': shipment_id}
 
         except Exception as e:
             logger.error(f"Errore in _process_outbound_shipment_closed: {e}", exc_info=True)
             return {'success': False, 'message': str(e)}
-
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
         """Calcola la differenza di items tra inbound e outbound in modo robusto."""
         logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V3) ---")
