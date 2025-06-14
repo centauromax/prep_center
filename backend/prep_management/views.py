@@ -3287,3 +3287,28 @@ def test_outbound_closed_process(request):
         logger.error(f"Errore nel test outbound closed: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
+def debug_last_update(request):
+    """Endpoint per vedere i dettagli dell'ultimo ShipmentStatusUpdate processato"""
+    try:
+        # Prendi l'ultimo update processato
+        last_update = ShipmentStatusUpdate.objects.filter(processed=True).order_by('-processed_at').first()
+        
+        if not last_update:
+            return JsonResponse({'error': 'Nessun update processato trovato'}, status=404)
+        
+        return JsonResponse({
+            'update_id': last_update.id,
+            'shipment_id': last_update.shipment_id,
+            'event_type': last_update.event_type,
+            'processed_at': last_update.processed_at.isoformat() if last_update.processed_at else None,
+            'process_success': last_update.process_success,
+            'process_message': last_update.process_message,
+            'processing_result': last_update.processing_result,
+            'payload': last_update.payload
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore nel debug last update: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+

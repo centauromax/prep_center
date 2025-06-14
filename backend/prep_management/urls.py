@@ -72,4 +72,5 @@ urlpatterns = [
 
     # 🆕 Test endpoints
     path('test_outbound_closed_process/', views.test_outbound_closed_process, name='test_outbound_closed_process'),  # 🆕 Test processo outbound closed
+    path('debug_last_update/', views.debug_last_update, name='debug_last_update'),  # 🆕 Debug ultimo update processato
 ]
