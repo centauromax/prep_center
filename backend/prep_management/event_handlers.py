@@ -196,41 +196,76 @@ class WebhookEventProcessor:
         
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
         """Calcola la differenza di items tra inbound e outbound in modo robusto."""
-        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V3) ---")
+        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V4) ---")
         
-        outbound_sku_map = {item.get('sku'): item.get('quantity', 0) for item in outbound_items}
+        # Crea mappa SKU outbound - accede alla struttura annidata
+        outbound_sku_map = {}
+        for item in outbound_items:
+            # OutboundShipmentItem ha: item.item.merchant_sku
+            sku = None
+            if 'item' in item and item['item']:
+                sku = item['item'].get('merchant_sku')
+            if not sku:
+                # Fallback: cerca direttamente
+                sku = item.get('sku') or item.get('merchant_sku')
+            
+            if sku:
+                quantity = item.get('quantity', 0)
+                outbound_sku_map[sku] = outbound_sku_map.get(sku, 0) + quantity
+                logger.info(f"OUTBOUND SKU: {sku} → Quantità: {quantity}")
+            else:
+                logger.warning(f"Outbound item senza SKU valido: {item}")
+        
         residual_items = []
-        
         logger.info(f"MAPPA SKU OUTBOUND: {outbound_sku_map}")
 
         for item in inbound_items:
-            sku = item.get('sku')
+            # ShipmentItem ha: item.item.merchant_sku
+            sku = None
+            if 'item' in item and item['item']:
+                sku = item['item'].get('merchant_sku')
+            if not sku:
+                # Fallback: cerca direttamente
+                sku = item.get('sku') or item.get('merchant_sku')
+            
             if not sku:
                 logger.warning("Trovato item inbound senza SKU, verrà ignorato.")
+                logger.debug(f"Item inbound senza SKU: {item}")
                 continue
 
             shipped_qty = outbound_sku_map.get(sku, 0)
             
-            # Logica robusta per la quantità inbound: prende la prima quantità valida che trova.
-            # Questo gestisce casi dove la quantità potrebbe essere in campi diversi.
-            inbound_qty = item.get('actual_quantity')
-            if inbound_qty is None:
-                inbound_qty = item.get('expected_quantity')
-            if inbound_qty is None:
-                inbound_qty = item.get('quantity', 0)
+            # Logica robusta per la quantità inbound
+            inbound_qty = 0
+            
+            # Prova con struttura annidata: item.actual.quantity, item.expected.quantity
+            if 'actual' in item and item['actual']:
+                inbound_qty = item['actual'].get('quantity', 0)
+            elif 'expected' in item and item['expected']:
+                inbound_qty = item['expected'].get('quantity', 0)
+            else:
+                # Fallback: cerca direttamente
+                inbound_qty = item.get('actual_quantity')
+                if inbound_qty is None:
+                    inbound_qty = item.get('expected_quantity')
+                if inbound_qty is None:
+                    inbound_qty = item.get('quantity', 0)
 
             residual_qty = inbound_qty - shipped_qty
             
             logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Spedita: {shipped_qty} | ==> RESIDUALE: {residual_qty}")
 
             if residual_qty > 0:
+                # Estrai altri dati dall'item annidato
+                item_data = item.get('item', {}) if 'item' in item else item
+                
                 residual_data = {
                     "sku": sku,
                     "quantity": residual_qty,
-                    "name": item.get('name'),
-                    "asin": item.get('asin'),
-                    "fnsku": item.get('fnsku'),
-                    "photo_url": item.get('photo_url'),
+                    "name": item_data.get('title') or item_data.get('name'),
+                    "asin": item_data.get('asin'),
+                    "fnsku": item_data.get('fnsku'),
+                    "photo_url": item_data.get('photo_url'),
                 }
                 residual_items.append(residual_data)
                 logger.info(f"  -> ✅ AGGIUNTO: SKU {sku} con quantità residuale {residual_qty}")
