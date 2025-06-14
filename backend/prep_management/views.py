@@ -3014,4 +3014,38 @@ def test_residual_version(request):
             'traceback': traceback.format_exc()
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([])
+def get_current_version(request):
+    """
+    Endpoint per ottenere la versione corrente dell'applicazione.
+    """
+    try:
+        from django.conf import settings
+        
+        # Leggi la versione dal file scritto all'avvio
+        version_file_path = '/tmp/prep_center_version.txt'
+        try:
+            with open(version_file_path, 'r') as f:
+                file_version = f.read().strip()
+        except FileNotFoundError:
+            file_version = 'file_not_found'
+        
+        # Versione dal settings
+        settings_version = getattr(settings, 'VERSION', 'unknown')
+        
+        return Response({
+            'success': True,
+            'version_from_settings': settings_version,
+            'version_from_file': file_version,
+            'version_file_path': version_file_path,
+            'versions_match': settings_version == file_version
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
 # Debug function removed to fix crash
