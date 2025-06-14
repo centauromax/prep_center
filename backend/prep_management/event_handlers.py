@@ -137,11 +137,11 @@ class WebhookEventProcessor:
             inbound_items = [i.model_dump() for i in inbound_items_resp.items] if inbound_items_resp and inbound_items_resp.items else []
             logger.info(f"Recuperati {len(inbound_items)} items da inbound originale {inbound_original_id}")
 
-            # 4. Calcolo residuali e partial
+            # 4. Calcolo residuali e partial (ottimizzato per evitare doppio calcolo)
             residual_items_data = self._calculate_residual_items(inbound_items, outbound_items)
-            partial_items_data = self._calculate_partial_items(inbound_items, outbound_items)
+            partial_items_data = self._calculate_partial_items_optimized(outbound_items, residual_items_data)
             
-            # Determina quali tipi di spedizione creare (possono essere entrambi!)
+            # Determina quali tipi di spedizione creare
             create_residual = len(residual_items_data) > 0
             create_partial = len(partial_items_data) > 0
             
@@ -216,7 +216,12 @@ class WebhookEventProcessor:
             logger.info(f"Aggiungo {len(items_data)} items allo shipment {shipment_id}")
             for item in items_data:
                 sku = item.get("sku")
-                quantity = item.get("quantity")
+                
+                # Per RESIDUAL: usa expected_quantity, per PARTIAL: usa expected_quantity (che è = actual_quantity)
+                expected_qty = item.get("expected_quantity", item.get("quantity", 0))
+                actual_qty = item.get("actual_quantity", expected_qty)  # Default = expected se non specificato
+                
+                logger.info(f"Item {sku}: Expected={expected_qty}, Actual={actual_qty}")
                 
                 # Cerca l'item_id dallo SKU
                 try:
@@ -225,19 +230,36 @@ class WebhookEventProcessor:
                         # Prende il primo item che corrisponde allo SKU
                         matching_item = next((i for i in inventory_resp.items if i.merchant_sku == sku), None)
                         if matching_item:
+                            # Aggiunge con quantità expected (per ora, poi aggiorneremo actual se diversa)
                             self.client.add_item_to_shipment(
                                 shipment_id=shipment_id,
                                 item_id=matching_item.id,
-                                quantity=quantity,
+                                quantity=expected_qty,
                                 merchant_id=merchant_id
                             )
-                            logger.info(f"Aggiunto item SKU {sku} (ID: {matching_item.id}) con quantità {quantity}")
+                            logger.info(f"Aggiunto item SKU {sku} (ID: {matching_item.id}) con quantità expected {expected_qty}")
                         else:
                             logger.warning(f"Nessun item trovato per SKU {sku}")
                     else:
                         logger.warning(f"Nessun risultato dalla ricerca per SKU {sku}")
                 except Exception as e:
                     logger.error(f"Errore durante l'aggiunta dell'item SKU {sku}: {e}")
+            
+            # Step 3: Se è PARTIAL, settalo come Shipped
+            if creation_type == "partial":
+                logger.info(f"Settando shipment PARTIAL {shipment_id} come Shipped...")
+                try:
+                    # Usa API Submit per settare come shipped
+                    self.client.submit_inbound_shipment(
+                        shipment_id=shipment_id,
+                        carrier="no_tracking",
+                        tracking_numbers="",
+                        merchant_id=merchant_id
+                    )
+                    logger.info(f"✅ Shipment PARTIAL {shipment_id} settato come Shipped")
+                except Exception as e:
+                    logger.error(f"❌ Errore nel settare PARTIAL come Shipped: {e}")
+                    # Non bloccare il processo, continua comunque
                     
             logger.info(f"Tutti gli items sono stati aggiunti allo shipment {creation_type}.")
             
@@ -247,162 +269,139 @@ class WebhookEventProcessor:
             logger.error(f"Errore in _create_shipment ({creation_type}): {e}", exc_info=True)
             return {'success': False, 'message': str(e)}
 
-    def _calculate_partial_items(self, inbound_items: list, outbound_items: list) -> list:
-        """Calcola gli items partial (quantità uguali tra inbound e outbound)."""
-        logger.info(f"--- Inizio Calcolo Partial (Log Dettagliato V1) ---")
-        
-        # Crea mappa SKU outbound - accede alla struttura annidata
-        outbound_sku_map = {}
-        for item in outbound_items:
-            # OutboundShipmentItem ha: item.item.merchant_sku
-            sku = None
-            if 'item' in item and item['item']:
-                sku = item['item'].get('merchant_sku')
-            if not sku:
-                # Fallback: cerca direttamente
-                sku = item.get('sku') or item.get('merchant_sku')
-            
-            if sku:
-                quantity = item.get('quantity', 0)
-                outbound_sku_map[sku] = outbound_sku_map.get(sku, 0) + quantity
-                logger.info(f"OUTBOUND SKU: {sku} → Quantità: {quantity}")
-            else:
-                logger.warning(f"Outbound item senza SKU valido: {item}")
-        
-        partial_items = []
-        logger.info(f"MAPPA SKU OUTBOUND: {outbound_sku_map}")
-
-        for item in inbound_items:
-            # ShipmentItem ha: item.item.merchant_sku
-            sku = None
-            if 'item' in item and item['item']:
-                sku = item['item'].get('merchant_sku')
-            if not sku:
-                # Fallback: cerca direttamente
-                sku = item.get('sku') or item.get('merchant_sku')
-            
-            if not sku:
-                logger.warning("Trovato item inbound senza SKU, verrà ignorato.")
-                logger.debug(f"Item inbound senza SKU: {item}")
-                continue
-
-            shipped_qty = outbound_sku_map.get(sku, 0)
-            
-            # Logica robusta per la quantità inbound
-            inbound_qty = 0
-            
-            # Prova con struttura annidata: item.actual.quantity, item.expected.quantity
-            if 'actual' in item and item['actual']:
-                inbound_qty = item['actual'].get('quantity', 0)
-            elif 'expected' in item and item['expected']:
-                inbound_qty = item['expected'].get('quantity', 0)
-            else:
-                # Fallback: cerca direttamente
-                inbound_qty = item.get('actual_quantity')
-                if inbound_qty is None:
-                    inbound_qty = item.get('expected_quantity')
-                if inbound_qty is None:
-                    inbound_qty = item.get('quantity', 0)
-
-            logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Spedita: {shipped_qty}")
-
-            # Per i PARTIAL: quantità uguali (inbound = outbound) e > 0
-            if inbound_qty > 0 and inbound_qty == shipped_qty:
-                # Estrai altri dati dall'item annidato
-                item_data = item.get('item', {}) if 'item' in item else item
-                
-                partial_data = {
-                    "sku": sku,
-                    "quantity": inbound_qty,  # Stessa quantità
-                    "name": item_data.get('title') or item_data.get('name'),
-                    "asin": item_data.get('asin'),
-                    "fnsku": item_data.get('fnsku'),
-                    "photo_url": item_data.get('photo_url'),
-                }
-                partial_items.append(partial_data)
-                logger.info(f"  -> ✅ AGGIUNTO PARTIAL: SKU {sku} con quantità {inbound_qty}")
-        
-        logger.info(f"--- Fine Calcolo Partial: {len(partial_items)} items totali ---")
-        return partial_items
-        
     def _calculate_residual_items(self, inbound_items: list, outbound_items: list) -> list:
-        """Calcola gli items residuali (quantità inbound > outbound) in modo robusto."""
-        logger.info(f"--- Inizio Calcolo Residuali (Log Dettagliato V4) ---")
+        """
+        Calcola gli items residuali secondo la regola: Residual = Inbound_Originale - Outbound_Spedito
         
-        # Crea mappa SKU outbound - accede alla struttura annidata
+        Per ogni prodotto:
+        - Attesi_Residual = Attesi_Originali - Spediti_Outbound  
+        - Ricevuti_Residual = Ricevuti_Originali - Spediti_Outbound
+        - Se entrambi = 0 → prodotto eliminato
+        - Se nessun prodotto rimane → NO RESIDUAL
+        """
+        logger.info(f"--- Inizio Calcolo RESIDUAL (Regole Corrette V2.0) ---")
+        
+        # 1. Crea mappa SKU outbound
         outbound_sku_map = {}
         for item in outbound_items:
-            # OutboundShipmentItem ha: item.item.merchant_sku
-            sku = None
-            if 'item' in item and item['item']:
-                sku = item['item'].get('merchant_sku')
-            if not sku:
-                # Fallback: cerca direttamente
-                sku = item.get('sku') or item.get('merchant_sku')
-            
+            sku = self._extract_sku(item)
             if sku:
                 quantity = item.get('quantity', 0)
                 outbound_sku_map[sku] = outbound_sku_map.get(sku, 0) + quantity
-                logger.info(f"OUTBOUND SKU: {sku} → Quantità: {quantity}")
-            else:
-                logger.warning(f"Outbound item senza SKU valido: {item}")
+                logger.info(f"OUTBOUND SKU: {sku} → Spediti: {quantity}")
         
+        logger.info(f"MAPPA OUTBOUND: {outbound_sku_map}")
+        
+        # 2. Calcola residual per ogni item inbound
         residual_items = []
-        logger.info(f"MAPPA SKU OUTBOUND: {outbound_sku_map}")
-
+        
         for item in inbound_items:
-            # ShipmentItem ha: item.item.merchant_sku
-            sku = None
-            if 'item' in item and item['item']:
-                sku = item['item'].get('merchant_sku')
+            sku = self._extract_sku(item)
             if not sku:
-                # Fallback: cerca direttamente
-                sku = item.get('sku') or item.get('merchant_sku')
-            
-            if not sku:
-                logger.warning("Trovato item inbound senza SKU, verrà ignorato.")
-                logger.debug(f"Item inbound senza SKU: {item}")
+                logger.warning("Item inbound senza SKU, ignorato")
                 continue
-
+                
+            # Estrai quantità attese e ricevute dall'inbound originale
+            expected_qty = self._extract_expected_quantity(item)
+            actual_qty = self._extract_actual_quantity(item)
             shipped_qty = outbound_sku_map.get(sku, 0)
             
-            # Logica robusta per la quantità inbound
-            inbound_qty = 0
+            # REGOLA: Residual = Originale - Spedito
+            residual_expected = expected_qty - shipped_qty
+            residual_actual = actual_qty - shipped_qty
             
-            # Prova con struttura annidata: item.actual.quantity, item.expected.quantity
-            if 'actual' in item and item['actual']:
-                inbound_qty = item['actual'].get('quantity', 0)
-            elif 'expected' in item and item['expected']:
-                inbound_qty = item['expected'].get('quantity', 0)
-            else:
-                # Fallback: cerca direttamente
-                inbound_qty = item.get('actual_quantity')
-                if inbound_qty is None:
-                    inbound_qty = item.get('expected_quantity')
-                if inbound_qty is None:
-                    inbound_qty = item.get('quantity', 0)
-
-            residual_qty = inbound_qty - shipped_qty
+            logger.info(f"SKU: {sku} | Attesi: {expected_qty} | Ricevuti: {actual_qty} | Spediti: {shipped_qty}")
+            logger.info(f"  → RESIDUAL: Attesi={residual_expected}, Ricevuti={residual_actual}")
             
-            logger.info(f"SKU: {sku} | Q.Inbound: {inbound_qty} | Q.Spedita: {shipped_qty} | ==> RESIDUALE: {residual_qty}")
-
-            if residual_qty > 0:
-                # Estrai altri dati dall'item annidato
-                item_data = item.get('item', {}) if 'item' in item else item
+            # Se entrambi > 0, aggiungi al residual
+            if residual_expected > 0 or residual_actual > 0:
+                item_data = self._extract_item_data(item)
                 
                 residual_data = {
                     "sku": sku,
-                    "quantity": residual_qty,
+                    "expected_quantity": max(0, residual_expected),  # Non può essere negativo
+                    "actual_quantity": max(0, residual_actual),     # Non può essere negativo
                     "name": item_data.get('title') or item_data.get('name'),
                     "asin": item_data.get('asin'),
                     "fnsku": item_data.get('fnsku'),
                     "photo_url": item_data.get('photo_url'),
                 }
                 residual_items.append(residual_data)
-                logger.info(f"  -> ✅ AGGIUNTO: SKU {sku} con quantità residuale {residual_qty}")
+                logger.info(f"  → ✅ AGGIUNTO RESIDUAL: SKU {sku} (Attesi: {residual_data['expected_quantity']}, Ricevuti: {residual_data['actual_quantity']})")
+            else:
+                logger.info(f"  → ❌ ELIMINATO: SKU {sku} (entrambe le quantità ≤ 0)")
         
-        logger.info(f"--- Fine Calcolo Residuali: {len(residual_items)} items totali ---")
+        logger.info(f"--- Fine Calcolo RESIDUAL: {len(residual_items)} items ---")
         return residual_items
+
+    def _calculate_partial_items_optimized(self, outbound_items: list, residual_items_data: list) -> list:
+        """
+        Calcola gli items partial: copia ESATTA dell'outbound con Attesi = Ricevuti = Spediti
+        
+        REGOLA: PARTIAL si crea SOLO se esiste RESIDUAL
+        PARTIAL è identico all'outbound ma con quantità attese = ricevute = spedite
+        """
+        logger.info(f"--- Inizio Calcolo PARTIAL (Regole Corrette V2.0) ---")
+        
+        # IMPORTANTE: Prima verifica se ci sarà un RESIDUAL
+        if len(residual_items_data) == 0:
+            logger.info("❌ NESSUN RESIDUAL → NESSUN PARTIAL (regola dipendenza)")
+            return []
+        
+        logger.info(f"✅ RESIDUAL presente ({len(residual_items_data)} items) → Procedo con PARTIAL")
+        
+        # 2. Crea PARTIAL = copia esatta outbound
+        partial_items = []
+        
+        for item in outbound_items:
+            sku = self._extract_sku(item)
+            if not sku:
+                logger.warning("Item outbound senza SKU, ignorato")
+                continue
+                
+            shipped_qty = item.get('quantity', 0)
+            
+            # REGOLA: PARTIAL ha Attesi = Ricevuti = Spediti
+            item_data = self._extract_item_data(item)
+            
+            partial_data = {
+                "sku": sku,
+                "expected_quantity": shipped_qty,  # Attesi = Spediti
+                "actual_quantity": shipped_qty,    # Ricevuti = Spediti  
+                "name": item_data.get('title') or item_data.get('name'),
+                "asin": item_data.get('asin'),
+                "fnsku": item_data.get('fnsku'),
+                "photo_url": item_data.get('photo_url'),
+            }
+            partial_items.append(partial_data)
+            logger.info(f"✅ AGGIUNTO PARTIAL: SKU {sku} (Attesi=Ricevuti=Spediti: {shipped_qty})")
+        
+        logger.info(f"--- Fine Calcolo PARTIAL: {len(partial_items)} items ---")
+        return partial_items
+
+    def _extract_sku(self, item: dict) -> str:
+        """Estrae SKU da struttura item annidata."""
+        if 'item' in item and item['item']:
+            return item['item'].get('merchant_sku')
+        return item.get('sku') or item.get('merchant_sku')
+
+    def _extract_expected_quantity(self, item: dict) -> int:
+        """Estrae quantità attesa da item inbound."""
+        if 'expected' in item and item['expected']:
+            return item['expected'].get('quantity', 0)
+        return item.get('expected_quantity', 0)
+
+    def _extract_actual_quantity(self, item: dict) -> int:
+        """Estrae quantità ricevuta da item inbound."""
+        if 'actual' in item and item['actual']:
+            return item['actual'].get('quantity', 0)
+        return item.get('actual_quantity', 0)
+
+    def _extract_item_data(self, item: dict) -> dict:
+        """Estrae dati item da struttura annidata."""
+        if 'item' in item and item['item']:
+            return item['item']
+        return item
 
     def _send_telegram_notification_if_needed(self, update: ShipmentStatusUpdate, result: Dict[str, Any]):
         notify_events = ['inbound_shipment.created', 'inbound_shipment.received', 'outbound_shipment.created', 'outbound_shipment.closed']
