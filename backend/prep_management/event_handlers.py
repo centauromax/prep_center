@@ -115,27 +115,36 @@ class WebhookEventProcessor:
 
         try:
             # 1. Recupero items dall'outbound chiuso
+            logger.info(f"🔍 Step 1: Recupero items da outbound {outbound_id} per merchant {merchant_id}")
             outbound_items_resp = self.client.get_outbound_shipment_items(shipment_id=outbound_id, merchant_id=merchant_id)
             outbound_items = [i.model_dump() for i in outbound_items_resp.items] if outbound_items_resp and outbound_items_resp.items else []
-            logger.info(f"Recuperati {len(outbound_items)} items da outbound {outbound_id}")
+            logger.info(f"✅ Step 1 completato: Recuperati {len(outbound_items)} items da outbound {outbound_id}")
 
             # 2. Cerco l'inbound originale corrispondente
+            logger.info(f"🔍 Step 2: Cerco inbound corrispondenti per merchant {merchant_id}")
             inbound_resp = self.client.get_inbound_shipments(merchant_id=merchant_id, per_page=500)
             if not (inbound_resp and inbound_resp.data):
+                logger.warning(f"⚠️ Step 2: Nessun inbound trovato per merchant {merchant_id}")
                 return {'success': True, 'message': f"Nessun inbound trovato per merchant {merchant_id}."}
             
+            logger.info(f"✅ Step 2 completato: Trovati {len(inbound_resp.data)} inbound totali")
+            
             # Filtra per nome
+            logger.info(f"🔍 Step 2b: Filtro inbound per nome '{shipment_name}'")
             matching_inbounds = [s for s in inbound_resp.data if s.name.lower() == shipment_name.lower()]
             if not matching_inbounds:
+                logger.warning(f"⚠️ Step 2b: Nessun inbound corrispondente a '{shipment_name}' trovato")
                 return {'success': True, 'message': f"Nessun inbound corrispondente a '{shipment_name}' trovato."}
             
             inbound_original_model = matching_inbounds[0]
             inbound_original_id = inbound_original_model.id
+            logger.info(f"✅ Step 2b completato: Trovato inbound corrispondente ID {inbound_original_id}")
             
             # 3. Recupero items dall'inbound originale
+            logger.info(f"🔍 Step 3: Recupero items da inbound originale {inbound_original_id} per merchant {merchant_id}")
             inbound_items_resp = self.client.get_inbound_shipment_items(shipment_id=inbound_original_id, merchant_id=merchant_id)
             inbound_items = [i.model_dump() for i in inbound_items_resp.items] if inbound_items_resp and inbound_items_resp.items else []
-            logger.info(f"Recuperati {len(inbound_items)} items da inbound originale {inbound_original_id}")
+            logger.info(f"✅ Step 3 completato: Recuperati {len(inbound_items)} items da inbound originale {inbound_original_id}")
 
             # 4. Calcolo residuali e partial (ottimizzato per evitare doppio calcolo)
             residual_items_data = self._calculate_residual_items(inbound_items, outbound_items)
