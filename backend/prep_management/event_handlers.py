@@ -431,10 +431,30 @@ class WebhookEventProcessor:
             try:
                 logger.info(f"[_process_outbound_shipment_closed] Recupero items per outbound shipment {shipment_id}")
                 # Usa get_outbound_shipment_items specifico per outbound
-                outbound_items = self.client.get_outbound_shipment_items(
+                outbound_items_response = self.client.get_outbound_shipment_items(
                     shipment_id=int(shipment_id),  # Converti in int per sicurezza
                     merchant_id=int(merchant_id)   # Passa il merchant_id
                 )
+                
+                # GESTIONE ROBUSTA DEL RESPONSE - Soluzione immediata per errore 'has no len()'
+                if hasattr(outbound_items_response, '__len__'):
+                    # È già una lista
+                    outbound_items = outbound_items_response
+                elif hasattr(outbound_items_response, 'items'):
+                    # Response object con attributo items
+                    outbound_items = [item.model_dump() if hasattr(item, 'model_dump') else item for item in outbound_items_response.items]
+                elif hasattr(outbound_items_response, 'data'):
+                    # Response object con attributo data
+                    outbound_items = outbound_items_response.data if isinstance(outbound_items_response.data, list) else []
+                elif hasattr(outbound_items_response, 'model_dump'):
+                    # Response object Pydantic
+                    dumped = outbound_items_response.model_dump()
+                    outbound_items = dumped.get('items', dumped.get('data', []))
+                else:
+                    # Fallback
+                    logger.warning(f"[_process_outbound_shipment_closed] Formato response non riconosciuto: {type(outbound_items_response)}")
+                    outbound_items = []
+                
                 logger.info(f"[_process_outbound_shipment_closed] Recuperati {len(outbound_items)} items per outbound shipment {shipment_id}")
             except Exception as e:
                 logger.error(f"[_process_outbound_shipment_closed] ❌ Errore recupero items outbound shipment {shipment_id}: {e}")
@@ -479,10 +499,30 @@ class WebhookEventProcessor:
                 inbound_shipment_id = inbound_shipment.get('id')
                 logger.info(f"[_process_outbound_shipment_closed] Recupero items per inbound shipment {inbound_shipment_id}")
                 # Usa get_inbound_shipment_items specifico per inbound
-                inbound_items = self.client.get_inbound_shipment_items(
+                inbound_items_response = self.client.get_inbound_shipment_items(
                     shipment_id=int(inbound_shipment_id),
                     merchant_id=int(merchant_id)
                 )
+                
+                # GESTIONE ROBUSTA DEL RESPONSE - Soluzione immediata per errore 'has no len()'
+                if hasattr(inbound_items_response, '__len__'):
+                    # È già una lista
+                    inbound_items = inbound_items_response
+                elif hasattr(inbound_items_response, 'items'):
+                    # Response object con attributo items
+                    inbound_items = [item.model_dump() if hasattr(item, 'model_dump') else item for item in inbound_items_response.items]
+                elif hasattr(inbound_items_response, 'data'):
+                    # Response object con attributo data
+                    inbound_items = inbound_items_response.data if isinstance(inbound_items_response.data, list) else []
+                elif hasattr(inbound_items_response, 'model_dump'):
+                    # Response object Pydantic
+                    dumped = inbound_items_response.model_dump()
+                    inbound_items = dumped.get('items', dumped.get('data', []))
+                else:
+                    # Fallback
+                    logger.warning(f"[_process_outbound_shipment_closed] Formato response non riconosciuto: {type(inbound_items_response)}")
+                    inbound_items = []
+                
                 logger.info(f"[_process_outbound_shipment_closed] Recuperati {len(inbound_items)} items per inbound shipment {inbound_shipment_id}")
             except Exception as e:
                 logger.error(f"[_process_outbound_shipment_closed] ❌ Errore recupero items inbound shipment {inbound_shipment_id}: {e}")
