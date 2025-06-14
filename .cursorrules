@@ -194,33 +194,33 @@ backend/libs/
 
 ### ⚠️ **REGOLA FONDAMENTALE: UN SOLO CLIENT**
 **ESISTE UN SOLO CLIENT UFFICIALE PER PREP BUSINESS API:**
-- **File**: `libs/api_client/prep_business.py` - **QUESTO È L'UNICO CLIENT DA USARE**
+- **File**: `libs/prepbusiness/client.py` - **QUESTO È L'UNICO CLIENT DA USARE**
 - **❌ MAI creare altri client** - Usare sempre questo
 - **❌ MAI duplicare logiche API** - Tutto deve passare da qui
 - **❌ MAI importare direttamente** `libs/prepbusiness/client.py` - È interno
 
-### 🏗️ **ARCHITETTURA CLIENT (DOPO MIGRAZIONE 2025-06-12)**
+### 🏗️ **ARCHITETTURA CLIENT (POST-ELIMINAZIONE WRAPPER 2024-01-13)**
 
-#### **Client Wrapper di Compatibilità**
-**File**: `libs/api_client/prep_business.py` (✅ UNICO CLIENT UFFICIALE)
-- **Wrapper intelligente** che usa internamente il client completo
+#### **Client Ufficiale PrepBusiness**
+**File**: `libs/prepbusiness/client.py` (✅ UNICO CLIENT UFFICIALE)
+- **Client completo** che usa internamente il client completo
 - **Interfaccia semplificata** per mantenere compatibilità
 - **Tutti i metodi necessari** per l'inbound residuale
 - **Error handling** standardizzato
 - **Logging** dettagliato
 
-#### **Client Completo Interno** 
-**File**: `libs/prepbusiness/client.py` (⚠️ SOLO USO INTERNO)
+#### **Client PrepBusiness Ufficiale** 
+**File**: `libs/prepbusiness/client.py` (⚠️ UNICO CLIENT UFFICIALE)
 - **2177 righe** di codice completo con Pydantic models
 - **Usato internamente** dal wrapper
-- **❌ NON importare direttamente** - Usare sempre il wrapper
+- **❌ NON importare direttamente** - Usare sempre il client ufficiale
 
 ### 📋 **COME USARE IL CLIENT (ESEMPI PRATICI)**
 
-#### **✅ MODO CORRETTO - Usare sempre il wrapper:**
+#### **✅ MODO CORRETTO - Usare sempre il client ufficiale:**
 ```python
 # ✅ SEMPRE COSÌ
-from libs.api_client.prep_business import PrepBusinessClient
+from libs.prepbusiness.client import PrepBusinessClient
 
 # Inizializzazione
 client = PrepBusinessClient()
@@ -243,8 +243,8 @@ client.create_inbound_shipment(data)                 # ✅ DISPONIBILE!
 
 #### **❌ MODI SBAGLIATI - NON FARE MAI:**
 ```python
-# ❌ NON FARE - Import diretto del client completo
-from libs.prepbusiness.client import PrepBusinessClient  # SBAGLIATO!
+# ❌ NON FARE - Creare wrapper alternativi
+from libs.api_client.prep_business import PrepBusinessClient  # FILE ELIMINATO!
 
 # ❌ NON FARE - Creare client custom
 class MyPrepBusinessClient:  # SBAGLIATO!
@@ -299,7 +299,7 @@ client.remove_item_from_shipment(shipment_id, item_id)  # ✅ Rimuove item
 
 #### **Altri Metodi Disponibili**
 ```python
-# Tutti i metodi del client completo sono disponibili tramite il wrapper
+# Tutti i metodi sono disponibili direttamente nel client ufficiale
 # Vedere libs/prepbusiness/client.py per lista completa (2177 righe)
 ```
 
@@ -307,7 +307,7 @@ client.remove_item_from_shipment(shipment_id, item_id)  # ✅ Rimuove item
 
 #### **Problema 1: Metodo Mancante**
 - **❌ PRIMA**: `add_item_to_shipment()` non esisteva nel client semplice
-- **✅ DOPO**: Tutti i metodi del client completo disponibili tramite wrapper
+- **✅ DOPO**: Tutti i metodi del client completo disponibili nel client ufficiale
 
 #### **Problema 2: Filtro Merchants Errato**
 - **❌ PRIMA**: Filtrava per `active_only=True` con campo `active` 
@@ -315,7 +315,7 @@ client.remove_item_from_shipment(shipment_id, item_id)  # ✅ Rimuove item
 
 #### **Problema 3: Struttura Risposta API**
 - **❌ PRIMA**: Si aspettava lista diretta, ma API restituisce `{data: [...]}`
-- **✅ DOPO**: Wrapper estrae correttamente `response.data`
+- **✅ DOPO**: Client restituisce direttamente `response.data`
 
 ### Database Configuration (PrepBusinessConfig)
 - **Modello Django**: Configurazione API salvata in database
@@ -597,7 +597,7 @@ python manage.py showmigrations prep_management
 
 # 🆕 Test API Prep Business (locale)
 python manage.py shell
->>> from libs.api_client.prep_business import PrepBusinessClient
+>>> from libs.prepbusiness.client import PrepBusinessClient
 >>> client = PrepBusinessClient()
 >>> merchants = client.get_merchants()
 
@@ -910,7 +910,7 @@ python manage.py shell
 
 # 🆕 Test API Prep Business (locale)
 python manage.py shell
->>> from libs.api_client.prep_business import PrepBusinessClient
+>>> from libs.prepbusiness.client import PrepBusinessClient
 >>> client = PrepBusinessClient()
 >>> merchants = client.get_merchants()
 >>> print(f"Found {len(merchants)} merchants")
