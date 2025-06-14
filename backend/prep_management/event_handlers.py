@@ -141,32 +141,71 @@ class WebhookEventProcessor:
             residual_items_data = self._calculate_residual_items(inbound_items, outbound_items)
             partial_items_data = self._calculate_partial_items(inbound_items, outbound_items)
             
-            # Determina quale tipo di spedizione creare
+            # Determina quali tipi di spedizione creare (possono essere entrambi!)
             create_residual = len(residual_items_data) > 0
-            create_partial = len(partial_items_data) > 0 and not create_residual  # Partial solo se non ci sono residual
+            create_partial = len(partial_items_data) > 0
             
             if not create_residual and not create_partial:
                 return {'success': True, 'message': 'Nessun item residuale o partial da creare.'}
             
-            # 5. Crea la spedizione appropriata
+            created_shipments = []
+            
+            # 5a. Crea RESIDUAL se necessario
             if create_residual:
                 logger.info(f"Calcolati {len(residual_items_data)} items residuali.")
-                items_to_create = residual_items_data
-                shipment_suffix = "RESIDUAL"
-                creation_type = "residuale"
-            else:  # create_partial
+                residual_result = self._create_shipment(
+                    shipment_name=f"{shipment_name} - RESIDUAL",
+                    items_data=residual_items_data,
+                    warehouse_id=inbound_original_model.warehouse_id,
+                    outbound_id=outbound_id,
+                    merchant_id=merchant_id,
+                    creation_type="residuale"
+                )
+                if residual_result['success']:
+                    created_shipments.append(f"RESIDUAL ID {residual_result['shipment_id']}")
+                else:
+                    logger.error(f"Errore creazione RESIDUAL: {residual_result['message']}")
+            
+            # 5b. Crea PARTIAL se necessario
+            if create_partial:
                 logger.info(f"Calcolati {len(partial_items_data)} items partial.")
-                items_to_create = partial_items_data
-                shipment_suffix = "PARTIAL"
-                creation_type = "partial"
+                partial_result = self._create_shipment(
+                    shipment_name=f"{shipment_name} - PARTIAL",
+                    items_data=partial_items_data,
+                    warehouse_id=inbound_original_model.warehouse_id,
+                    outbound_id=outbound_id,
+                    merchant_id=merchant_id,
+                    creation_type="partial"
+                )
+                if partial_result['success']:
+                    created_shipments.append(f"PARTIAL ID {partial_result['shipment_id']}")
+                else:
+                    logger.error(f"Errore creazione PARTIAL: {partial_result['message']}")
             
-            new_shipment_name = f"{shipment_name} - {shipment_suffix}"
-            
+            # Risultato finale
+            if created_shipments:
+                msg = f"Creati inbound: {', '.join(created_shipments)}"
+                result = {'success': True, 'message': msg}
+                if create_residual and 'residual_result' in locals():
+                    result['residual_shipment_id'] = residual_result.get('shipment_id')
+                if create_partial and 'partial_result' in locals():
+                    result['partial_shipment_id'] = partial_result.get('shipment_id')
+                return result
+            else:
+                return {'success': False, 'message': 'Errore nella creazione di tutti i shipment'}
+
+        except Exception as e:
+            logger.error(f"Errore in _process_outbound_shipment_closed: {e}", exc_info=True)
+            return {'success': False, 'message': str(e)}
+
+    def _create_shipment(self, shipment_name: str, items_data: list, warehouse_id: int, outbound_id: int, merchant_id: int, creation_type: str) -> dict:
+        """Helper method per creare un singolo shipment con i suoi items."""
+        try:
             # Step 1: Crea lo shipment vuoto
-            logger.info(f"Creo lo shipment {creation_type} vuoto con nome: {new_shipment_name}")
+            logger.info(f"Creo lo shipment {creation_type} vuoto con nome: {shipment_name}")
             created_shipment_resp = self.client.create_inbound_shipment(
-                name=new_shipment_name,
-                warehouse_id=inbound_original_model.warehouse_id,
+                name=shipment_name,
+                warehouse_id=warehouse_id,
                 notes=f"Creato automaticamente da outbound {outbound_id}",
                 merchant_id=merchant_id
             )
@@ -174,8 +213,8 @@ class WebhookEventProcessor:
             logger.info(f"Shipment {creation_type} vuoto creato con ID: {shipment_id}")
 
             # Step 2: Aggiunge gli items uno a uno
-            logger.info(f"Aggiungo {len(items_to_create)} items allo shipment {shipment_id}")
-            for item in items_to_create:
+            logger.info(f"Aggiungo {len(items_data)} items allo shipment {shipment_id}")
+            for item in items_data:
                 sku = item.get("sku")
                 quantity = item.get("quantity")
                 
@@ -202,11 +241,10 @@ class WebhookEventProcessor:
                     
             logger.info(f"Tutti gli items sono stati aggiunti allo shipment {creation_type}.")
             
-            msg = f"Creato inbound {creation_type} ID {shipment_id}"
-            return {'success': True, 'message': msg, f'{creation_type}_shipment_id': shipment_id}
-
+            return {'success': True, 'shipment_id': shipment_id, 'message': f'Shipment {creation_type} creato con successo'}
+            
         except Exception as e:
-            logger.error(f"Errore in _process_outbound_shipment_closed: {e}", exc_info=True)
+            logger.error(f"Errore in _create_shipment ({creation_type}): {e}", exc_info=True)
             return {'success': False, 'message': str(e)}
 
     def _calculate_partial_items(self, inbound_items: list, outbound_items: list) -> list:
