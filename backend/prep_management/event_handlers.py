@@ -81,7 +81,7 @@ class WebhookEventProcessor:
         """Gestisce eventi per cui non c'è una logica specifica."""
         logger.info(f"Evento '{update.event_type}' gestito di default.")
         return {'success': True, 'message': f'Evento {update.event_type} ricevuto.'}
-
+    
     def _process_outbound_shipment_created(self, update: ShipmentStatusUpdate) -> Dict[str, Any]:
         """Verifica se per un outbound appena creato esiste un inbound corrispondente."""
         data = update.payload.get('data', {})
@@ -168,7 +168,7 @@ class WebhookEventProcessor:
                     warehouse_id=inbound_original_model.warehouse_id,
                     outbound_id=outbound_id,
                     merchant_id=merchant_id,
-                    creation_type="residuale"
+                    creation_type="residual"
                 )
                 if residual_result['success']:
                     created_shipments.append(f"RESIDUAL ID {residual_result['shipment_id']}")
@@ -246,9 +246,9 @@ class WebhookEventProcessor:
                 )
                 logger.info(f"Item {sku} aggiunto con quantità expected: {expected_qty}")
                 
-                # 🆕 Se è PARTIAL, aggiorna anche la quantità actual
-                if creation_type == "partial" and actual_qty != expected_qty:
-                    logger.info(f"Aggiornando quantità actual per PARTIAL: {sku} → {actual_qty}")
+                # 🆕 Aggiorna sempre la quantità actual se diversa da expected
+                if actual_qty != expected_qty:
+                    logger.info(f"Aggiornando quantità actual per {creation_type}: {sku} → expected: {expected_qty}, actual: {actual_qty}")
                     try:
                         expected_update = ExpectedItemUpdate(
                             quantity=expected_qty,
@@ -271,9 +271,24 @@ class WebhookEventProcessor:
                         logger.error(f"❌ Errore nell'aggiornare quantità actual per {sku}: {e}")
                         # Non bloccare il processo, continua comunque
             
-            # Step 3: Se è PARTIAL, settalo come Shipped
+            # Step 3: Determina se settare come Shipped
+            should_submit = False
+            submit_reason = ""
+            
             if creation_type == "partial":
-                logger.info(f"Settando shipment PARTIAL {shipment_id} come Shipped...")
+                should_submit = True
+                submit_reason = "PARTIAL deve sempre essere submit"
+            elif creation_type == "residual":
+                # RESIDUAL deve essere submit solo se ha quantità actual > 0
+                total_actual = sum(item.get('actual_quantity', 0) for item in items_data)
+                if total_actual > 0:
+                    should_submit = True
+                    submit_reason = f"RESIDUAL con {total_actual} unità ricevute"
+                else:
+                    submit_reason = "RESIDUAL senza unità ricevute rimane open"
+            
+            if should_submit:
+                logger.info(f"Settando shipment {creation_type.upper()} {shipment_id} come Shipped ({submit_reason})...")
                 try:
                     # Usa API Submit per settare come shipped - solo tracking_numbers vuoto
                     self.client.submit_inbound_shipment(
@@ -281,15 +296,17 @@ class WebhookEventProcessor:
                         tracking_numbers=[],
                         merchant_id=merchant_id
                     )
-                    logger.info(f"✅ Shipment PARTIAL {shipment_id} settato come Shipped")
+                    logger.info(f"✅ Shipment {creation_type.upper()} {shipment_id} settato come Shipped")
                 except Exception as e:
-                    logger.error(f"❌ Errore nel settare PARTIAL come Shipped: {e}")
+                    logger.error(f"❌ Errore nel settare {creation_type.upper()} come Shipped: {e}")
                     # Non bloccare il processo, continua comunque
+            else:
+                logger.info(f"Shipment {creation_type.upper()} {shipment_id} rimane OPEN ({submit_reason})")
                     
             logger.info(f"Tutti gli items sono stati aggiunti allo shipment {creation_type}.")
             
             return {'success': True, 'shipment_id': shipment_id, 'message': f'Shipment {creation_type} creato con successo'}
-            
+                
         except Exception as e:
             logger.error(f"Errore in _create_shipment ({creation_type}): {e}", exc_info=True)
             return {'success': False, 'message': str(e)}
