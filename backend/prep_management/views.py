@@ -3450,3 +3450,79 @@ def debug_api_steps(request):
         logger.error(f"Errore nel debug API steps: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
+def test_partial_submit(request):
+    """Test specifico per il submit delle spedizioni PARTIAL"""
+    try:
+        from libs.prepbusiness.client import PrepBusinessClient
+        from libs.prepbusiness.models import Carrier
+        
+        # Inizializza client
+        client = PrepBusinessClient()
+        merchant_id = 10096
+        
+        # Test con le spedizioni PARTIAL create di recente
+        partial_shipment_ids = [645327]  # ID dalla log
+        
+        results = []
+        
+        for shipment_id in partial_shipment_ids:
+            try:
+                logger.info(f"🧪 Test submit per PARTIAL shipment {shipment_id}")
+                
+                # 1. Verifica stato attuale
+                shipment_resp = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
+                current_status = shipment_resp.status if shipment_resp else "unknown"
+                current_shipped_at = getattr(shipment_resp, 'shipped_at', None) if shipment_resp else None
+                
+                logger.info(f"📊 Stato attuale shipment {shipment_id}: status={current_status}, shipped_at={current_shipped_at}")
+                
+                # 2. Esegui submit
+                logger.info(f"🚀 Eseguendo submit per shipment {shipment_id}...")
+                submit_resp = client.submit_inbound_shipment(
+                    shipment_id=shipment_id,
+                    carrier=Carrier.NO_TRACKING,
+                    tracking_numbers=[],
+                    merchant_id=merchant_id
+                )
+                
+                logger.info(f"✅ Submit completato per shipment {shipment_id}")
+                
+                # 3. Verifica stato dopo submit
+                shipment_resp_after = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
+                new_status = shipment_resp_after.status if shipment_resp_after else "unknown"
+                new_shipped_at = getattr(shipment_resp_after, 'shipped_at', None) if shipment_resp_after else None
+                
+                logger.info(f"📊 Stato dopo submit shipment {shipment_id}: status={new_status}, shipped_at={new_shipped_at}")
+                
+                results.append({
+                    'shipment_id': shipment_id,
+                    'before_status': current_status,
+                    'before_shipped_at': current_shipped_at,
+                    'after_status': new_status,
+                    'after_shipped_at': new_shipped_at,
+                    'submit_success': True,
+                    'status_changed': current_status != new_status
+                })
+                
+            except Exception as e:
+                logger.error(f"❌ Errore nel submit di shipment {shipment_id}: {e}")
+                results.append({
+                    'shipment_id': shipment_id,
+                    'error': str(e),
+                    'submit_success': False
+                })
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Test submit completato per {len(partial_shipment_ids)} shipments',
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore in test_partial_submit: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
