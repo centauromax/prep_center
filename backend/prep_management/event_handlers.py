@@ -281,13 +281,24 @@ class WebhookEventProcessor:
                 should_submit = True
                 submit_reason = "PARTIAL deve sempre essere submit"
             elif creation_type == "residual":
-                # RESIDUAL: submit solo se ha quantità actual > 0
-                total_actual = sum(item.get('actual_quantity', 0) for item in items_data)
-                if total_actual > 0:
+                # RESIDUAL: submit solo se per TUTTI i prodotti actual >= expected
+                all_products_complete = True
+                incomplete_products = []
+                
+                for item in items_data:
+                    sku = item.get('sku')
+                    expected_qty = item.get('expected_quantity', 0)
+                    actual_qty = item.get('actual_quantity', 0)
+                    
+                    if actual_qty < expected_qty:
+                        all_products_complete = False
+                        incomplete_products.append(f"{sku}({actual_qty}/{expected_qty})")
+                
+                if all_products_complete:
                     should_submit = True
-                    submit_reason = f"RESIDUAL con {total_actual} unità actual"
+                    submit_reason = "RESIDUAL: tutti i prodotti hanno actual >= expected"
                 else:
-                    submit_reason = "RESIDUAL senza unità actual rimane open"
+                    submit_reason = f"RESIDUAL rimane open: prodotti incompleti: {', '.join(incomplete_products)}"
             
             logger.info(f"Decisione submit per {creation_type}: {should_submit} - {submit_reason}")
             
