@@ -3243,21 +3243,40 @@ def test_outbound_closed_process(request):
     
     try:
         data = json.loads(request.body)
-        outbound_id = data.get('outbound_id', 396855)  # Default al più recente
+        outbound_id = data.get('outbound_id', 396871)  # Default al più recente
         
-        # Simula un webhook outbound_shipment.closed
+        # 🆕 Prima ottieni i dettagli reali dell'outbound
+        from libs.prepbusiness.client import PrepBusinessClient
+        client = PrepBusinessClient()
+        
+        try:
+            # Ottieni dettagli outbound reale
+            outbound_details = client.get_outbound_shipment(shipment_id=outbound_id, merchant_id=1)
+            real_name = outbound_details.name if outbound_details else f"Test Outbound {outbound_id}"
+            real_team_id = outbound_details.team_id if outbound_details else 1
+            real_warehouse_id = outbound_details.warehouse_id if outbound_details else 1
+            
+            logger.info(f"🔍 Outbound reale trovato: ID={outbound_id}, Nome='{real_name}', Team={real_team_id}, Warehouse={real_warehouse_id}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Impossibile ottenere dettagli outbound {outbound_id}: {e}")
+            real_name = f"Test Outbound {outbound_id}"
+            real_team_id = 1
+            real_warehouse_id = 1
+        
+        # Simula un webhook outbound_shipment.closed con dati reali
         webhook_data = {
             "event_type": "outbound_shipment.closed",
             "entity_type": "shipment", 
             "entity_id": str(outbound_id),
-            "merchant_id": "1",
+            "merchant_id": str(real_team_id),
             "status": "closed",
             "data": {
                 "id": outbound_id,
-                "name": f"Test Outbound {outbound_id}",
+                "name": real_name,  # ✅ Nome reale
                 "status": "closed",
-                "team_id": 1,  # ✅ Campo necessario per merchant_id
-                "warehouse_id": 1  # ✅ Campo necessario per warehouse
+                "team_id": real_team_id,  # ✅ Team ID reale
+                "warehouse_id": real_warehouse_id  # ✅ Warehouse ID reale
             }
         }
         
@@ -3266,7 +3285,7 @@ def test_outbound_closed_process(request):
             shipment_id=str(outbound_id),  # ✅ Campo corretto
             event_type="outbound_shipment.closed",
             new_status="closed",  # ✅ Campo corretto
-            merchant_id="1", 
+            merchant_id=str(real_team_id), 
             entity_type="shipment",
             payload=webhook_data,
             processed=False
@@ -3280,7 +3299,8 @@ def test_outbound_closed_process(request):
             'success': True,
             'update_id': update.id,
             'result': result,
-            'message': f'Test processo outbound_shipment.closed per ID {outbound_id}'
+            'real_outbound_name': real_name,
+            'message': f'Test processo outbound_shipment.closed per ID {outbound_id} (nome reale: {real_name})'
         })
         
     except Exception as e:
