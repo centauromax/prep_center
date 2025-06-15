@@ -338,20 +338,32 @@ def shipment_status_webhook(request):
                 except Exception as e:
                     logger.error(f"Errore nel recupero del nome del merchant: {str(e)}")
 
-            # 🛡️ DEDUPLICAZIONE PREVENTIVA SEMPLICE: shipment_id + event_type
-            # Controlla PRIMA di salvare se esiste già un webhook per questa combinazione
+            # 🛡️ DEDUPLICAZIONE INTELLIGENTE: Permetti outbound_shipment.closed sempre
+            # Per altri eventi, controlla duplicati solo se arrivano entro 5 minuti
             shipment_id = webhook_data.get('shipment_id')
             event_type = webhook_data.get('event_type', 'other')
             
-            # Cerca webhook esistente
-            existing_webhook = ShipmentStatusUpdate.objects.filter(
-                shipment_id=shipment_id,
-                event_type=event_type
-            ).first()
-            
-            if existing_webhook:
-                logger.warning(f"[webhook_dedup_preventive] 🛡️ WEBHOOK DUPLICATO - shipment_id={shipment_id}, event_type={event_type}, existing_id={existing_webhook.id}")
-                return existing_webhook
+            # REGOLA SPECIALE: outbound_shipment.closed può sempre essere processato
+            # perché può cambiare i prodotti e richiedere nuova creazione di shipment
+            if event_type == 'outbound_shipment.closed':
+                logger.info(f"[webhook_dedup_smart] ✅ OUTBOUND_CLOSED sempre permesso - shipment_id={shipment_id}")
+            else:
+                # Per altri eventi, controlla duplicati recenti (ultimi 5 minuti)
+                from django.utils import timezone
+                from datetime import timedelta
+                
+                five_minutes_ago = timezone.now() - timedelta(minutes=5)
+                recent_webhook = ShipmentStatusUpdate.objects.filter(
+                    shipment_id=shipment_id,
+                    event_type=event_type,
+                    created_at__gte=five_minutes_ago
+                ).first()
+                
+                if recent_webhook:
+                    logger.warning(f"[webhook_dedup_smart] 🛡️ WEBHOOK DUPLICATO RECENTE - shipment_id={shipment_id}, event_type={event_type}, existing_id={recent_webhook.id}, created_at={recent_webhook.created_at}")
+                    return recent_webhook
+                else:
+                    logger.info(f"[webhook_dedup_smart] ✅ WEBHOOK PERMESSO - shipment_id={shipment_id}, event_type={event_type} (nessun duplicato recente)")
             
             # Arricchisci il payload con le informazioni sui prodotti (NUOVA FUNZIONALITÀ MANTENUTA)
             enriched_payload = webhook_data.get('payload', {})
