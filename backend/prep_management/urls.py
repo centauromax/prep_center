@@ -75,4 +75,5 @@ urlpatterns = [
     path('debug_last_update/', views.debug_last_update, name='debug_last_update'),  # 🆕 Debug ultimo update processato
     path('debug_api_steps/', views.debug_api_steps, name='debug_api_steps'),  # 🆕 Debug API steps
     path('test_partial_submit/', views.test_partial_submit, name='test_partial_submit'),  # 🆕 Test submit spedizioni PARTIAL
+    path('test_manual_submit/', views.test_manual_submit, name='test_manual_submit'),  # 🆕 Test submit manuale shipment
 ]

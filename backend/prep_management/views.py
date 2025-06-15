@@ -3631,3 +3631,57 @@ def test_submit_approaches(request):
             'error': str(e)
         }, status=500)
 
+@csrf_exempt
+def test_manual_submit(request):
+    """
+    Endpoint di test per forzare il submit di shipment esistenti.
+    Utile per testare la logica di submit senza aspettare nuovi webhook.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        shipment_id = data.get('shipment_id')
+        shipment_type = data.get('type', 'partial')  # 'partial' o 'residual'
+        
+        if not shipment_id:
+            return JsonResponse({'error': 'shipment_id required'}, status=400)
+        
+        # Inizializza il client
+        from .event_handlers import WebhookEventProcessor
+        processor = WebhookEventProcessor()
+        
+        if not processor.client:
+            return JsonResponse({'error': 'Client non disponibile'}, status=500)
+        
+        # Importa le classi necessarie
+        from libs.prepbusiness.models import Carrier
+        
+        # Test submit
+        try:
+            submit_response = processor.client.submit_inbound_shipment(
+                shipment_id=int(shipment_id),
+                tracking_numbers=["NO-TRACKING"],
+                carrier=Carrier.NO_TRACKING,
+                merchant_id=None
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Shipment {shipment_id} ({shipment_type}) settato come SHIPPED',
+                'response': str(submit_response)
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Errore nel submit: {str(e)}',
+                'shipment_id': shipment_id
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
