@@ -245,48 +245,28 @@ class WebhookEventProcessor:
                     merchant_id=merchant_id
                 )
                 logger.info(f"Item {sku} aggiunto con quantità expected: {expected_qty}")
-                
-                # 🆕 Aggiorna sempre la quantità actual se diversa da expected
-                if actual_qty != expected_qty:
-                    logger.info(f"Aggiornando quantità actual per {creation_type}: {sku} → expected: {expected_qty}, actual: {actual_qty}")
-                    try:
-                        expected_update = ExpectedItemUpdate(
-                            quantity=expected_qty,
-                            item_group_configurations=[]
-                        )
-                        actual_update = ActualItemUpdate(
-                            quantity=actual_qty,
-                            item_group_configurations=[]
-                        )
-                        
-                        self.client.update_shipment_item(
-                            shipment_id=shipment_id,
-                            item_id=item_id,
-                            expected=expected_update,
-                            actual=actual_update,
-                            merchant_id=merchant_id
-                        )
-                        logger.info(f"✅ Quantità actual aggiornata per {sku}: {actual_qty}")
-                    except Exception as e:
-                        logger.error(f"❌ Errore nell'aggiornare quantità actual per {sku}: {e}")
-                        # Non bloccare il processo, continua comunque
             
-            # Step 3: Determina se settare come Shipped
+            # Step 3: Determina se settare come Shipped e/o Received
             should_submit = False
+            should_receive = False
+            should_manual_update = False
             submit_reason = ""
             
             if creation_type == "partial":
                 should_submit = True
-                submit_reason = "PARTIAL deve sempre essere submit"
+                should_receive = True  # PARTIAL: expected = actual = spedite, usa receive
+                submit_reason = "PARTIAL deve sempre essere submit e received"
             elif creation_type == "residual":
-                # RESIDUAL deve essere submit solo se ha quantità actual > 0
+                # RESIDUAL: expected != actual, usa update manuale
                 total_actual = sum(item.get('actual_quantity', 0) for item in items_data)
                 if total_actual > 0:
                     should_submit = True
+                    should_manual_update = True  # RESIDUAL: usa update manuale per actual != expected
                     submit_reason = f"RESIDUAL con {total_actual} unità ricevute"
                 else:
                     submit_reason = "RESIDUAL senza unità ricevute rimane open"
             
+            # Step 3a: Submit se necessario
             if should_submit:
                 logger.info(f"Settando shipment {creation_type.upper()} {shipment_id} come Shipped ({submit_reason})...")
                 try:
@@ -302,7 +282,76 @@ class WebhookEventProcessor:
                     # Non bloccare il processo, continua comunque
             else:
                 logger.info(f"Shipment {creation_type.upper()} {shipment_id} rimane OPEN ({submit_reason})")
+            
+            # Step 3b: Receive per PARTIAL (expected = actual)
+            if should_receive:
+                logger.info(f"Settando shipment PARTIAL {shipment_id} come Received (expected = actual)...")
+                try:
+                    # Usa API Receive per impostare actual = expected automaticamente
+                    self.client.receive_inbound_shipment(
+                        shipment_id=shipment_id,
+                        merchant_id=merchant_id
+                    )
+                    logger.info(f"✅ Shipment PARTIAL {shipment_id} settato come Received - quantità actual = expected")
+                except Exception as e:
+                    logger.error(f"❌ Errore nel settare PARTIAL come Received: {e}")
+                    # Non bloccare il processo, continua comunque
+            
+            # Step 3c: Update manuale per RESIDUAL (expected != actual)
+            if should_manual_update:
+                logger.info(f"Aggiornando manualmente quantità actual per RESIDUAL {shipment_id}...")
+                
+                # Recupera gli items del shipment per ottenere gli item_ids
+                try:
+                    shipment_items_resp = self.client.get_inbound_shipment_items(
+                        shipment_id=shipment_id,
+                        merchant_id=merchant_id
+                    )
                     
+                    # Crea mappa SKU -> item_id dal shipment
+                    sku_to_item_id = {}
+                    for item in shipment_items_resp.items:
+                        if hasattr(item, 'item') and item.item:
+                            sku = item.item.merchant_sku
+                            sku_to_item_id[sku] = item.id
+                    
+                    # Aggiorna ogni item con la quantità actual corretta
+                    for item_data in items_data:
+                        sku = item_data.get('sku')
+                        expected_qty = item_data.get('expected_quantity')
+                        actual_qty = item_data.get('actual_quantity')
+                        
+                        if sku in sku_to_item_id and actual_qty != expected_qty:
+                            item_id = sku_to_item_id[sku]
+                            logger.info(f"Aggiornando RESIDUAL item {sku}: expected={expected_qty}, actual={actual_qty}")
+                            
+                            try:
+                                expected_update = ExpectedItemUpdate(
+                                    quantity=expected_qty,
+                                    item_group_configurations=[]
+                                )
+                                actual_update = ActualItemUpdate(
+                                    quantity=actual_qty,
+                                    item_group_configurations=[]
+                                )
+                                
+                                self.client.update_shipment_item(
+                                    shipment_id=shipment_id,
+                                    item_id=item_id,
+                                    expected=expected_update,
+                                    actual=actual_update,
+                                    merchant_id=merchant_id
+                                )
+                                logger.info(f"✅ RESIDUAL item {sku} aggiornato: actual={actual_qty}")
+                            except Exception as e:
+                                logger.error(f"❌ Errore aggiornamento RESIDUAL item {sku}: {e}")
+                                # Continua con gli altri items
+                    
+                    logger.info(f"✅ Aggiornamento manuale RESIDUAL {shipment_id} completato")
+                except Exception as e:
+                    logger.error(f"❌ Errore nell'aggiornamento manuale RESIDUAL: {e}")
+                    # Non bloccare il processo, continua comunque
+            
             logger.info(f"Tutti gli items sono stati aggiunti allo shipment {creation_type}.")
             
             return {'success': True, 'shipment_id': shipment_id, 'message': f'Shipment {creation_type} creato con successo'}
