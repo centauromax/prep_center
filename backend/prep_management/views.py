@@ -51,6 +51,7 @@ from django.contrib.auth.models import User
 from django.db.models import Q
 from libs.prepbusiness.client import PrepBusinessClient as OfficialPrepBusinessClient
 from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
+from .models import PrepBusinessConfig
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -3247,7 +3248,21 @@ def test_outbound_closed_process(request):
         
         # 🆕 Prima ottieni i dettagli reali dell'outbound
         from libs.prepbusiness.client import PrepBusinessClient
-        client = PrepBusinessClient()
+        from .models import PrepBusinessConfig
+        from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
+        
+        # Inizializza client come nell'event processor
+        try:
+            config = PrepBusinessConfig.objects.filter(is_active=True).first()
+            if config and config.api_url and config.api_key:
+                domain = config.api_url.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=config.api_key, company_domain=domain, timeout=config.api_timeout)
+            else:
+                domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=PREP_BUSINESS_API_KEY, company_domain=domain, timeout=PREP_BUSINESS_API_TIMEOUT)
+        except Exception as e:
+            logger.error(f"Errore inizializzazione client: {e}")
+            return JsonResponse({'error': f'Errore inizializzazione client: {e}'}, status=500)
         
         try:
             # Ottieni dettagli outbound reale
