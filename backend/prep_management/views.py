@@ -3456,9 +3456,21 @@ def test_partial_submit(request):
     try:
         from libs.prepbusiness.client import PrepBusinessClient
         from libs.prepbusiness.models import Carrier
+        from .models import PrepBusinessConfig
+        from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
         
         # Inizializza client
-        client = PrepBusinessClient()
+        try:
+            config = PrepBusinessConfig.objects.filter(is_active=True).first()
+            if config and config.api_url and config.api_key:
+                domain = config.api_url.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=config.api_key, company_domain=domain, timeout=config.api_timeout)
+            else:
+                domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=PREP_BUSINESS_API_KEY, company_domain=domain, timeout=PREP_BUSINESS_API_TIMEOUT)
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': f'Errore inizializzazione client: {e}'}, status=500)
+        
         merchant_id = 10096
         
         # Test con le spedizioni PARTIAL create di recente
@@ -3472,47 +3484,32 @@ def test_partial_submit(request):
                 
                 # 1. Verifica stato attuale
                 shipment_resp = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
-                current_status = shipment_resp.status if shipment_resp else "unknown"
-                current_shipped_at = getattr(shipment_resp, 'shipped_at', None) if shipment_resp else None
+                current_status = shipment_resp.shipment.status if shipment_resp else "unknown"
+                current_shipped_at = getattr(shipment_resp.shipment, 'shipped_at', None) if shipment_resp else None
                 
                 logger.info(f"📊 Stato attuale shipment {shipment_id}: status={current_status}, shipped_at={current_shipped_at}")
                 
-                # 2. Esegui submit - Prova approccio 1: solo carrier
-                logger.info(f"🚀 Eseguendo submit per shipment {shipment_id} (approccio 1: solo carrier)...")
+                # 2. Esegui submit - Usa solo tracking_numbers=[] (approccio corretto)
+                logger.info(f"🚀 Eseguendo submit per shipment {shipment_id} (solo tracking_numbers)...")
                 try:
                     submit_resp = client.submit_inbound_shipment(
                         shipment_id=shipment_id,
-                        carrier=Carrier.NO_TRACKING,
+                        tracking_numbers=[],
                         merchant_id=merchant_id
                     )
                     submit_success = True
                     submit_error = None
-                    logger.info(f"✅ Submit completato per shipment {shipment_id} (approccio 1)")
+                    logger.info(f"✅ Submit completato per shipment {shipment_id}")
                 except Exception as e:
-                    logger.error(f"❌ Approccio 1 fallito: {e}")
+                    logger.error(f"❌ Submit fallito: {e}")
                     submit_success = False
                     submit_error = str(e)
-                    
-                    # Prova approccio 2: solo tracking_numbers vuoto
-                    logger.info(f"🚀 Eseguendo submit per shipment {shipment_id} (approccio 2: solo tracking_numbers)...")
-                    try:
-                        submit_resp = client.submit_inbound_shipment(
-                            shipment_id=shipment_id,
-                            tracking_numbers=[],
-                            merchant_id=merchant_id
-                        )
-                        submit_success = True
-                        submit_error = None
-                        logger.info(f"✅ Submit completato per shipment {shipment_id} (approccio 2)")
-                    except Exception as e2:
-                        logger.error(f"❌ Approccio 2 fallito: {e2}")
-                        submit_error = f"Approccio 1: {e} | Approccio 2: {e2}"
                 
                 # 3. Verifica stato dopo submit solo se submit ha avuto successo
                 if submit_success:
                     shipment_resp_after = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
-                    new_status = shipment_resp_after.status if shipment_resp_after else "unknown"
-                    new_shipped_at = getattr(shipment_resp_after, 'shipped_at', None) if shipment_resp_after else None
+                    new_status = shipment_resp_after.shipment.status if shipment_resp_after else "unknown"
+                    new_shipped_at = getattr(shipment_resp_after.shipment, 'shipped_at', None) if shipment_resp_after else None
                     
                     logger.info(f"📊 Stato dopo submit shipment {shipment_id}: status={new_status}, shipped_at={new_shipped_at}")
                     
@@ -3524,6 +3521,14 @@ def test_partial_submit(request):
                         'after_shipped_at': new_shipped_at,
                         'submit_success': True,
                         'status_changed': current_status != new_status
+                    })
+                else:
+                    results.append({
+                        'shipment_id': shipment_id,
+                        'before_status': current_status,
+                        'before_shipped_at': current_shipped_at,
+                        'submit_success': False,
+                        'submit_error': submit_error
                     })
                 
             except Exception as e:
