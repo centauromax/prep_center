@@ -3266,17 +3266,17 @@ def test_outbound_closed_process(request):
         
         try:
             # Ottieni dettagli outbound reale
-            outbound_details = client.get_outbound_shipment(shipment_id=outbound_id, merchant_id=1)
+            outbound_details = client.get_outbound_shipment(shipment_id=outbound_id, merchant_id=10096)  # ✅ Merchant ID corretto
             real_name = outbound_details.name if outbound_details else f"Test Outbound {outbound_id}"
-            real_team_id = outbound_details.team_id if outbound_details else 1
-            real_warehouse_id = outbound_details.warehouse_id if outbound_details else 1
+            real_team_id = getattr(outbound_details, 'team_id', 10096) if outbound_details else 10096  # ✅ Usa getattr per sicurezza
+            real_warehouse_id = getattr(outbound_details, 'warehouse_id', 1) if outbound_details else 1  # ✅ Usa getattr per sicurezza
             
             logger.info(f"🔍 Outbound reale trovato: ID={outbound_id}, Nome='{real_name}', Team={real_team_id}, Warehouse={real_warehouse_id}")
             
         except Exception as e:
             logger.warning(f"⚠️ Impossibile ottenere dettagli outbound {outbound_id}: {e}")
             real_name = f"Test Outbound {outbound_id}"
-            real_team_id = 1
+            real_team_id = 10096  # ✅ Merchant ID corretto
             real_warehouse_id = 1
         
         # Simula un webhook outbound_shipment.closed con dati reali
