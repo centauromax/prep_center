@@ -3456,9 +3456,21 @@ def test_partial_submit(request):
     try:
         from libs.prepbusiness.client import PrepBusinessClient
         from libs.prepbusiness.models import Carrier
+        from .models import PrepBusinessConfig
+        from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
         
-        # Inizializza client
-        client = PrepBusinessClient()
+        # Inizializza client con la stessa logica degli altri endpoint
+        try:
+            config = PrepBusinessConfig.objects.filter(is_active=True).first()
+            if config and config.api_url and config.api_key:
+                domain = config.api_url.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=config.api_key, company_domain=domain, timeout=config.api_timeout)
+            else:
+                domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=PREP_BUSINESS_API_KEY, company_domain=domain, timeout=PREP_BUSINESS_API_TIMEOUT)
+        except Exception as e:
+            return JsonResponse({'error': f'Errore inizializzazione client: {e}'}, status=500)
+        
         merchant_id = 10096
         
         # Test con le spedizioni PARTIAL create di recente
