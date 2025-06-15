@@ -3347,3 +3347,106 @@ def debug_last_update(request):
         logger.error(f"Errore nel debug last update: {e}", exc_info=True)
         return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
+def debug_api_steps(request):
+    """Endpoint per testare step by step le API calls per capire quale fallisce"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        outbound_id = data.get('outbound_id', 396871)
+        merchant_id = data.get('merchant_id', 1)
+        
+        from libs.prepbusiness.client import PrepBusinessClient
+        from .models import PrepBusinessConfig
+        from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
+        
+        # Inizializza client
+        try:
+            config = PrepBusinessConfig.objects.filter(is_active=True).first()
+            if config and config.api_url and config.api_key:
+                domain = config.api_url.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=config.api_key, company_domain=domain, timeout=config.api_timeout)
+            else:
+                domain = PREP_BUSINESS_API_URL.replace('https://', '').split('/api')[0]
+                client = PrepBusinessClient(api_key=PREP_BUSINESS_API_KEY, company_domain=domain, timeout=PREP_BUSINESS_API_TIMEOUT)
+        except Exception as e:
+            return JsonResponse({'error': f'Errore inizializzazione client: {e}'}, status=500)
+        
+        results = {}
+        
+        # Step 1: Test get_outbound_shipment
+        try:
+            results['step1_outbound_details'] = {
+                'status': 'testing',
+                'description': f'get_outbound_shipment(shipment_id={outbound_id}, merchant_id={merchant_id})'
+            }
+            outbound_details = client.get_outbound_shipment(shipment_id=outbound_id, merchant_id=merchant_id)
+            results['step1_outbound_details'] = {
+                'status': 'success',
+                'data': {
+                    'id': outbound_details.id if outbound_details else None,
+                    'name': outbound_details.name if outbound_details else None,
+                    'team_id': outbound_details.team_id if outbound_details else None,
+                    'warehouse_id': outbound_details.warehouse_id if outbound_details else None
+                }
+            }
+        except Exception as e:
+            results['step1_outbound_details'] = {
+                'status': 'error',
+                'error': str(e)
+            }
+        
+        # Step 2: Test get_outbound_shipment_items
+        try:
+            results['step2_outbound_items'] = {
+                'status': 'testing',
+                'description': f'get_outbound_shipment_items(shipment_id={outbound_id}, merchant_id={merchant_id})'
+            }
+            outbound_items_resp = client.get_outbound_shipment_items(shipment_id=outbound_id, merchant_id=merchant_id)
+            items_count = len(outbound_items_resp.items) if outbound_items_resp and outbound_items_resp.items else 0
+            results['step2_outbound_items'] = {
+                'status': 'success',
+                'items_count': items_count,
+                'first_item': outbound_items_resp.items[0].model_dump() if items_count > 0 else None
+            }
+        except Exception as e:
+            results['step2_outbound_items'] = {
+                'status': 'error',
+                'error': str(e)
+            }
+        
+        # Step 3: Test get_inbound_shipments
+        try:
+            results['step3_inbound_list'] = {
+                'status': 'testing',
+                'description': f'get_inbound_shipments(merchant_id={merchant_id}, per_page=500)'
+            }
+            inbound_resp = client.get_inbound_shipments(merchant_id=merchant_id, per_page=500)
+            inbound_count = len(inbound_resp.data) if inbound_resp and inbound_resp.data else 0
+            results['step3_inbound_list'] = {
+                'status': 'success',
+                'total_inbounds': inbound_count,
+                'first_inbound': {
+                    'id': inbound_resp.data[0].id if inbound_count > 0 else None,
+                    'name': inbound_resp.data[0].name if inbound_count > 0 else None
+                } if inbound_count > 0 else None
+            }
+        except Exception as e:
+            results['step3_inbound_list'] = {
+                'status': 'error',
+                'error': str(e)
+            }
+        
+        return JsonResponse({
+            'success': True,
+            'outbound_id': outbound_id,
+            'merchant_id': merchant_id,
+            'api_tests': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore nel debug API steps: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
