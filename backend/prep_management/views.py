@@ -3484,8 +3484,8 @@ def test_partial_submit(request):
                 
                 # 1. Verifica stato attuale
                 shipment_resp = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
-                current_status = shipment_resp.status if shipment_resp else "unknown"
-                current_shipped_at = getattr(shipment_resp, 'shipped_at', None) if shipment_resp else None
+                current_status = shipment_resp.shipment.status if shipment_resp and shipment_resp.shipment else "unknown"
+                current_shipped_at = getattr(shipment_resp.shipment, 'shipped_at', None) if shipment_resp and shipment_resp.shipment else None
                 
                 logger.info(f"📊 Stato attuale shipment {shipment_id}: status={current_status}, shipped_at={current_shipped_at}")
                 
@@ -3502,8 +3502,8 @@ def test_partial_submit(request):
                 
                 # 3. Verifica stato dopo submit
                 shipment_resp_after = client.get_inbound_shipment(shipment_id=shipment_id, merchant_id=merchant_id)
-                new_status = shipment_resp_after.status if shipment_resp_after else "unknown"
-                new_shipped_at = getattr(shipment_resp_after, 'shipped_at', None) if shipment_resp_after else None
+                new_status = shipment_resp_after.shipment.status if shipment_resp_after and shipment_resp_after.shipment else "unknown"
+                new_shipped_at = getattr(shipment_resp_after.shipment, 'shipped_at', None) if shipment_resp_after and shipment_resp_after.shipment else None
                 
                 logger.info(f"📊 Stato dopo submit shipment {shipment_id}: status={new_status}, shipped_at={new_shipped_at}")
                 
