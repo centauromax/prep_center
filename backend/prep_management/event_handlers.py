@@ -275,10 +275,9 @@ class WebhookEventProcessor:
             if creation_type == "partial":
                 logger.info(f"Settando shipment PARTIAL {shipment_id} come Shipped...")
                 try:
-                    # Usa API Submit per settare come shipped
+                    # Usa API Submit per settare come shipped - solo tracking_numbers vuoto
                     self.client.submit_inbound_shipment(
                         shipment_id=shipment_id,
-                        carrier=Carrier.NO_TRACKING,
                         tracking_numbers=[],
                         merchant_id=merchant_id
                     )
