@@ -1,0 +1,365 @@
+"""
+Amazon Selling Partner API Client
+Centralizzato per l'integrazione con Amazon SP-API usando python-amazon-sp-api di Saleweaver
+"""
+import os
+import logging
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+
+try:
+    from sp_api.api import Orders
+    from sp_api.api import Reports
+    from sp_api.api import FulfillmentInbound
+    from sp_api.api import Inventories
+    from sp_api.api import Catalog
+    from sp_api.api import Products
+    from sp_api.api import Sellers
+    from sp_api.base import SellingApiException
+    from sp_api.base.reportTypes import ReportType
+    from sp_api.base.marketplaces import Marketplaces
+    SP_API_AVAILABLE = True
+except ImportError as e:
+    # Log error but allow import to succeed for development without full dependencies
+    logging.error(f"SP-API library not available: {e}")
+    Orders = Reports = FulfillmentInbound = None
+    Inventories = Catalog = Products = Sellers = None
+    SellingApiException = Exception
+    ReportType = Marketplaces = None
+    SP_API_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+
+class AmazonSPAPIClient:
+    """
+    Client centralizzato per Amazon Selling Partner API
+    Usa la libreria python-amazon-sp-api di Saleweaver
+    """
+
+    def __init__(self, credentials: Optional[Dict[str, Any]] = None):
+        """
+        Inizializza il client SP-API
+        
+        Args:
+            credentials: Dizionario con credenziali Amazon SP-API
+        """
+        if not SP_API_AVAILABLE:
+            logger.warning("SP-API library not available. Install with: pip install python-amazon-sp-api")
+            
+        self.credentials = credentials or self._get_default_credentials()
+        self.marketplace = self._get_marketplace()
+        
+        # Valida credenziali
+        if SP_API_AVAILABLE and not self._validate_credentials():
+            logger.error("Credenziali SP-API non valide o mancanti")
+            
+        logger.info(f"Client SP-API inizializzato per marketplace: {self.marketplace}")
+
+    def _get_default_credentials(self) -> Dict[str, Any]:
+        """Ottiene credenziali da environment variables"""
+        return {
+            'refresh_token': os.getenv('AMAZON_SP_API_REFRESH_TOKEN'),
+            'lwa_app_id': os.getenv('AMAZON_SP_API_LWA_APP_ID'),
+            'lwa_client_secret': os.getenv('AMAZON_SP_API_LWA_CLIENT_SECRET'),
+            'marketplace': os.getenv('AMAZON_SP_API_MARKETPLACE', 'IT')
+        }
+
+    def _validate_credentials(self) -> bool:
+        """Valida che tutte le credenziali necessarie siano presenti"""
+        required_fields = ['refresh_token', 'lwa_app_id', 'lwa_client_secret']
+        return all(self.credentials.get(field) for field in required_fields)
+
+    def _get_marketplace(self) -> str:
+        """Ottiene il marketplace configurato"""
+        marketplace_code = self.credentials.get('marketplace', 'IT')
+        
+        # Mappa marketplace supportati
+        if Marketplaces:
+            marketplace_mapping = {
+                'IT': Marketplaces.IT,
+                'DE': Marketplaces.DE,
+                'FR': Marketplaces.FR,
+                'ES': Marketplaces.ES,
+                'GB': Marketplaces.GB,
+                'US': Marketplaces.US
+            }
+            return marketplace_mapping.get(marketplace_code, marketplace_code)
+        
+        return marketplace_code
+
+    def _handle_api_error(self, e: Exception, operation: str) -> None:
+        """Gestisce gli errori delle API calls"""
+        if isinstance(e, SellingApiException):
+            logger.error(f"SP-API Error in {operation}: {e.code} - {e}")
+        else:
+            logger.error(f"Generic error in {operation}: {e}")
+        raise e
+
+    # =============================================================================
+    # ORDERS API
+    # =============================================================================
+
+    def get_orders(self, 
+                   created_after: Optional[datetime] = None,
+                   created_before: Optional[datetime] = None,
+                   last_updated_after: Optional[datetime] = None,
+                   max_results_per_page: int = 50) -> Dict[str, Any]:
+        """Recupera ordini dal marketplace Amazon"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            # Usa data di default se non specificata (ultimi 7 giorni)
+            if not created_after and not last_updated_after:
+                created_after = datetime.utcnow() - timedelta(days=7)
+
+            # Prepara parametri
+            params = {
+                'MaxResultsPerPage': max_results_per_page,
+                'MarketplaceIds': [self.marketplace]
+            }
+
+            if created_after:
+                params['CreatedAfter'] = created_after.isoformat()
+            if created_before:
+                params['CreatedBefore'] = created_before.isoformat()
+            if last_updated_after:
+                params['LastUpdatedAfter'] = last_updated_after.isoformat()
+
+            # Chiamata API
+            orders_client = Orders(credentials=self.credentials)
+            response = orders_client.get_orders(**params)
+            
+            logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, "get_orders")
+
+    def get_order(self, order_id: str) -> Dict[str, Any]:
+        """Recupera dettagli di un singolo ordine"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            orders_client = Orders(credentials=self.credentials)
+            response = orders_client.get_order(order_id)
+            
+            logger.info(f"Recuperato ordine {order_id}")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, f"get_order({order_id})")
+
+    def get_order_items(self, order_id: str) -> Dict[str, Any]:
+        """Recupera items di un ordine"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            orders_client = Orders(credentials=self.credentials)
+            response = orders_client.get_order_items(order_id)
+            
+            logger.info(f"Recuperati items per ordine {order_id}")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, f"get_order_items({order_id})")
+
+    # =============================================================================
+    # INVENTORY API
+    # =============================================================================
+
+    def get_inventory_summary(self, 
+                              granularity_type: str = "Marketplace",
+                              granularity_id: Optional[str] = None,
+                              start_date_time: Optional[datetime] = None,
+                              seller_skus: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Recupera riepilogo inventario"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            # Parametri di default
+            granularity_id = granularity_id or self.marketplace
+            start_date_time = start_date_time or datetime.utcnow() - timedelta(days=1)
+
+            params = {
+                'granularity_type': granularity_type,
+                'granularity_id': granularity_id,
+                'start_date_time': start_date_time.isoformat()
+            }
+
+            if seller_skus:
+                params['seller_skus'] = seller_skus
+
+            inventories_client = Inventories(credentials=self.credentials)
+            response = inventories_client.get_inventory_summary_marketplace(**params)
+            
+            logger.info("Recuperato riepilogo inventario")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, "get_inventory_summary")
+
+    # =============================================================================
+    # REPORTS API
+    # =============================================================================
+
+    def create_report(self, 
+                      report_type: str,
+                      start_time: Optional[datetime] = None,
+                      end_time: Optional[datetime] = None,
+                      marketplace_ids: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Crea un report"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            params = {
+                'reportType': report_type,
+                'marketplaceIds': marketplace_ids or [self.marketplace]
+            }
+
+            if start_time:
+                params['dataStartTime'] = start_time.isoformat()
+            if end_time:
+                params['dataEndTime'] = end_time.isoformat()
+
+            reports_client = Reports(credentials=self.credentials)
+            response = reports_client.create_report(**params)
+            
+            logger.info(f"Report {report_type} creato")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, f"create_report({report_type})")
+
+    def get_report(self, report_id: str) -> Dict[str, Any]:
+        """Recupera informazioni su un report"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            reports_client = Reports(credentials=self.credentials)
+            response = reports_client.get_report(report_id)
+            
+            logger.info(f"Recuperato report {report_id}")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, f"get_report({report_id})")
+
+    # =============================================================================
+    # SELLER API
+    # =============================================================================
+
+    def get_account_info(self) -> Dict[str, Any]:
+        """Recupera informazioni account seller"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            sellers_client = Sellers(credentials=self.credentials)
+            response = sellers_client.get_account()
+            
+            logger.info("Recuperate info account seller")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, "get_account_info")
+
+    def get_marketplace_participation(self) -> Dict[str, Any]:
+        """Recupera informazioni partecipazione marketplace"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
+            sellers_client = Sellers(credentials=self.credentials)
+            response = sellers_client.get_marketplace_participation()
+            
+            logger.info("Recuperate info marketplace participation")
+            return response.payload
+
+        except Exception as e:
+            self._handle_api_error(e, "get_marketplace_participation")
+
+    # =============================================================================
+    # UTILITY METHODS
+    # =============================================================================
+
+    def test_connection(self) -> Dict[str, Any]:
+        """Testa la connessione alle SP-API"""
+        if not SP_API_AVAILABLE:
+            return {
+                'success': False,
+                'message': 'SP-API library non installata',
+                'error': 'Installa con: pip install python-amazon-sp-api'
+            }
+            
+        if not self._validate_credentials():
+            return {
+                'success': False,
+                'message': 'Credenziali SP-API mancanti o non valide',
+                'error': 'Configura le variabili environment: AMAZON_SP_API_*'
+            }
+            
+        try:
+            # Test semplice: recupera info account
+            account_info = self.get_account_info()
+            
+            return {
+                'success': True,
+                'message': 'Connessione SP-API riuscita',
+                'account_info': account_info
+            }
+            
+        except Exception as e:
+            logger.error(f"Test connessione fallito: {e}")
+            return {
+                'success': False,
+                'message': f'Connessione SP-API fallita: {str(e)}',
+                'error': str(e)
+            }
+
+    def get_supported_marketplaces(self) -> List[Dict[str, str]]:
+        """Restituisce lista marketplace supportati"""
+        return [
+            {'code': 'IT', 'name': 'Amazon.it', 'country': 'Italia'},
+            {'code': 'DE', 'name': 'Amazon.de', 'country': 'Germania'},
+            {'code': 'FR', 'name': 'Amazon.fr', 'country': 'Francia'},
+            {'code': 'ES', 'name': 'Amazon.es', 'country': 'Spagna'},
+            {'code': 'GB', 'name': 'Amazon.co.uk', 'country': 'Regno Unito'},
+            {'code': 'US', 'name': 'Amazon.com', 'country': 'Stati Uniti'}
+        ]
+
+    def get_common_report_types(self) -> List[Dict[str, str]]:
+        """Restituisce lista tipi di report più comuni"""
+        return [
+            {
+                'type': 'GET_MERCHANT_LISTINGS_ALL_DATA',
+                'name': 'Tutti i Listing',
+                'description': 'Report completo di tutti i listing attivi e inattivi'
+            },
+            {
+                'type': 'GET_AFN_INVENTORY_DATA',
+                'name': 'Inventario FBA',
+                'description': 'Report inventario Amazon FBA'
+            },
+            {
+                'type': 'GET_FLAT_FILE_ALL_ORDERS_DATA_BY_LAST_UPDATE_GENERAL',
+                'name': 'Tutti gli Ordini',
+                'description': 'Report di tutti gli ordini per data ultimo aggiornamento'
+            },
+            {
+                'type': 'GET_SELLER_FEEDBACK_DATA',
+                'name': 'Feedback Seller',
+                'description': 'Report feedback ricevuti dal seller'
+            }
+        ]
+
+
+def create_sp_api_client(credentials: Optional[Dict[str, Any]] = None) -> AmazonSPAPIClient:
+    """Crea una istanza del client SP-API con configurazione di default"""
+    return AmazonSPAPIClient(credentials=credentials) 

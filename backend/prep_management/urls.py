@@ -76,4 +76,14 @@ urlpatterns = [
     path('debug_api_steps/', views.debug_api_steps, name='debug_api_steps'),  # 🆕 Debug API steps
     path('test_partial_submit/', views.test_partial_submit, name='test_partial_submit'),  # 🆕 Test submit spedizioni PARTIAL
     path('test_manual_submit/', views.test_manual_submit, name='test_manual_submit'),  # 🆕 Test submit manuale shipment
+    
+    # 🚀 Amazon SP-API endpoints
+    path('sp-api/config/', views.sp_api_config_list, name='sp_api_config_list'),  # Lista configurazioni SP-API
+    path('sp-api/test/<int:config_id>/', views.sp_api_test_connection, name='sp_api_test_connection'),  # Test connessione
+    path('sp-api/orders/', views.sp_api_orders_list, name='sp_api_orders_list'),  # Lista ordini Amazon
+    path('sp-api/orders/<str:order_id>/', views.sp_api_order_detail, name='sp_api_order_detail'),  # Dettaglio ordine
+    path('sp-api/inventory/', views.sp_api_inventory_summary, name='sp_api_inventory_summary'),  # Riepilogo inventario
+    path('sp-api/reports/', views.sp_api_reports_list, name='sp_api_reports_list'),  # Lista tipi di report
+    path('sp-api/reports/create/', views.sp_api_create_report, name='sp_api_create_report'),  # Crea report
+    path('sp-api/account/', views.sp_api_account_info, name='sp_api_account_info'),  # Info account seller
 ]

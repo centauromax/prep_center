@@ -1,0 +1,644 @@
+{% extends 'fbaprepcenter_base.html' %}
+
+{% block title %}Amazon SP-API Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fab fa-amazon text-warning"></i>
+            Amazon SP-API Dashboard
+        </h2>
+        <div>
+            <span class="badge badge-info me-2" id="sp-api-status">
+                <i class="fas fa-circle"></i> Verifica stato...
+            </span>
+            <a href="{% url 'prep_management:sp_api_config_list' %}" class="btn btn-outline-primary">
+                <i class="fas fa-cog"></i> Configurazioni
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert per stato libreria -->
+    <div id="library-status-alert" class="alert alert-warning" style="display: none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <strong>Libreria SP-API non disponibile.</strong>
+        <span>Installare con: <code>pip install python-amazon-sp-api</code></span>
+    </div>
+
+    <!-- Sezioni principale -->
+    <div class="row">
+        <!-- Ordini -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-shopping-cart"></i>
+                        Gestione Ordini
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Visualizza e gestisci gli ordini Amazon tramite SP-API.</p>
+                    
+                    <div class="mb-3">
+                        <label for="orders-marketplace" class="form-label">Marketplace:</label>
+                        <select class="form-select" id="orders-marketplace">
+                            <option value="IT">Amazon.it (Italia)</option>
+                            <option value="DE">Amazon.de (Germania)</option>
+                            <option value="FR">Amazon.fr (Francia)</option>
+                            <option value="ES">Amazon.es (Spagna)</option>
+                            <option value="GB">Amazon.co.uk (Regno Unito)</option>
+                            <option value="US">Amazon.com (Stati Uniti)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="orders-days" class="form-label">Giorni indietro:</label>
+                            <select class="form-select" id="orders-days">
+                                <option value="1">1 giorno</option>
+                                <option value="7" selected>7 giorni</option>
+                                <option value="30">30 giorni</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="orders-limit" class="form-label">Limite risultati:</label>
+                            <select class="form-select" id="orders-limit">
+                                <option value="10">10</option>
+                                <option value="50" selected>50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-primary w-100" onclick="loadOrders()">
+                        <i class="fas fa-search"></i> Carica Ordini
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventario -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-boxes"></i>
+                        Inventario Amazon
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Visualizza il riepilogo dell'inventario Amazon FBA.</p>
+                    
+                    <div class="mb-3">
+                        <label for="inventory-marketplace" class="form-label">Marketplace:</label>
+                        <select class="form-select" id="inventory-marketplace">
+                            <option value="IT">Amazon.it (Italia)</option>
+                            <option value="DE">Amazon.de (Germania)</option>
+                            <option value="FR">Amazon.fr (Francia)</option>
+                            <option value="ES">Amazon.es (Spagna)</option>
+                            <option value="GB">Amazon.co.uk (Regno Unito)</option>
+                            <option value="US">Amazon.com (Stati Uniti)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="inventory-stats" class="stats-container" style="display: none;">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="total-items">-</div>
+                                    <div class="stat-label">Items Totali</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="available-items">-</div>
+                                    <div class="stat-label">Disponibili</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <div class="stat-number" id="inbound-items">-</div>
+                                    <div class="stat-label">In Arrivo</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-success w-100" onclick="loadInventory()">
+                        <i class="fas fa-chart-bar"></i> Carica Inventario
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Report -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-file-alt"></i>
+                        Report Amazon
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Genera e scarica report Amazon personalizzati.</p>
+                    
+                    <div class="mb-3">
+                        <label for="reports-marketplace" class="form-label">Marketplace:</label>
+                        <select class="form-select" id="reports-marketplace">
+                            <option value="IT">Amazon.it (Italia)</option>
+                            <option value="DE">Amazon.de (Germania)</option>
+                            <option value="FR">Amazon.fr (Francia)</option>
+                            <option value="ES">Amazon.es (Spagna)</option>
+                            <option value="GB">Amazon.co.uk (Regno Unito)</option>
+                            <option value="US">Amazon.com (Stati Uniti)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="report-type" class="form-label">Tipo Report:</label>
+                        <select class="form-select" id="report-type">
+                            <option value="">Seleziona tipo...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="report-start-date" class="form-label">Data inizio:</label>
+                            <input type="date" class="form-control" id="report-start-date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="report-end-date" class="form-label">Data fine:</label>
+                            <input type="date" class="form-control" id="report-end-date">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-info w-100" onclick="loadReportTypes()">
+                        <i class="fas fa-list"></i> Carica Tipi Report
+                    </button>
+                    <button class="btn btn-outline-info w-100 mt-2" onclick="createReport()" disabled id="create-report-btn">
+                        <i class="fas fa-plus"></i> Crea Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Info -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-circle"></i>
+                        Informazioni Account
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">Visualizza informazioni account seller Amazon.</p>
+                    
+                    <div class="mb-3">
+                        <label for="account-marketplace" class="form-label">Marketplace:</label>
+                        <select class="form-select" id="account-marketplace">
+                            <option value="IT">Amazon.it (Italia)</option>
+                            <option value="DE">Amazon.de (Germania)</option>
+                            <option value="FR">Amazon.fr (Francia)</option>
+                            <option value="ES">Amazon.es (Spagna)</option>
+                            <option value="GB">Amazon.co.uk (Regno Unito)</option>
+                            <option value="US">Amazon.com (Stati Uniti)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="account-info" class="account-info" style="display: none;">
+                        <!-- Informazioni account verranno caricate qui -->
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-warning w-100" onclick="loadAccountInfo()">
+                        <i class="fas fa-info-circle"></i> Carica Info Account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risultati -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list"></i>
+                        Risultati
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="results-container">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-search fa-3x mb-3"></i>
+                            <p>Esegui una ricerca per visualizzare i risultati qui.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stats-container {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.stat-box {
+    padding: 10px;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.account-info {
+    background: #fff3cd;
+    border-radius: 8px;
+    padding: 15px;
+    border: 1px solid #ffeaa7;
+}
+
+.loading-overlay {
+    position: relative;
+}
+
+.loading-overlay::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    z-index: 10;
+}
+
+.loading-overlay.loading::after {
+    content: '⏳ Caricamento...';
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    checkLibraryStatus();
+    setDefaultDates();
+});
+
+async function checkLibraryStatus() {
+    try {
+        const response = await fetch('/prep_management/sp-api/config/');
+        const data = await response.json();
+        
+        const statusElement = document.getElementById('sp-api-status');
+        const alertElement = document.getElementById('library-status-alert');
+        
+        if (data.sp_api_available) {
+            statusElement.innerHTML = '<i class="fas fa-circle text-success"></i> SP-API Disponibile';
+            statusElement.className = 'badge badge-success';
+        } else {
+            statusElement.innerHTML = '<i class="fas fa-circle text-danger"></i> SP-API Non Disponibile';
+            statusElement.className = 'badge badge-danger';
+            alertElement.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Errore verifica stato SP-API:', error);
+    }
+}
+
+function setDefaultDates() {
+    const today = new Date();
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    document.getElementById('report-start-date').valueAsDate = lastWeek;
+    document.getElementById('report-end-date').valueAsDate = today;
+}
+
+async function loadOrders() {
+    const marketplace = document.getElementById('orders-marketplace').value;
+    const days = document.getElementById('orders-days').value;
+    const limit = document.getElementById('orders-limit').value;
+    
+    const resultsContainer = document.getElementById('results-container');
+    resultsContainer.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Caricamento ordini...</div>';
+    
+    try {
+        const url = `/prep_management/sp-api/orders/?marketplace=${marketplace}&days_back=${days}&max_results=${limit}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayOrders(data);
+        } else {
+            showError('Errore nel caricamento ordini: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+async function loadInventory() {
+    const marketplace = document.getElementById('inventory-marketplace').value;
+    const statsContainer = document.getElementById('inventory-stats');
+    
+    statsContainer.style.display = 'none';
+    
+    try {
+        const url = `/prep_management/sp-api/inventory/?marketplace=${marketplace}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayInventoryStats(data.inventory);
+            displayInventoryResults(data);
+        } else {
+            showError('Errore nel caricamento inventario: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+async function loadReportTypes() {
+    const marketplace = document.getElementById('reports-marketplace').value;
+    const reportTypeSelect = document.getElementById('report-type');
+    
+    try {
+        const url = `/prep_management/sp-api/reports/?marketplace=${marketplace}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            reportTypeSelect.innerHTML = '<option value="">Seleziona tipo...</option>';
+            data.report_types.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.reportType;
+                option.textContent = type.displayName || type.reportType;
+                reportTypeSelect.appendChild(option);
+            });
+            
+            document.getElementById('create-report-btn').disabled = false;
+            showSuccess('Tipi report caricati con successo');
+        } else {
+            showError('Errore nel caricamento tipi report: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+async function createReport() {
+    const marketplace = document.getElementById('reports-marketplace').value;
+    const reportType = document.getElementById('report-type').value;
+    const startDate = document.getElementById('report-start-date').value;
+    const endDate = document.getElementById('report-end-date').value;
+    
+    if (!reportType) {
+        showError('Seleziona un tipo di report');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/prep_management/sp-api/reports/create/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                marketplace: marketplace,
+                report_type: reportType,
+                start_time: startDate + 'T00:00:00Z',
+                end_time: endDate + 'T23:59:59Z'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayReportResult(data);
+            showSuccess('Report creato con successo!');
+        } else {
+            showError('Errore nella creazione report: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+async function loadAccountInfo() {
+    const marketplace = document.getElementById('account-marketplace').value;
+    const accountInfoDiv = document.getElementById('account-info');
+    
+    accountInfoDiv.style.display = 'none';
+    
+    try {
+        const url = `/prep_management/sp-api/account/?marketplace=${marketplace}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            displayAccountInfo(data);
+        } else {
+            showError('Errore nel caricamento info account: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+function displayOrders(data) {
+    const container = document.getElementById('results-container');
+    
+    if (data.orders.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">Nessun ordine trovato per il periodo selezionato.</div>';
+        return;
+    }
+    
+    let html = `
+        <h6>Ordini Amazon (${data.total_retrieved} trovati)</h6>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Data Ordine</th>
+                        <th>Stato</th>
+                        <th>Totale</th>
+                        <th>Marketplace</th>
+                        <th>Azioni</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.orders.forEach(order => {
+        html += `
+            <tr>
+                <td><code>${order.AmazonOrderId}</code></td>
+                <td>${formatDateTime(order.PurchaseDate)}</td>
+                <td><span class="badge badge-primary">${order.OrderStatus}</span></td>
+                <td>${order.OrderTotal ? order.OrderTotal.Amount + ' ' + order.OrderTotal.CurrencyCode : 'N/A'}</td>
+                <td>${order.MarketplaceId}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-info" onclick="loadOrderDetails('${order.AmazonOrderId}', '${data.marketplace}')">
+                        <i class="fas fa-eye"></i> Dettagli
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function displayInventoryStats(inventory) {
+    const statsContainer = document.getElementById('inventory-stats');
+    
+    // Calcola statistiche da inventoryDetails
+    const details = inventory.inventoryDetails || {};
+    
+    document.getElementById('total-items').textContent = Object.keys(details).length;
+    document.getElementById('available-items').textContent = Object.keys(details).length; // Semplificato
+    document.getElementById('inbound-items').textContent = '0'; // Semplificato
+    
+    statsContainer.style.display = 'block';
+}
+
+function displayInventoryResults(data) {
+    const container = document.getElementById('results-container');
+    
+    container.innerHTML = `
+        <h6>Riepilogo Inventario Amazon</h6>
+        <div class="alert alert-success">
+            <strong>Marketplace:</strong> ${data.marketplace}<br>
+            <strong>Configurazione usata:</strong> ${data.config_used}<br>
+            <strong>Data aggiornamento:</strong> ${new Date().toLocaleString('it-IT')}
+        </div>
+        <pre class="bg-light p-3 rounded">${JSON.stringify(data.inventory, null, 2)}</pre>
+    `;
+}
+
+function displayReportResult(data) {
+    const container = document.getElementById('results-container');
+    
+    container.innerHTML = `
+        <h6>Report Creato</h6>
+        <div class="alert alert-success">
+            <strong>Tipo Report:</strong> ${data.report_type}<br>
+            <strong>Marketplace:</strong> ${data.marketplace}<br>
+            <strong>Report ID:</strong> <code>${data.report.reportId}</code><br>
+            <strong>Stato:</strong> ${data.report.processingStatus}
+        </div>
+        <pre class="bg-light p-3 rounded">${JSON.stringify(data.report, null, 2)}</pre>
+    `;
+}
+
+function displayAccountInfo(data) {
+    const container = document.getElementById('account-info');
+    const resultsContainer = document.getElementById('results-container');
+    
+    // Mostra info base nella card
+    container.innerHTML = `
+        <div class="mb-2"><strong>Sandbox:</strong> ${data.is_sandbox ? 'Sì' : 'No'}</div>
+        <div class="mb-2"><strong>Configurazione:</strong> ${data.config_used}</div>
+        <div><strong>Marketplace:</strong> ${data.marketplace}</div>
+    `;
+    container.style.display = 'block';
+    
+    // Mostra dettagli completi nei risultati
+    resultsContainer.innerHTML = `
+        <h6>Informazioni Account Amazon</h6>
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Account Info</h6>
+                <pre class="bg-light p-3 rounded">${JSON.stringify(data.account_info, null, 2)}</pre>
+            </div>
+            <div class="col-md-6">
+                <h6>Marketplace Participation</h6>
+                <pre class="bg-light p-3 rounded">${JSON.stringify(data.marketplace_participation, null, 2)}</pre>
+            </div>
+        </div>
+    `;
+}
+
+async function loadOrderDetails(orderId, marketplace) {
+    try {
+        const url = `/prep_management/sp-api/orders/${orderId}/?marketplace=${marketplace}`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.success) {
+            const container = document.getElementById('results-container');
+            container.innerHTML = `
+                <h6>Dettagli Ordine ${orderId}</h6>
+                <pre class="bg-light p-3 rounded">${JSON.stringify(data.order, null, 2)}</pre>
+            `;
+        } else {
+            showError('Errore nel caricamento dettagli ordine: ' + data.error);
+        }
+    } catch (error) {
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+function formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('it-IT');
+}
+
+function showSuccess(message) {
+    showAlert('success', message);
+}
+
+function showError(message) {
+    showAlert('danger', message);
+}
+
+function showAlert(type, message) {
+    const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHTML);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            bootstrap.Alert.getOrCreateInstance(alert).close();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %} 

@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .services import PrepBusinessAPI
 from .utils.merchants import get_merchants
-from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification, TelegramMessage
+from .models import ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification, TelegramMessage, AmazonSPAPIConfig
 from .serializers import OutgoingMessageSerializer, IncomingMessageSerializer
 import logging
 import requests
@@ -24,7 +24,7 @@ import uuid
 # Webhook imports removed temporarily to fix crash
 from .event_handlers import WebhookEventProcessor
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from libs.prepbusiness.client import PrepBusinessClient
 from libs.config import PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_URL
 from enum import Enum
@@ -52,6 +52,9 @@ from django.db.models import Q
 from libs.prepbusiness.client import PrepBusinessClient as OfficialPrepBusinessClient
 from libs.config import PREP_BUSINESS_API_URL, PREP_BUSINESS_API_KEY, PREP_BUSINESS_API_TIMEOUT
 from .models import PrepBusinessConfig
+
+# 🚀 Import per Amazon SP-API
+from libs.api_client.amazon_sp_api import AmazonSPAPIClient, SP_API_AVAILABLE
 
 logger = logging.getLogger('prep_management')
 logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -86,6 +89,14 @@ def index(request):
             'url': '/pallet_label/',
             'icon': 'fas fa-shipping-fast',
             'color': 'success',
+            'status': 'attiva'
+        },
+        {
+            'name': 'Amazon SP-API',
+            'description': 'Integrazione completa con Amazon Selling Partner API. Gestisci ordini, inventario, report e informazioni account Amazon direttamente dalla dashboard.',
+            'url': '/prep_management/sp-api/config/',
+            'icon': 'fab fa-amazon',
+            'color': 'warning',
             'status': 'attiva'
         }
     ]
@@ -3646,54 +3657,454 @@ def test_submit_approaches(request):
 @csrf_exempt
 def test_manual_submit(request):
     """
-    Endpoint di test per forzare il submit di shipment esistenti.
-    Utile per testare la logica di submit senza aspettare nuovi webhook.
+    🆕 Test submit manuale per shipment PARTIAL senza trigger automatico
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Only POST method allowed'}, status=405)
     
     try:
+        client = get_prep_business_client()
+        if not client:
+            return JsonResponse({'error': 'Client non configurato'}, status=500)
+        
         data = json.loads(request.body)
         shipment_id = data.get('shipment_id')
-        shipment_type = data.get('type', 'partial')  # 'partial' o 'residual'
         
         if not shipment_id:
             return JsonResponse({'error': 'shipment_id required'}, status=400)
         
-        # Inizializza il client
-        from .event_handlers import WebhookEventProcessor
-        processor = WebhookEventProcessor()
+        logger.info(f"[TEST_MANUAL] Inizio test submit manuale per shipment {shipment_id}")
         
-        if not processor.client:
-            return JsonResponse({'error': 'Client non disponibile'}, status=500)
-        
-        # Importa le classi necessarie
-        from libs.prepbusiness.models import Carrier
-        
-        # Test submit
+        # 1. Verifica info shipment
         try:
-            submit_response = processor.client.submit_inbound_shipment(
-                shipment_id=int(shipment_id),
-                tracking_numbers=["NO-TRACKING"],
-                carrier=Carrier.NO_TRACKING,
-                merchant_id=None
-            )
+            shipment_response = client.get_shipment(shipment_id)
+            shipment = shipment_response.data if hasattr(shipment_response, 'data') else shipment_response
+            
+            logger.info(f"[TEST_MANUAL] Shipment {shipment_id}: status={shipment.get('status')}, type={shipment.get('type')}")
+            
+            if shipment.get('status') != 'PARTIAL':
+                return JsonResponse({
+                    'error': f'Shipment deve essere PARTIAL, attuale: {shipment.get("status")}',
+                    'shipment_status': shipment.get('status')
+                }, status=400)
+                
+        except Exception as e:
+            logger.error(f"[TEST_MANUAL] Errore verifica shipment {shipment_id}: {e}")
+            return JsonResponse({'error': f'Errore verifica shipment: {e}'}, status=500)
+        
+        # 2. Submit shipment
+        try:
+            logger.info(f"[TEST_MANUAL] Invio comando submit per shipment {shipment_id}")
+            submit_response = client.submit_shipment(shipment_id)
+            
+            logger.info(f"[TEST_MANUAL] Submit response: {submit_response}")
             
             return JsonResponse({
                 'success': True,
-                'message': f'Shipment {shipment_id} ({shipment_type}) settato come SHIPPED',
-                'response': str(submit_response)
+                'shipment_id': shipment_id,
+                'submit_response': submit_response,
+                'message': f'Shipment {shipment_id} sottomesso con successo'
             })
             
         except Exception as e:
+            logger.error(f"[TEST_MANUAL] Errore submit shipment {shipment_id}: {e}")
+            return JsonResponse({
+                'error': f'Errore submit: {e}',
+                'shipment_id': shipment_id
+            }, status=500)
+        
+    except Exception as e:
+        logger.error(f"[TEST_MANUAL] Errore generale: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# =============================================================================
+# 🚀 AMAZON SP-API VIEWS
+# =============================================================================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_config_list(request):
+    """Lista delle configurazioni Amazon SP-API."""
+    try:
+        configs = AmazonSPAPIConfig.objects.all().order_by('marketplace', 'name')
+        
+        configs_data = []
+        for config in configs:
+            success_rate = config.get_success_rate()
+            
+            configs_data.append({
+                'id': config.id,
+                'name': config.name,
+                'marketplace': config.get_marketplace_display(),
+                'marketplace_code': config.marketplace,
+                'is_active': config.is_active,
+                'is_sandbox': config.is_sandbox,
+                'last_test_at': config.last_test_at.isoformat() if config.last_test_at else None,
+                'last_test_success': config.last_test_success,
+                'last_test_message': config.last_test_message,
+                'total_api_calls': config.total_api_calls,
+                'total_api_errors': config.total_api_errors,
+                'success_rate': round(success_rate, 2),
+                'created_at': config.created_at.isoformat(),
+                'updated_at': config.updated_at.isoformat(),
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'configurations': configs_data,
+            'total': len(configs_data),
+            'sp_api_available': SP_API_AVAILABLE
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore nel recupero configurazioni SP-API: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_test_connection(request, config_id):
+    """Testa la connessione per una configurazione SP-API specifica."""
+    try:
+        config = AmazonSPAPIConfig.objects.get(id=config_id)
+        
+        if not SP_API_AVAILABLE:
+            config.update_test_result(False, "Libreria SP-API non disponibile")
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile. Installare con: pip install python-amazon-sp-api'
+            }, status=500)
+        
+        # Crea client con le credenziali della configurazione
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Test connessione (recupero info account)
+        test_result = client.test_connection()
+        
+        if test_result['success']:
+            config.update_test_result(True, test_result['message'])
+            return JsonResponse({
+                'success': True,
+                'message': test_result['message'],
+                'account_info': test_result.get('account_info'),
+                'test_time': timezone.now().isoformat()
+            })
+        else:
+            config.update_test_result(False, test_result['message'])
             return JsonResponse({
                 'success': False,
-                'error': f'Errore nel submit: {str(e)}',
-                'shipment_id': shipment_id
-            })
-            
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+                'error': test_result['message']
+            }, status=400)
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
     except Exception as e:
+        logger.error(f"Errore test connessione SP-API: {e}", exc_info=True)
+        try:
+            config.update_test_result(False, str(e))
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_orders_list(request):
+    """Recupera lista ordini Amazon via SP-API."""
+    try:
+        # Parametri query
+        marketplace = request.GET.get('marketplace', 'IT')
+        days_back = int(request.GET.get('days_back', 7))
+        max_results = int(request.GET.get('max_results', 50))
+        
+        # Trova configurazione attiva per il marketplace
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Calcola date
+        created_after = datetime.utcnow() - timedelta(days=days_back)
+        
+        # Recupera ordini
+        orders_data = client.get_orders(
+            created_after=created_after,
+            max_results_per_page=max_results
+        )
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'orders': orders_data.get('Orders', []),
+            'next_token': orders_data.get('NextToken'),
+            'marketplace': marketplace,
+            'config_used': config.name,
+            'created_after': created_after.isoformat(),
+            'total_retrieved': len(orders_data.get('Orders', []))
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore recupero ordini SP-API: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_order_detail(request, order_id):
+    """Recupera dettagli di un ordine specifico."""
+    try:
+        marketplace = request.GET.get('marketplace', 'IT')
+        
+        # Trova configurazione attiva
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Recupera dettagli ordine
+        order_data = client.get_order_details(order_id)
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'order': order_data,
+            'order_id': order_id,
+            'marketplace': marketplace,
+            'config_used': config.name
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore recupero dettagli ordine {order_id}: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_inventory_summary(request):
+    """Recupera riepilogo inventario Amazon."""
+    try:
+        marketplace = request.GET.get('marketplace', 'IT')
+        
+        # Trova configurazione attiva
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Recupera inventario
+        inventory_data = client.get_inventory_summary()
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'inventory': inventory_data,
+            'marketplace': marketplace,
+            'config_used': config.name
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore recupero inventario SP-API: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_reports_list(request):
+    """Lista i tipi di report disponibili."""
+    try:
+        marketplace = request.GET.get('marketplace', 'IT')
+        
+        # Trova configurazione attiva
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Lista tipi di report
+        report_types = client.get_available_report_types()
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'report_types': report_types,
+            'marketplace': marketplace,
+            'config_used': config.name,
+            'total_types': len(report_types)
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore recupero tipi report SP-API: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_create_report(request):
+    """Crea un nuovo report."""
+    try:
+        data = json.loads(request.body) if request.body else {}
+        marketplace = data.get('marketplace', 'IT')
+        report_type = data.get('report_type')
+        
+        if not report_type:
+            return JsonResponse({'error': 'report_type è richiesto'}, status=400)
+        
+        # Trova configurazione attiva
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Parametri opzionali
+        start_time = data.get('start_time')
+        end_time = data.get('end_time')
+        
+        # Converti stringhe ISO in datetime se fornite
+        if start_time:
+            start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+        if end_time:
+            end_time = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+        
+        # Crea report
+        report_result = client.create_report(
+            report_type=report_type,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'report': report_result,
+            'marketplace': marketplace,
+            'config_used': config.name,
+            'report_type': report_type
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore creazione report SP-API: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_account_info(request):
+    """Recupera informazioni account seller Amazon."""
+    try:
+        marketplace = request.GET.get('marketplace', 'IT')
+        
+        # Trova configurazione attiva
+        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+        if not config:
+            return JsonResponse({
+                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+            }, status=404)
+        
+        if not SP_API_AVAILABLE:
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile'
+            }, status=500)
+        
+        # Crea client
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Recupera info account
+        account_info = client.get_account_info()
+        marketplace_info = client.get_marketplace_participation()
+        
+        config.increment_api_call_count()
+        
+        return JsonResponse({
+            'success': True,
+            'account_info': account_info,
+            'marketplace_participation': marketplace_info,
+            'marketplace': marketplace,
+            'config_used': config.name,
+            'is_sandbox': config.is_sandbox
+        })
+        
+    except Exception as e:
+        logger.error(f"Errore recupero info account SP-API: {e}", exc_info=True)
+        try:
+            config.increment_api_call_count(is_error=True)
+        except:
+            pass
         return JsonResponse({'error': str(e)}, status=500)
 

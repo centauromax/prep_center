@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PrepBusinessConfig, ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification, TelegramMessage
+from .models import PrepBusinessConfig, AmazonSPAPIConfig, ShipmentStatusUpdate, OutgoingMessage, SearchResultItem, IncomingMessage, TelegramNotification, TelegramMessage
 
 @admin.register(PrepBusinessConfig)
 class PrepBusinessConfigAdmin(admin.ModelAdmin):
@@ -27,6 +27,95 @@ class PrepBusinessConfigAdmin(admin.ModelAdmin):
             PrepBusinessConfig.objects.exclude(pk=obj.pk).update(is_active=False)
         super().save_model(request, obj, form, change)
 
+
+@admin.register(AmazonSPAPIConfig)
+class AmazonSPAPIConfigAdmin(admin.ModelAdmin):
+    list_display = ('name', 'marketplace', 'is_active', 'is_sandbox', 'last_test_success', 'total_api_calls', 'get_success_rate_display', 'updated_at')
+    list_filter = ('marketplace', 'is_active', 'is_sandbox', 'last_test_success', 'created_at')
+    search_fields = ('name', 'lwa_app_id')
+    readonly_fields = ('created_at', 'updated_at', 'last_test_at', 'last_test_success', 'last_test_message', 'total_api_calls', 'total_api_errors')
+    
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'marketplace', 'is_active', 'is_sandbox')
+        }),
+        ('Credenziali Amazon SP-API', {
+            'fields': ('refresh_token', 'lwa_app_id', 'lwa_client_secret')
+        }),
+        ('Configurazioni tecniche', {
+            'classes': ('collapse',),
+            'fields': ('api_timeout', 'max_retries')
+        }),
+        ('Test connessione', {
+            'classes': ('collapse',),
+            'fields': ('last_test_at', 'last_test_success', 'last_test_message')
+        }),
+        ('Statistiche utilizzo', {
+            'classes': ('collapse',),
+            'fields': ('total_api_calls', 'total_api_errors')
+        }),
+        ('Timestamp', {
+            'classes': ('collapse',),
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+    
+    list_per_page = 20
+    actions = ['test_connection', 'activate_configs', 'deactivate_configs']
+    
+    def get_success_rate_display(self, obj):
+        rate = obj.get_success_rate()
+        if rate == 0.0 and obj.total_api_calls == 0:
+            return "N/A"
+        color = "green" if rate >= 95 else "orange" if rate >= 80 else "red"
+        return f'<span style="color: {color};">{rate:.1f}%</span>'
+    get_success_rate_display.short_description = "Tasso successo"
+    get_success_rate_display.allow_tags = True
+    
+    def test_connection(self, request, queryset):
+        from libs.api_client.amazon_sp_api import create_sp_api_client
+        success_count = 0
+        
+        for config in queryset:
+            try:
+                client = create_sp_api_client(credentials=config.get_credentials_dict())
+                result = client.test_connection()
+                
+                config.update_test_result(
+                    success=result['success'],
+                    message=result['message']
+                )
+                
+                if result['success']:
+                    success_count += 1
+                    self.message_user(request, f"✅ {config.name}: Connessione riuscita")
+                else:
+                    self.message_user(request, f"❌ {config.name}: {result['message']}", level='ERROR')
+                    
+            except Exception as e:
+                config.update_test_result(success=False, message=str(e))
+                self.message_user(request, f"❌ {config.name}: Errore {str(e)}", level='ERROR')
+        
+        self.message_user(request, f"Test completato: {success_count}/{queryset.count()} configurazioni riuscite")
+    test_connection.short_description = "🔍 Testa connessione SP-API"
+    
+    def activate_configs(self, request, queryset):
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f"{updated} configurazioni SP-API attivate.")
+    activate_configs.short_description = "✅ Attiva configurazioni selezionate"
+    
+    def deactivate_configs(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"{updated} configurazioni SP-API disattivate.")
+    deactivate_configs.short_description = "❌ Disattiva configurazioni selezionate"
+    
+    def save_model(self, request, obj, form, change):
+        # Se la configurazione viene attivata per un marketplace, disattiva le altre dello stesso marketplace
+        if obj.is_active:
+            AmazonSPAPIConfig.objects.filter(
+                marketplace=obj.marketplace
+            ).exclude(pk=obj.pk).update(is_active=False)
+        super().save_model(request, obj, form, change)
 
 @admin.register(ShipmentStatusUpdate)
 class ShipmentStatusUpdateAdmin(admin.ModelAdmin):

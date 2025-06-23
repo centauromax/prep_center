@@ -25,6 +25,109 @@ class PrepBusinessConfig(models.Model):
         return cls.objects.filter(is_active=True).first()
 
 
+class AmazonSPAPIConfig(models.Model):
+    """Configurazione per Amazon Selling Partner API."""
+    
+    MARKETPLACE_CHOICES = [
+        ('IT', 'Amazon.it (Italia)'),
+        ('DE', 'Amazon.de (Germania)'),
+        ('FR', 'Amazon.fr (Francia)'),
+        ('ES', 'Amazon.es (Spagna)'),
+        ('GB', 'Amazon.co.uk (Regno Unito)'),
+        ('US', 'Amazon.com (Stati Uniti)'),
+    ]
+    
+    # Credenziali base
+    name = models.CharField(verbose_name="Nome configurazione", max_length=100, unique=True, 
+                           help_text="Nome identificativo per questa configurazione")
+    refresh_token = models.CharField(verbose_name="Refresh Token", max_length=500,
+                                   help_text="Token di refresh ottenuto durante l'autorizzazione")
+    lwa_app_id = models.CharField(verbose_name="LWA App ID", max_length=255,
+                                help_text="ID dell'applicazione Login with Amazon")
+    lwa_client_secret = models.CharField(verbose_name="LWA Client Secret", max_length=255,
+                                       help_text="Secret dell'applicazione Login with Amazon")
+    
+    # Configurazione marketplace
+    marketplace = models.CharField(verbose_name="Marketplace", max_length=2, 
+                                 choices=MARKETPLACE_CHOICES, default='IT',
+                                 help_text="Marketplace Amazon di riferimento")
+    
+    # Configurazioni tecniche
+    api_timeout = models.PositiveIntegerField(verbose_name="Timeout API (secondi)", default=30)
+    max_retries = models.PositiveIntegerField(verbose_name="Tentativi massimi", default=3)
+    
+    # Stato e metadata
+    is_active = models.BooleanField(verbose_name="Attivo", default=True,
+                                  help_text="Se attivo, questa configurazione può essere usata")
+    is_sandbox = models.BooleanField(verbose_name="Sandbox", default=False,
+                                   help_text="Se True, usa l'ambiente sandbox di Amazon")
+    
+    # Timestamp
+    created_at = models.DateTimeField(verbose_name="Data creazione", auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name="Ultimo aggiornamento", auto_now=True)
+    last_test_at = models.DateTimeField(verbose_name="Ultimo test", null=True, blank=True,
+                                      help_text="Ultima volta che la connessione è stata testata")
+    last_test_success = models.BooleanField(verbose_name="Ultimo test riuscito", null=True, blank=True)
+    last_test_message = models.TextField(verbose_name="Messaggio ultimo test", null=True, blank=True)
+    
+    # Statistiche utilizzo
+    total_api_calls = models.PositiveIntegerField(verbose_name="Chiamate API totali", default=0)
+    total_api_errors = models.PositiveIntegerField(verbose_name="Errori API totali", default=0)
+    
+    class Meta:
+        verbose_name = "Configurazione Amazon SP-API"
+        verbose_name_plural = "Configurazioni Amazon SP-API"
+        ordering = ['marketplace', 'name']
+    
+    def __str__(self):
+        status = "✅" if self.is_active else "❌"
+        env = "🧪" if self.is_sandbox else "🔴"
+        return f"{status} {env} {self.name} ({self.get_marketplace_display()})"
+    
+    @classmethod
+    def get_active_config(cls, marketplace: str = None):
+        """Ottiene la configurazione attiva per un marketplace specifico."""
+        queryset = cls.objects.filter(is_active=True)
+        if marketplace:
+            queryset = queryset.filter(marketplace=marketplace)
+        return queryset.first()
+    
+    @classmethod
+    def get_config_for_marketplace(cls, marketplace: str):
+        """Ottiene la configurazione per un marketplace specifico."""
+        return cls.objects.filter(marketplace=marketplace, is_active=True).first()
+    
+    def get_credentials_dict(self):
+        """Restituisce le credenziali in formato dict per il client SP-API."""
+        return {
+            'refresh_token': self.refresh_token,
+            'lwa_app_id': self.lwa_app_id,
+            'lwa_client_secret': self.lwa_client_secret,
+            'marketplace': self.marketplace,
+        }
+    
+    def increment_api_call_count(self, is_error: bool = False):
+        """Incrementa i contatori delle chiamate API."""
+        self.total_api_calls += 1
+        if is_error:
+            self.total_api_errors += 1
+        self.save(update_fields=['total_api_calls', 'total_api_errors'])
+    
+    def update_test_result(self, success: bool, message: str = ""):
+        """Aggiorna il risultato dell'ultimo test di connessione."""
+        from django.utils import timezone
+        self.last_test_at = timezone.now()
+        self.last_test_success = success
+        self.last_test_message = message
+        self.save(update_fields=['last_test_at', 'last_test_success', 'last_test_message'])
+    
+    def get_success_rate(self):
+        """Calcola il tasso di successo delle chiamate API."""
+        if self.total_api_calls == 0:
+            return 0.0
+        return ((self.total_api_calls - self.total_api_errors) / self.total_api_calls) * 100
+
+
 class ShipmentStatusUpdate(models.Model):
     """Notifica di cambio stato di una spedizione."""
     

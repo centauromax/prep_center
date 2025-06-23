@@ -1,0 +1,428 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configurazioni Amazon SP-API{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fab fa-amazon text-warning"></i>
+            Configurazioni Amazon SP-API
+        </h2>
+        <div>
+            <span class="badge badge-info me-2" id="sp-api-status">
+                <i class="fas fa-circle"></i> Verifica stato...
+            </span>
+            <a href="/admin/prep_management/amazonspiapiconfig/add/" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Nuova Configurazione
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert per stato libreria -->
+    <div id="library-status-alert" class="alert alert-info d-none">
+        <i class="fas fa-info-circle"></i>
+        <span id="library-status-text"></span>
+    </div>
+
+    <!-- Cards delle configurazioni -->
+    <div class="row" id="configurations-container">
+        <!-- Le configurazioni verranno caricate via AJAX -->
+    </div>
+
+    <!-- Loader -->
+    <div class="text-center py-5" id="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Caricamento...</span>
+        </div>
+        <p class="mt-2">Caricamento configurazioni...</p>
+    </div>
+
+    <!-- Template per le card -->
+    <template id="config-card-template">
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 config-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 config-name"></h5>
+                    <div class="status-badges">
+                        <span class="badge active-badge"></span>
+                        <span class="badge environment-badge"></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="marketplace-info mb-3">
+                        <i class="fas fa-globe"></i>
+                        <strong class="marketplace-name"></strong>
+                    </div>
+                    
+                    <div class="stats-row">
+                        <div class="stat-item">
+                            <small class="text-muted">Chiamate API</small>
+                            <div class="api-calls"></div>
+                        </div>
+                        <div class="stat-item">
+                            <small class="text-muted">Tasso successo</small>
+                            <div class="success-rate"></div>
+                        </div>
+                    </div>
+
+                    <div class="test-status mt-3 d-none">
+                        <div class="d-flex align-items-center">
+                            <i class="test-icon"></i>
+                            <div class="ms-2">
+                                <small class="text-muted">Ultimo test:</small>
+                                <div class="test-message"></div>
+                                <small class="test-time text-muted"></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="btn-group w-100">
+                        <button class="btn btn-outline-primary btn-test-connection">
+                            <i class="fas fa-plug"></i> Test
+                        </button>
+                        <a class="btn btn-outline-secondary btn-edit" href="#">
+                            <i class="fas fa-edit"></i> Modifica
+                        </a>
+                        <button class="btn btn-outline-info btn-view-details">
+                            <i class="fas fa-eye"></i> Dettagli
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+
+<!-- Modal per dettagli configurazione -->
+<div class="modal fade" id="configDetailsModal" tabindex="-1" aria-labelledby="configDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="configDetailsModalLabel">Dettagli Configurazione SP-API</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="config-details-content">
+                    <!-- Contenuto caricato dinamicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.config-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.config-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.status-badges {
+    display: flex;
+    gap: 5px;
+}
+
+.active-badge.active {
+    background-color: #28a745;
+    color: white;
+}
+
+.active-badge.inactive {
+    background-color: #dc3545;
+    color: white;
+}
+
+.environment-badge.production {
+    background-color: #dc3545;
+    color: white;
+}
+
+.environment-badge.sandbox {
+    background-color: #ffc107;
+    color: #000;
+}
+
+.stats-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.stat-item {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+
+.marketplace-info {
+    padding: 8px 12px;
+    background: #e3f2fd;
+    border-radius: 5px;
+    color: #1976d2;
+}
+
+.test-status .test-icon.success {
+    color: #28a745;
+}
+
+.test-status .test-icon.error {
+    color: #dc3545;
+}
+
+.btn-test-connection.testing {
+    pointer-events: none;
+}
+
+.btn-test-connection.testing i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadConfigurations();
+});
+
+async function loadConfigurations() {
+    try {
+        const response = await fetch('/prep_management/sp-api/config/');
+        const data = await response.json();
+        
+        // Nascondi loader
+        document.getElementById('loading-spinner').style.display = 'none';
+        
+        // Aggiorna stato libreria
+        updateLibraryStatus(data.sp_api_available);
+        
+        if (data.success) {
+            renderConfigurations(data.configurations);
+        } else {
+            showError('Errore nel caricamento delle configurazioni');
+        }
+    } catch (error) {
+        document.getElementById('loading-spinner').style.display = 'none';
+        showError('Errore di connessione: ' + error.message);
+    }
+}
+
+function updateLibraryStatus(available) {
+    const statusElement = document.getElementById('sp-api-status');
+    const alertElement = document.getElementById('library-status-alert');
+    const alertText = document.getElementById('library-status-text');
+    
+    if (available) {
+        statusElement.innerHTML = '<i class="fas fa-circle text-success"></i> SP-API Disponibile';
+        statusElement.className = 'badge bg-success';
+    } else {
+        statusElement.innerHTML = '<i class="fas fa-circle text-danger"></i> SP-API Non Disponibile';
+        statusElement.className = 'badge bg-danger';
+        alertElement.classList.remove('d-none');
+        alertElement.className = 'alert alert-warning';
+        alertText.textContent = 'Libreria Amazon SP-API non installata. Eseguire: pip install python-amazon-sp-api';
+    }
+}
+
+function renderConfigurations(configurations) {
+    const container = document.getElementById('configurations-container');
+    const template = document.getElementById('config-card-template');
+    
+    if (configurations.length === 0) {
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info text-center">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <h5>Nessuna configurazione trovata</h5>
+                    <p>Aggiungi la prima configurazione Amazon SP-API per iniziare.</p>
+                    <a href="/admin/prep_management/amazonspiapiconfig/add/" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Crea Configurazione
+                    </a>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = '';
+    
+    configurations.forEach(config => {
+        const cardElement = template.content.cloneNode(true);
+        
+        // Popola i dati
+        cardElement.querySelector('.config-name').textContent = config.name;
+        cardElement.querySelector('.marketplace-name').textContent = config.marketplace;
+        cardElement.querySelector('.api-calls').textContent = config.total_api_calls.toLocaleString();
+        cardElement.querySelector('.success-rate').textContent = config.success_rate + '%';
+        
+        // Badge stato
+        const activeBadge = cardElement.querySelector('.active-badge');
+        activeBadge.textContent = config.is_active ? 'Attiva' : 'Inattiva';
+        activeBadge.className = `badge ${config.is_active ? 'active' : 'inactive'}`;
+        
+        // Badge ambiente
+        const envBadge = cardElement.querySelector('.environment-badge');
+        envBadge.textContent = config.is_sandbox ? 'Sandbox' : 'Produzione';
+        envBadge.className = `badge ${config.is_sandbox ? 'sandbox' : 'production'}`;
+        
+        // Test status
+        if (config.last_test_at) {
+            const testStatus = cardElement.querySelector('.test-status');
+            testStatus.classList.remove('d-none');
+            
+            const testIcon = cardElement.querySelector('.test-icon');
+            testIcon.className = `fas ${config.last_test_success ? 'fa-check-circle success' : 'fa-times-circle error'}`;
+            
+            cardElement.querySelector('.test-message').textContent = config.last_test_message || 'Test completato';
+            cardElement.querySelector('.test-time').textContent = formatDateTime(config.last_test_at);
+        }
+        
+        // Event listeners
+        const testButton = cardElement.querySelector('.btn-test-connection');
+        testButton.addEventListener('click', () => testConnection(config.id, testButton));
+        
+        const editButton = cardElement.querySelector('.btn-edit');
+        editButton.href = `/admin/prep_management/amazonspiapiconfig/${config.id}/change/`;
+        
+        const detailsButton = cardElement.querySelector('.btn-view-details');
+        detailsButton.addEventListener('click', () => showConfigDetails(config));
+        
+        container.appendChild(cardElement);
+    });
+}
+
+async function testConnection(configId, button) {
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+    button.classList.add('testing');
+    
+    try {
+        const response = await fetch(`/prep_management/sp-api/test/${configId}/`, {
+            method: 'POST',
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert('success', 'Test connessione riuscito: ' + result.message);
+        } else {
+            showAlert('danger', 'Test connessione fallito: ' + result.error);
+        }
+        
+        // Ricarica configurazioni per aggiornare lo stato
+        setTimeout(() => loadConfigurations(), 1000);
+        
+    } catch (error) {
+        showAlert('danger', 'Errore durante il test: ' + error.message);
+    } finally {
+        button.innerHTML = originalHTML;
+        button.classList.remove('testing');
+    }
+}
+
+function showConfigDetails(config) {
+    // Usa Bootstrap 5 API
+    const modal = new bootstrap.Modal(document.getElementById('configDetailsModal'));
+    const content = document.getElementById('config-details-content');
+    
+    content.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Informazioni Generali</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Nome:</strong></td><td>${config.name}</td></tr>
+                    <tr><td><strong>Marketplace:</strong></td><td>${config.marketplace}</td></tr>
+                    <tr><td><strong>Stato:</strong></td><td>
+                        <span class="badge ${config.is_active ? 'bg-success' : 'bg-secondary'}">
+                            ${config.is_active ? 'Attiva' : 'Inattiva'}
+                        </span>
+                    </td></tr>
+                    <tr><td><strong>Ambiente:</strong></td><td>
+                        <span class="badge ${config.is_sandbox ? 'bg-warning text-dark' : 'bg-danger'}">
+                            ${config.is_sandbox ? 'Sandbox' : 'Produzione'}
+                        </span>
+                    </td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Statistiche Utilizzo</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Chiamate API:</strong></td><td>${config.total_api_calls.toLocaleString()}</td></tr>
+                    <tr><td><strong>Errori API:</strong></td><td>${config.total_api_errors.toLocaleString()}</td></tr>
+                    <tr><td><strong>Tasso successo:</strong></td><td>${config.success_rate}%</td></tr>
+                    <tr><td><strong>Creata il:</strong></td><td>${formatDateTime(config.created_at)}</td></tr>
+                    <tr><td><strong>Aggiornata il:</strong></td><td>${formatDateTime(config.updated_at)}</td></tr>
+                </table>
+            </div>
+        </div>
+        
+        ${config.last_test_at ? `
+        <div class="mt-3">
+            <h6>Ultimo Test Connessione</h6>
+            <div class="alert ${config.last_test_success ? 'alert-success' : 'alert-danger'}">
+                <i class="fas ${config.last_test_success ? 'fa-check-circle' : 'fa-times-circle'}"></i>
+                <strong>Risultato:</strong> ${config.last_test_message}<br>
+                <small>Eseguito il: ${formatDateTime(config.last_test_at)}</small>
+            </div>
+        </div>
+        ` : ''}
+    `;
+    
+    modal.show();
+}
+
+function formatDateTime(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('it-IT');
+}
+
+function showAlert(type, message) {
+    const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHTML);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            bootstrap.Alert.getOrCreateInstance(alert).close();
+        }
+    }, 5000);
+}
+
+function showError(message) {
+    const container = document.getElementById('configurations-container');
+    container.innerHTML = `
+        <div class="col-12">
+            <div class="alert alert-danger text-center">
+                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                <h5>Errore</h5>
+                <p>${message}</p>
+                <button class="btn btn-outline-danger" onclick="loadConfigurations()">
+                    <i class="fas fa-redo"></i> Riprova
+                </button>
+            </div>
+        </div>
+    `;
+}
+</script>
+{% endblock %} 
