@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Amazon SP-API - Ordini</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .status-badge {
+            font-size: 0.75em;
+        }
+        .order-card {
+            transition: transform 0.2s;
+        }
+        .order-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <!-- Header -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h1><i class="fas fa-shopping-cart text-warning"></i> Test Amazon SP-API - Ordini</h1>
+                        <p class="text-muted">Testa la connessione SP-API e visualizza gli ultimi ordini Amazon</p>
+                    </div>
+                    <a href="/prep_management/sp-api/config/" class="btn btn-outline-primary">
+                        <i class="fas fa-cog"></i> Gestisci Configurazioni
+                    </a>
+                </div>
+
+                <!-- Test Form -->
+                <div class="test-section">
+                    <h3><i class="fas fa-flask text-primary"></i> Parametri Test</h3>
+                    <form id="testForm">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Configurazione SP-API</label>
+                                <select id="configSelect" class="form-select" required>
+                                    <option value="">Seleziona configurazione...</option>
+                                </select>
+                                <small class="text-muted">Se vuoto, <a href="/admin/prep_management/amazonspapiconfig/add/" target="_blank">aggiungi configurazione</a></small>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Data Inizio</label>
+                                <input type="date" id="startDate" class="form-control" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Data Fine</label>
+                                <input type="date" id="endDate" class="form-control" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="fas fa-search"></i> Carica Ordini
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Loading -->
+                <div class="loading-spinner text-center py-4" id="loadingSpinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Caricamento...</span>
+                    </div>
+                    <p class="mt-2">Recupero ordini da Amazon...</p>
+                </div>
+
+                <!-- Results -->
+                <div id="resultsSection" style="display: none;">
+                    <!-- Status Alert -->
+                    <div id="statusAlert"></div>
+                    
+                    <!-- Orders Grid -->
+                    <div id="ordersGrid" class="row">
+                        <!-- Orders will be populated here -->
+                    </div>
+
+                    <!-- Pagination -->
+                    <nav aria-label="Paginazione ordini" id="paginationNav" style="display: none;">
+                        <ul class="pagination justify-content-center">
+                            <!-- Pagination will be populated here -->
+                        </ul>
+                    </nav>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5><i class="fas fa-tools text-info"></i> Test Rapidi</h5>
+                                <button class="btn btn-outline-info btn-sm me-2" onclick="testConnection()">
+                                    <i class="fas fa-plug"></i> Test Connessione
+                                </button>
+                                <button class="btn btn-outline-warning btn-sm me-2" onclick="getAccountInfo()">
+                                    <i class="fas fa-user"></i> Info Account
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" onclick="getInventory()">
+                                    <i class="fas fa-boxes"></i> Inventario
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5><i class="fas fa-info-circle text-secondary"></i> Informazioni</h5>
+                                <p class="small mb-1"><strong>Marketplace:</strong> <span id="currentMarketplace">-</span></p>
+                                <p class="small mb-1"><strong>Configurazione:</strong> <span id="currentConfig">-</span></p>
+                                <p class="small mb-0"><strong>Ultimo Test:</strong> <span id="lastTest">-</span></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConfigurations();
+            setDefaultDates();
+        });
+
+        // Load available configurations
+        async function loadConfigurations() {
+            try {
+                const response = await fetch('/prep_management/sp-api/config/');
+                const data = await response.json();
+                
+                const select = document.getElementById('configSelect');
+                select.innerHTML = '<option value="">Seleziona configurazione...</option>';
+                
+                if (data.configurations && data.configurations.length > 0) {
+                    data.configurations.forEach(config => {
+                        const option = document.createElement('option');
+                        option.value = config.id;
+                        option.textContent = `${config.name} (${config.marketplace})`;
+                        if (config.is_active) {
+                            option.selected = true;
+                            updateCurrentInfo(config);
+                        }
+                        select.appendChild(option);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">Nessuna configurazione disponibile</option>';
+                }
+            } catch (error) {
+                console.error('Errore caricamento configurazioni:', error);
+                showAlert('Errore nel caricamento delle configurazioni', 'danger');
+            }
+        }
+
+        // Set default date range (last 7 days)
+        function setDefaultDates() {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 7);
+            
+            document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+            document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+        }
+
+        // Update current info display
+        function updateCurrentInfo(config) {
+            document.getElementById('currentMarketplace').textContent = config.marketplace || '-';
+            document.getElementById('currentConfig').textContent = config.name || '-';
+            document.getElementById('lastTest').textContent = config.last_test_at || 'Mai testato';
+        }
+
+        // Handle form submission
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const configId = document.getElementById('configSelect').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            if (!configId) {
+                showAlert('Seleziona una configurazione SP-API', 'warning');
+                return;
+            }
+            
+            await loadOrders(configId, startDate, endDate);
+        });
+
+        // Load orders from Amazon
+        async function loadOrders(configId, startDate, endDate) {
+            showLoading(true);
+            hideResults();
+            
+            try {
+                const url = `/prep_management/sp-api/orders/?config_id=${configId}&created_after=${startDate}&created_before=${endDate}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                showLoading(false);
+                
+                if (data.success) {
+                    displayOrders(data.orders || []);
+                    showAlert(`✅ Trovati ${data.total_orders || 0} ordini nel periodo selezionato`, 'success');
+                } else {
+                    showAlert(`❌ Errore: ${data.error || 'Errore sconosciuto'}`, 'danger');
+                }
+                
+                showResults();
+            } catch (error) {
+                showLoading(false);
+                showAlert(`❌ Errore di connessione: ${error.message}`, 'danger');
+                showResults();
+            }
+        }
+
+        // Display orders in grid
+        function displayOrders(orders) {
+            const grid = document.getElementById('ordersGrid');
+            grid.innerHTML = '';
+            
+            if (orders.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">Nessun ordine trovato</h4>
+                        <p class="text-muted">Prova con un intervallo di date diverso</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            orders.forEach(order => {
+                const orderCard = createOrderCard(order);
+                grid.appendChild(orderCard);
+            });
+        }
+
+        // Create order card element
+        function createOrderCard(order) {
+            const col = document.createElement('div');
+            col.className = 'col-lg-4 col-md-6 mb-3';
+            
+            const statusClass = getStatusBadgeClass(order.order_status);
+            const totalAmount = order.order_total ? `€${order.order_total.amount}` : 'N/D';
+            
+            col.innerHTML = `
+                <div class="card order-card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong>${order.amazon_order_id}</strong>
+                        <span class="badge bg-${statusClass} status-badge">${order.order_status}</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text small">
+                            <i class="fas fa-calendar"></i> <strong>Data:</strong> ${formatDate(order.purchase_date)}<br>
+                            <i class="fas fa-euro-sign"></i> <strong>Totale:</strong> ${totalAmount}<br>
+                            <i class="fas fa-truck"></i> <strong>Tipo:</strong> ${order.fulfillment_channel || 'N/D'}<br>
+                            <i class="fas fa-map-marker-alt"></i> <strong>Marketplace:</strong> ${order.marketplace_id || 'N/D'}
+                        </p>
+                    </div>
+                    <div class="card-footer">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.amazon_order_id}')">
+                            <i class="fas fa-eye"></i> Dettagli
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            return col;
+        }
+
+        // Get status badge color
+        function getStatusBadgeClass(status) {
+            const statusMap = {
+                'Pending': 'warning',
+                'Unshipped': 'info',
+                'PartiallyShipped': 'primary',
+                'Shipped': 'success',
+                'Canceled': 'danger',
+                'Unfulfillable': 'dark'
+            };
+            return statusMap[status] || 'secondary';
+        }
+
+        // Format date for display
+        function formatDate(dateString) {
+            if (!dateString) return 'N/D';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('it-IT', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // View order details
+        async function viewOrderDetails(orderId) {
+            const configId = document.getElementById('configSelect').value;
+            if (!configId) {
+                showAlert('Seleziona una configurazione', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/prep_management/sp-api/orders/${orderId}/?config_id=${configId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show modal with order details
+                    showOrderModal(data.order);
+                } else {
+                    showAlert(`Errore: ${data.error}`, 'danger');
+                }
+            } catch (error) {
+                showAlert(`Errore: ${error.message}`, 'danger');
+            }
+        }
+
+        // Show order details modal
+        function showOrderModal(order) {
+            // Simple alert for now - you can implement a proper modal
+            alert(`Dettagli Ordine ${order.amazon_order_id}:\n\n` +
+                  `Status: ${order.order_status}\n` +
+                  `Data: ${formatDate(order.purchase_date)}\n` +
+                  `Totale: ${order.order_total ? order.order_total.amount + ' ' + order.order_total.currency_code : 'N/D'}\n` +
+                  `Items: ${order.number_of_items_shipped || 0} spediti, ${order.number_of_items_unshipped || 0} non spediti`);
+        }
+
+        // Quick test functions
+        async function testConnection() {
+            const configId = document.getElementById('configSelect').value;
+            if (!configId) {
+                showAlert('Seleziona una configurazione', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/prep_management/sp-api/test/${configId}/`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('✅ Connessione riuscita!', 'success');
+                } else {
+                    showAlert(`❌ Connessione fallita: ${data.error}`, 'danger');
+                }
+            } catch (error) {
+                showAlert(`❌ Errore: ${error.message}`, 'danger');
+            }
+        }
+
+        async function getAccountInfo() {
+            const configId = document.getElementById('configSelect').value;
+            if (!configId) {
+                showAlert('Seleziona una configurazione', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/prep_management/sp-api/account/?config_id=${configId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const info = data.account_info;
+                    alert(`Account Info:\n\nSeller ID: ${info.seller_id}\nMarketplace: ${info.marketplace_id}\nNome: ${info.name || 'N/D'}`);
+                } else {
+                    showAlert(`❌ Errore: ${data.error}`, 'danger');
+                }
+            } catch (error) {
+                showAlert(`❌ Errore: ${error.message}`, 'danger');
+            }
+        }
+
+        async function getInventory() {
+            const configId = document.getElementById('configSelect').value;
+            if (!configId) {
+                showAlert('Seleziona una configurazione', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/prep_management/sp-api/inventory/?config_id=${configId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const total = data.inventory_summary ? data.inventory_summary.length : 0;
+                    showAlert(`✅ Inventario caricato: ${total} prodotti`, 'success');
+                } else {
+                    showAlert(`❌ Errore: ${data.error}`, 'danger');
+                }
+            } catch (error) {
+                showAlert(`❌ Errore: ${error.message}`, 'danger');
+            }
+        }
+
+        // UI Helper functions
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+        }
+
+        function showResults() {
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function hideResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+
+        function showAlert(message, type) {
+            const alertDiv = document.getElementById('statusAlert');
+            alertDiv.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html> 

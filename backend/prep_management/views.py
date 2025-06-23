@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
@@ -4065,46 +4065,58 @@ def sp_api_create_report(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def sp_api_account_info(request):
-    """Recupera informazioni account seller Amazon."""
+    """
+    Endpoint per ottenere informazioni account seller Amazon
+    """
     try:
-        marketplace = request.GET.get('marketplace', 'IT')
-        
-        # Trova configurazione attiva
-        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
-        if not config:
+        config_id = request.GET.get('config_id')
+        if not config_id:
             return JsonResponse({
-                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
-            }, status=404)
+                'success': False, 
+                'error': 'config_id parameter required'
+            })
+
+        config = get_object_or_404(AmazonSPAPIConfig, id=config_id)
         
         if not SP_API_AVAILABLE:
             return JsonResponse({
-                'error': 'Libreria SP-API non disponibile'
-            }, status=500)
+                'success': False,
+                'error': 'SP-API library not available'
+            })
         
-        # Crea client
-        credentials = config.get_credentials_dict()
-        client = AmazonSPAPIClient(credentials=credentials)
+        client = AmazonSPAPIClient(
+            refresh_token=config.refresh_token,
+            lwa_app_id=config.lwa_app_id,
+            lwa_client_secret=config.lwa_client_secret,
+            marketplace=config.marketplace
+        )
         
-        # Recupera info account
+        # Ottieni info account
         account_info = client.get_account_info()
-        marketplace_info = client.get_marketplace_participation()
         
-        config.increment_api_call_count()
+        # Aggiorna statistiche
+        config.increment_api_call_count(success=True)
         
         return JsonResponse({
             'success': True,
             'account_info': account_info,
-            'marketplace_participation': marketplace_info,
-            'marketplace': marketplace,
-            'config_used': config.name,
-            'is_sandbox': config.is_sandbox
+            'config_name': config.name,
+            'marketplace': config.marketplace
         })
         
     except Exception as e:
-        logger.error(f"Errore recupero info account SP-API: {e}", exc_info=True)
-        try:
-            config.increment_api_call_count(is_error=True)
-        except:
-            pass
-        return JsonResponse({'error': str(e)}, status=500)
+        logger.error(f"Errore SP-API account info: {e}")
+        if 'config' in locals():
+            config.increment_api_call_count(success=False)
+        
+        return JsonResponse({
+            'success': False, 
+            'error': str(e)
+        })
+
+def sp_api_test_orders_page(request):
+    """
+    Pagina di test user-friendly per testare SP-API orders
+    """
+    return render(request, 'prep_management/sp_api_test_orders.html')
 
