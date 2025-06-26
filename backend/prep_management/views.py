@@ -4125,3 +4125,127 @@ def sp_api_test_orders_page(request):
     """
     return render(request, 'prep_management/sp_api_test_orders.html')
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_test_lwa_only(request, config_id):
+    """Testa SOLO l'LWA Token Exchange per una configurazione SP-API specifica."""
+    try:
+        config = AmazonSPAPIConfig.objects.get(id=config_id)
+        
+        # Ottieni credenziali
+        credentials = config.get_credentials_dict()
+        
+        # Test LWA Token Exchange diretto
+        import requests
+        
+        logger.info(f"[LWA-TEST] Testing LWA token exchange for config {config_id}")
+        
+        lwa_response = requests.post(
+            'https://api.amazon.com/auth/o2/token',
+            data={
+                'grant_type': 'refresh_token',
+                'refresh_token': credentials.get('refresh_token'),
+                'client_id': credentials.get('lwa_app_id'),
+                'client_secret': credentials.get('lwa_client_secret')
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            timeout=30
+        )
+        
+        response_data = {
+            'success': lwa_response.status_code == 200,
+            'status_code': lwa_response.status_code,
+            'config_used': {
+                'id': config.id,
+                'name': config.name,
+                'marketplace': config.marketplace
+            },
+            'credentials_summary': {
+                'refresh_token': f"{'*' * 10}...{credentials.get('refresh_token', '')[-4:]}" if credentials.get('refresh_token') else 'MISSING',
+                'lwa_app_id': credentials.get('lwa_app_id', 'MISSING'),
+                'lwa_client_secret': f"{'*' * 10}...{credentials.get('lwa_client_secret', '')[-4:]}" if credentials.get('lwa_client_secret') else 'MISSING'
+            }
+        }
+        
+        if lwa_response.status_code == 200:
+            lwa_data = lwa_response.json()
+            response_data.update({
+                'message': 'LWA Token Exchange riuscito!',
+                'access_token_present': bool(lwa_data.get('access_token')),
+                'token_type': lwa_data.get('token_type'),
+                'expires_in': lwa_data.get('expires_in'),
+                'scope': lwa_data.get('scope')
+            })
+        else:
+            try:
+                error_data = lwa_response.json()
+                response_data.update({
+                    'message': 'LWA Token Exchange fallito',
+                    'error': error_data.get('error', 'Unknown error'),
+                    'error_description': error_data.get('error_description', 'No description'),
+                    'raw_response': lwa_response.text
+                })
+            except:
+                response_data.update({
+                    'message': 'LWA Token Exchange fallito - errore parsing response',
+                    'raw_response': lwa_response.text
+                })
+        
+        return JsonResponse(response_data)
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
+    except Exception as e:
+        logger.error(f"Errore test LWA: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_test_connection(request, config_id):
+    """Testa la connessione per una configurazione SP-API specifica."""
+    try:
+        config = AmazonSPAPIConfig.objects.get(id=config_id)
+        
+        if not SP_API_AVAILABLE:
+            config.update_test_result(False, "Libreria SP-API non disponibile")
+            return JsonResponse({
+                'error': 'Libreria SP-API non disponibile. Installare con: pip install python-amazon-sp-api'
+            }, status=500)
+        
+        # Crea client con le credenziali della configurazione
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Test connessione (recupero info account)
+        test_result = client.test_connection()
+        
+        if test_result['success']:
+            config.update_test_result(True, test_result['message'])
+            return JsonResponse({
+                'success': True,
+                'message': test_result['message'],
+                'account_info': test_result.get('account_info'),
+                'test_time': timezone.now().isoformat()
+            })
+        else:
+            config.update_test_result(False, test_result['message'])
+            return JsonResponse({
+                'success': False,
+                'error': test_result['message'],
+                'debug_info': test_result.get('debug_info', {}),
+                'detailed_errors': test_result.get('detailed_errors', {}),
+                'troubleshooting': test_result.get('troubleshooting', {}),
+                'lwa_status_code': test_result.get('lwa_status_code'),
+                'full_error_data': test_result  # Include tutto per debug completo
+            }, status=400)
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
+    except Exception as e:
+        logger.error(f"Errore test connessione SP-API: {e}", exc_info=True)
+        try:
+            config.update_test_result(False, str(e))
+        except:
+            pass
+        return JsonResponse({'error': str(e)}, status=500)
+
