@@ -404,15 +404,24 @@ class AmazonSPAPIClient:
                         'debug_info': debug_info
                     }
                 except Exception as e3:
+                    import traceback
                     return {
                         'success': False,
-                        'message': f'Tutti i test falliti',
-                        'error': str(e),
+                        'message': f'Tutte le API SP-API sono fallite - possibile problema credenziali',
+                        'error': f'Primary error: {str(e)}',
                         'debug_info': debug_info,
                         'detailed_errors': {
                             'orders_error': str(e),
+                            'orders_traceback': traceback.format_exc() if 'e' in locals() else 'N/A',
                             'participation_error': str(e2),
-                            'account_error': str(e3)
+                            'account_error': str(e3),
+                            'final_traceback': traceback.format_exc()
+                        },
+                        'troubleshooting': {
+                            'check_refresh_token': 'Verifica che il refresh token sia corretto e non scaduto',
+                            'check_app_status': 'Verifica che l\'app Amazon sia autorizzata correttamente',
+                            'check_marketplace': f'Marketplace testato: {self.marketplace}',
+                            'check_credentials': 'Verifica LWA app ID e client secret'
                         }
                     }
 
