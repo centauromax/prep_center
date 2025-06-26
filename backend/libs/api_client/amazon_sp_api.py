@@ -74,19 +74,20 @@ class AmazonSPAPIClient:
         """Ottiene il marketplace configurato"""
         marketplace_code = self.credentials.get('marketplace', 'IT')
         
-        # Mappa marketplace supportati
-        if Marketplaces:
-            marketplace_mapping = {
-                'IT': Marketplaces.IT,
-                'DE': Marketplaces.DE,
-                'FR': Marketplaces.FR,
-                'ES': Marketplaces.ES,
-                'GB': Marketplaces.GB,
-                'US': Marketplaces.US
-            }
-            return marketplace_mapping.get(marketplace_code, marketplace_code)
+        # Mappa marketplace ID Amazon ufficiali
+        # Questi sono gli ID specifici richiesti dall'API Amazon SP-API
+        marketplace_id_mapping = {
+            'IT': 'APJ6JRA9NG5V4',  # Amazon.it
+            'DE': 'A1PA6795UKMFR9', # Amazon.de  
+            'FR': 'A13V1IB3VIYZZH', # Amazon.fr
+            'ES': 'A1RKKUPIHCS9HS', # Amazon.es
+            'GB': 'A1F83G8C2ARO7P', # Amazon.co.uk
+            'US': 'ATVPDKIKX0DER'   # Amazon.com
+        }
         
-        return marketplace_code
+        marketplace_id = marketplace_id_mapping.get(marketplace_code, 'APJ6JRA9NG5V4')
+        logger.info(f"Marketplace {marketplace_code} mappato a ID: {marketplace_id}")
+        return marketplace_id
 
     def _handle_api_error(self, e: Exception, operation: str) -> None:
         """Gestisce gli errori delle API calls"""
