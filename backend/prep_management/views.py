@@ -4452,3 +4452,127 @@ def sp_api_create_us_test_config(request):
         logger.error(f"Errore creazione config US: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_authorization_status(request):
+    """Monitora lo status dell'autorizzazione SP-API per tutti i marketplace configurati."""
+    try:
+        configs = AmazonSPAPIConfig.objects.filter(is_active=True)
+        
+        if not configs.exists():
+            return JsonResponse({
+                'error': 'Nessuna configurazione SP-API attiva trovata'
+            }, status=404)
+        
+        results = {
+            'timestamp': timezone.now().isoformat(),
+            'configurations': [],
+            'overall_status': 'pending',
+            'summary': {
+                'total_configs': 0,
+                'authorized': 0,
+                'pending': 0,
+                'errors': 0
+            }
+        }
+        
+        from libs.api_client.amazon_sp_api import AmazonSPAPIClient
+        
+        for config in configs:
+            config_result = {
+                'id': config.id,
+                'name': config.name,
+                'marketplace': config.get_marketplace_display(),
+                'marketplace_code': config.marketplace,
+                'last_test_at': config.last_test_at.isoformat() if config.last_test_at else None,
+                'last_test_success': config.last_test_success,
+                'authorization_status': 'unknown',
+                'test_results': {}
+            }
+            
+            # Test rapido solo per marketplace participation (meno invasivo)
+            try:
+                client = AmazonSPAPIClient(config)
+                
+                # Test LWA Token Exchange
+                lwa_test = client._test_lwa_token_exchange()
+                config_result['test_results']['lwa'] = {
+                    'success': lwa_test.get('success', False),
+                    'message': 'LWA Token Exchange OK' if lwa_test.get('success') else 'LWA Failed'
+                }
+                
+                if lwa_test.get('success'):
+                    # Test solo marketplace participation (rapido)
+                    try:
+                        participation_info = client.get_marketplace_participation()
+                        if participation_info.get('success'):
+                            config_result['authorization_status'] = 'authorized'
+                            config_result['test_results']['sp_api'] = {
+                                'success': True,
+                                'message': 'SP-API Authorization ATTIVA!',
+                                'data': participation_info.get('data', {})
+                            }
+                            results['summary']['authorized'] += 1
+                        else:
+                            config_result['authorization_status'] = 'pending'
+                            config_result['test_results']['sp_api'] = {
+                                'success': False,
+                                'message': 'SP-API ancora non autorizzata',
+                                'error': participation_info.get('error', 'Unknown error')
+                            }
+                            results['summary']['pending'] += 1
+                    except Exception as e:
+                        if 'Unauthorized' in str(e) or 'Access to requested resource is denied' in str(e):
+                            config_result['authorization_status'] = 'pending'
+                            config_result['test_results']['sp_api'] = {
+                                'success': False,
+                                'message': 'SP-API Authorization ancora pending',
+                                'error': 'Unauthorized - Waiting for Amazon approval'
+                            }
+                            results['summary']['pending'] += 1
+                        else:
+                            config_result['authorization_status'] = 'error'
+                            config_result['test_results']['sp_api'] = {
+                                'success': False,
+                                'message': 'Errore durante test SP-API',
+                                'error': str(e)
+                            }
+                            results['summary']['errors'] += 1
+                else:
+                    config_result['authorization_status'] = 'error'
+                    results['summary']['errors'] += 1
+                    
+            except Exception as e:
+                config_result['authorization_status'] = 'error'
+                config_result['test_results']['error'] = str(e)
+                results['summary']['errors'] += 1
+                
+            results['configurations'].append(config_result)
+            results['summary']['total_configs'] += 1
+        
+        # Determina status generale
+        if results['summary']['authorized'] > 0:
+            results['overall_status'] = 'authorized'
+        elif results['summary']['errors'] == results['summary']['total_configs']:
+            results['overall_status'] = 'error'
+        else:
+            results['overall_status'] = 'pending'
+            
+        # Aggiorna il database con i risultati
+        for config_data in results['configurations']:
+            try:
+                config = configs.get(id=config_data['id'])
+                sp_api_result = config_data['test_results'].get('sp_api', {})
+                config.update_test_result(
+                    success=sp_api_result.get('success', False),
+                    message=sp_api_result.get('message', 'Test completed')
+                )
+            except Exception:
+                pass  # Ignore update errors
+        
+        return JsonResponse(results, json_dumps_params={'indent': 2})
+        
+    except Exception as e:
+        logger.error(f"Errore monitoraggio autorizzazione SP-API: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
