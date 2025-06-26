@@ -291,7 +291,7 @@ class AmazonSPAPIClient:
     # =============================================================================
 
     def test_connection(self) -> Dict[str, Any]:
-        """Testa la connessione alle SP-API"""
+        """Testa la connessione alle SP-API con debug approfondito"""
         if not SP_API_AVAILABLE:
             return {
                 'success': False,
@@ -305,10 +305,61 @@ class AmazonSPAPIClient:
                 'message': 'Credenziali SP-API mancanti o non valide',
                 'error': 'Configura le variabili environment: AMAZON_SP_API_*'
             }
-            
+        
+        # Debug delle credenziali
+        debug_info = {
+            'marketplace': self.marketplace,
+            'has_refresh_token': bool(self.credentials.get('refresh_token')),
+            'refresh_token_length': len(self.credentials.get('refresh_token', '')),
+            'has_lwa_app_id': bool(self.credentials.get('lwa_app_id')),
+            'has_lwa_client_secret': bool(self.credentials.get('lwa_client_secret')),
+            'credentials_summary': {
+                'refresh_token': f"{'*' * 10}...{self.credentials.get('refresh_token', '')[-4:]}" if self.credentials.get('refresh_token') else 'MISSING',
+                'lwa_app_id': self.credentials.get('lwa_app_id', 'MISSING'),
+                'lwa_client_secret': f"{'*' * 10}...{self.credentials.get('lwa_client_secret', '')[-4:]}" if self.credentials.get('lwa_client_secret') else 'MISSING'
+            }
+        }
+        
         try:
-            # Test più semplice: prova a recuperare ordini (richiede meno permessi)
-            # Usa un intervallo molto piccolo per minimizzare i dati
+            # Test diretto con LWA Token Exchange
+            # Prima di tutto testiamo se il refresh token è valido
+            import requests
+            
+            logger.info(f"[SP-API-TEST] Testing LWA token exchange with marketplace: {self.marketplace}")
+            
+            lwa_response = requests.post(
+                'https://api.amazon.com/auth/o2/token',
+                data={
+                    'grant_type': 'refresh_token',
+                    'refresh_token': self.credentials.get('refresh_token'),
+                    'client_id': self.credentials.get('lwa_app_id'),
+                    'client_secret': self.credentials.get('lwa_client_secret')
+                },
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=30
+            )
+            
+            if lwa_response.status_code != 200:
+                return {
+                    'success': False,
+                    'message': f'LWA Token Exchange fallito: {lwa_response.status_code}',
+                    'error': f'LWA Error: {lwa_response.text}',
+                    'debug_info': debug_info,
+                    'lwa_status_code': lwa_response.status_code
+                }
+            
+            lwa_data = lwa_response.json()
+            access_token = lwa_data.get('access_token')
+            
+            if not access_token:
+                return {
+                    'success': False,
+                    'message': 'LWA Token Exchange riuscito ma nessun access token',
+                    'error': f'LWA Response: {lwa_data}',
+                    'debug_info': debug_info
+                }
+            
+            # Ora testiamo l'API con l'access token ottenuto
             from datetime import datetime, timedelta
             test_date = datetime.utcnow() - timedelta(days=1)
             
@@ -319,9 +370,11 @@ class AmazonSPAPIClient:
             
             return {
                 'success': True,
-                'message': 'Connessione SP-API riuscita',
+                'message': 'Connessione SP-API riuscita dopo LWA token exchange',
                 'test_method': 'get_orders',
-                'orders_count': len(orders_data.get('Orders', []))
+                'orders_count': len(orders_data.get('Orders', [])),
+                'debug_info': debug_info,
+                'lwa_token_valid': True
             }
             
         except Exception as e:
@@ -334,7 +387,8 @@ class AmazonSPAPIClient:
                     'success': True,
                     'message': 'Connessione SP-API riuscita (marketplace participation)',
                     'test_method': 'get_marketplace_participation',
-                    'participation_info': participation_info
+                    'participation_info': participation_info,
+                    'debug_info': debug_info
                 }
             except Exception as e2:
                 logger.error(f"Fallback test fallito: {e2}")
@@ -346,14 +400,16 @@ class AmazonSPAPIClient:
                         'success': True,
                         'message': 'Connessione SP-API riuscita (account info)',
                         'test_method': 'get_account_info',
-                        'account_info': account_info
+                        'account_info': account_info,
+                        'debug_info': debug_info
                     }
                 except Exception as e3:
                     return {
                         'success': False,
-                        'message': f'Connessione SP-API fallita: {str(e)}',
+                        'message': f'Tutti i test falliti',
                         'error': str(e),
-                        'details': {
+                        'debug_info': debug_info,
+                        'detailed_errors': {
                             'orders_error': str(e),
                             'participation_error': str(e2),
                             'account_error': str(e3)
