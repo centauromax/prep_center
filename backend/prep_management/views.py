@@ -4390,3 +4390,65 @@ def sp_api_diagnostic_test(request, config_id):
         logger.error(f"Errore nel test diagnostico SP-API: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_create_us_test_config(request):
+    """Crea una configurazione di test per marketplace US usando le stesse credenziali."""
+    try:
+        # Ottieni la configurazione IT esistente
+        it_config = AmazonSPAPIConfig.objects.get(marketplace='IT', is_active=True)
+        
+        # Verifica se esiste già una config US
+        us_config, created = AmazonSPAPIConfig.objects.get_or_create(
+            marketplace='US',
+            defaults={
+                'name': 'US_Test_Config',
+                'refresh_token': it_config.refresh_token,
+                'lwa_app_id': it_config.lwa_app_id,
+                'lwa_client_secret': it_config.lwa_client_secret,
+                'api_timeout': it_config.api_timeout,
+                'max_retries': it_config.max_retries,
+                'is_active': True,
+                'is_sandbox': it_config.is_sandbox,
+            }
+        )
+        
+        if not created:
+            # Se esiste già, aggiorna le credenziali
+            us_config.refresh_token = it_config.refresh_token
+            us_config.lwa_app_id = it_config.lwa_app_id
+            us_config.lwa_client_secret = it_config.lwa_client_secret
+            us_config.is_active = True
+            us_config.save()
+        
+        result = {
+            'success': True,
+            'created': created,
+            'us_config': {
+                'id': us_config.id,
+                'name': us_config.name,
+                'marketplace': us_config.get_marketplace_display(),
+                'marketplace_code': us_config.marketplace,
+                'is_active': us_config.is_active,
+                'created_at': us_config.created_at.isoformat(),
+                'updated_at': us_config.updated_at.isoformat()
+            },
+            'it_config_used': {
+                'id': it_config.id,
+                'name': it_config.name,
+                'marketplace': it_config.get_marketplace_display()
+            },
+            'message': 'Configurazione US creata/aggiornata con successo using credentials from IT config'
+        }
+        
+        return JsonResponse(result, json_dumps_params={'indent': 2})
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return JsonResponse({
+            'error': 'Configurazione IT non trovata',
+            'message': 'È necessaria una configurazione SP-API per marketplace IT per copiare le credenziali'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Errore creazione config US: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+

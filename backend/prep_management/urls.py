@@ -82,6 +82,7 @@ urlpatterns = [
     path('sp-api/test/<int:config_id>/', views.sp_api_test_connection, name='sp_api_test_connection'),
     path('sp-api/test-lwa/<int:config_id>/', views.sp_api_test_lwa_only, name='sp_api_test_lwa_only'),
     path('sp-api/diagnostic/<int:config_id>/', views.sp_api_diagnostic_test, name='sp_api_diagnostic_test'),
+    path('sp-api/create-us-test/', views.sp_api_create_us_test_config, name='sp_api_create_us_test_config'),
     path('sp-api/orders/', views.sp_api_orders_list, name='sp_api_orders_list'),
     path('sp-api/orders/<str:order_id>/', views.sp_api_order_detail, name='sp_api_order_detail'),
     path('sp-api/inventory/', views.sp_api_inventory_summary, name='sp_api_inventory_summary'),
