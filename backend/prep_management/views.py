@@ -4249,3 +4249,144 @@ def sp_api_test_connection(request, config_id):
             pass
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def sp_api_diagnostic_test(request, config_id):
+    """Test diagnostico completo per SP-API con diversi marketplace e endpoint."""
+    try:
+        config = AmazonSPAPIConfig.objects.get(id=config_id)
+        credentials = config.get_credentials_dict()
+        
+        from libs.api_client.amazon_sp_api import AmazonSPAPIClient
+        
+        results = {
+            'config_info': {
+                'id': config.id,
+                'name': config.name,
+                'marketplace': config.marketplace,
+                'marketplace_code': config.marketplace_code,
+                'is_sandbox': config.is_sandbox
+            },
+            'lwa_test': {},
+            'marketplace_tests': {},
+            'api_tests': {}
+        }
+        
+        # Test LWA Token Exchange
+        import requests
+        try:
+            lwa_response = requests.post(
+                'https://api.amazon.com/auth/o2/token',
+                data={
+                    'grant_type': 'refresh_token',
+                    'refresh_token': credentials.get('refresh_token'),
+                    'client_id': credentials.get('lwa_app_id'),
+                    'client_secret': credentials.get('lwa_client_secret')
+                },
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=30
+            )
+            
+            if lwa_response.status_code == 200:
+                lwa_data = lwa_response.json()
+                results['lwa_test'] = {
+                    'success': True,
+                    'access_token_length': len(lwa_data.get('access_token', '')),
+                    'expires_in': lwa_data.get('expires_in'),
+                    'token_type': lwa_data.get('token_type')
+                }
+                access_token = lwa_data.get('access_token')
+            else:
+                results['lwa_test'] = {
+                    'success': False,
+                    'status_code': lwa_response.status_code,
+                    'error': lwa_response.text
+                }
+                return JsonResponse(results)
+        except Exception as e:
+            results['lwa_test'] = {'success': False, 'error': str(e)}
+            return JsonResponse(results)
+        
+        # Test diversi marketplace endpoints
+        marketplace_endpoints = {
+            'IT': 'https://sellingpartnerapi-eu.amazon.com',
+            'ES': 'https://sellingpartnerapi-eu.amazon.com', 
+            'FR': 'https://sellingpartnerapi-eu.amazon.com',
+            'DE': 'https://sellingpartnerapi-eu.amazon.com',
+            'UK': 'https://sellingpartnerapi-eu.amazon.com',
+            'US': 'https://sellingpartnerapi-na.amazon.com'
+        }
+        
+        for marketplace, endpoint in marketplace_endpoints.items():
+            try:
+                # Test marketplace participation per ogni regione
+                marketplace_ids = {
+                    'IT': 'APJ6JRA9NG5V4',
+                    'ES': 'A1RKKUPIHCS9HS', 
+                    'FR': 'A13V1IB3VIYZZH',
+                    'DE': 'A1PA6795UKMFR9',
+                    'UK': 'A1F83G8C2ARO7P',
+                    'US': 'ATVPDKIKX0DER'
+                }
+                
+                headers = {
+                    'Authorization': f'Bearer {access_token}',
+                    'x-amz-access-token': access_token,
+                    'Content-Type': 'application/json'
+                }
+                
+                # Test sellers/v1/marketplaceParticipations
+                participation_url = f"{endpoint}/sellers/v1/marketplaceParticipations"
+                participation_response = requests.get(participation_url, headers=headers, timeout=30)
+                
+                results['marketplace_tests'][marketplace] = {
+                    'endpoint': endpoint,
+                    'marketplace_id': marketplace_ids.get(marketplace),
+                    'participation_test': {
+                        'status_code': participation_response.status_code,
+                        'success': participation_response.status_code == 200,
+                        'response': participation_response.text[:500] if participation_response.status_code != 200 else 'OK'
+                    }
+                }
+                
+                # Se participation funziona, testa orders
+                if participation_response.status_code == 200:
+                    orders_url = f"{endpoint}/orders/v0/orders"
+                    orders_params = {
+                        'MarketplaceIds': marketplace_ids.get(marketplace),
+                        'CreatedAfter': '2024-01-01T00:00:00Z'
+                    }
+                    orders_response = requests.get(orders_url, headers=headers, params=orders_params, timeout=30)
+                    
+                    results['marketplace_tests'][marketplace]['orders_test'] = {
+                        'status_code': orders_response.status_code,
+                        'success': orders_response.status_code == 200,
+                        'response': orders_response.text[:300] if orders_response.status_code != 200 else 'OK'
+                    }
+                    
+            except Exception as e:
+                results['marketplace_tests'][marketplace] = {'error': str(e)}
+        
+        # Test con il client interno
+        try:
+            client = AmazonSPAPIClient(config)
+            
+            # Test account info
+            account_result = client.get_account_info()
+            results['api_tests']['account_info'] = {
+                'success': account_result.get('success', False),
+                'data': account_result.get('data', 'No data'),
+                'error': account_result.get('error', 'No error')
+            }
+            
+        except Exception as e:
+            results['api_tests'] = {'client_error': str(e)}
+        
+        return JsonResponse(results, json_dumps_params={'indent': 2})
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
+    except Exception as e:
+        logger.error(f"Errore nel test diagnostico SP-API: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
