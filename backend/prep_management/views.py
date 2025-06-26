@@ -4263,8 +4263,8 @@ def sp_api_diagnostic_test(request, config_id):
             'config_info': {
                 'id': config.id,
                 'name': config.name,
-                'marketplace': config.marketplace,
-                'marketplace_code': config.marketplace_code,
+                'marketplace': config.get_marketplace_display(),
+                'marketplace_code': config.marketplace,
                 'is_sandbox': config.is_sandbox
             },
             'lwa_test': {},
