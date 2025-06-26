@@ -3794,7 +3794,12 @@ def sp_api_test_connection(request, config_id):
             config.update_test_result(False, test_result['message'])
             return JsonResponse({
                 'success': False,
-                'error': test_result['message']
+                'error': test_result['message'],
+                'debug_info': test_result.get('debug_info', {}),
+                'detailed_errors': test_result.get('detailed_errors', {}),
+                'troubleshooting': test_result.get('troubleshooting', {}),
+                'lwa_status_code': test_result.get('lwa_status_code'),
+                'full_error_data': test_result  # Include tutto per debug completo
             }, status=400)
         
     except AmazonSPAPIConfig.DoesNotExist:
