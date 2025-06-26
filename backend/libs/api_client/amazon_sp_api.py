@@ -306,22 +306,58 @@ class AmazonSPAPIClient:
             }
             
         try:
-            # Test semplice: recupera info account
-            account_info = self.get_account_info()
+            # Test più semplice: prova a recuperare ordini (richiede meno permessi)
+            # Usa un intervallo molto piccolo per minimizzare i dati
+            from datetime import datetime, timedelta
+            test_date = datetime.utcnow() - timedelta(days=1)
+            
+            orders_data = self.get_orders(
+                created_after=test_date,
+                max_results_per_page=1  # Solo 1 ordine per test
+            )
             
             return {
                 'success': True,
                 'message': 'Connessione SP-API riuscita',
-                'account_info': account_info
+                'test_method': 'get_orders',
+                'orders_count': len(orders_data.get('Orders', []))
             }
             
         except Exception as e:
             logger.error(f"Test connessione fallito: {e}")
-            return {
-                'success': False,
-                'message': f'Connessione SP-API fallita: {str(e)}',
-                'error': str(e)
-            }
+            
+            # Fallback: prova marketplace participation (meno permessi)
+            try:
+                participation_info = self.get_marketplace_participation()
+                return {
+                    'success': True,
+                    'message': 'Connessione SP-API riuscita (marketplace participation)',
+                    'test_method': 'get_marketplace_participation',
+                    'participation_info': participation_info
+                }
+            except Exception as e2:
+                logger.error(f"Fallback test fallito: {e2}")
+                
+                # Ultimo fallback: prova account info
+                try:
+                    account_info = self.get_account_info()
+                    return {
+                        'success': True,
+                        'message': 'Connessione SP-API riuscita (account info)',
+                        'test_method': 'get_account_info',
+                        'account_info': account_info
+                    }
+                except Exception as e3:
+                    return {
+                        'success': False,
+                        'message': f'Connessione SP-API fallita: {str(e)}',
+                        'error': str(e),
+                        'details': {
+                            'orders_error': str(e),
+                            'participation_error': str(e2),
+                            'account_error': str(e3)
+                        }
+                    }
 
     def get_supported_marketplaces(self) -> List[Dict[str, str]]:
         """Restituisce lista marketplace supportati"""
