@@ -3819,16 +3819,27 @@ def sp_api_orders_list(request):
     """Recupera lista ordini Amazon via SP-API."""
     try:
         # Parametri query
-        marketplace = request.GET.get('marketplace', 'IT')
-        days_back = int(request.GET.get('days_back', 7))
+        config_id = request.GET.get('config_id')
+        created_after = request.GET.get('created_after')
+        created_before = request.GET.get('created_before')
         max_results = int(request.GET.get('max_results', 50))
         
-        # Trova configurazione attiva per il marketplace
-        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
-        if not config:
-            return JsonResponse({
-                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
-            }, status=404)
+        # Trova configurazione specifica per ID
+        if config_id:
+            try:
+                config = AmazonSPAPIConfig.objects.get(id=config_id)
+            except AmazonSPAPIConfig.DoesNotExist:
+                return JsonResponse({
+                    'error': f'Configurazione {config_id} non trovata'
+                }, status=404)
+        else:
+            # Fallback al vecchio comportamento per marketplace
+            marketplace = request.GET.get('marketplace', 'IT')
+            config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+            if not config:
+                return JsonResponse({
+                    'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+                }, status=404)
         
         if not SP_API_AVAILABLE:
             return JsonResponse({
@@ -3840,11 +3851,21 @@ def sp_api_orders_list(request):
         client = AmazonSPAPIClient(credentials=credentials)
         
         # Calcola date
-        created_after = datetime.utcnow() - timedelta(days=days_back)
+        if created_after:
+            created_after_dt = datetime.fromisoformat(created_after.replace('Z', '+00:00'))
+        else:
+            # Fallback: ultimi 7 giorni
+            created_after_dt = datetime.utcnow() - timedelta(days=7)
+            
+        if created_before:
+            created_before_dt = datetime.fromisoformat(created_before.replace('Z', '+00:00'))
+        else:
+            created_before_dt = datetime.utcnow()
         
         # Recupera ordini
         orders_data = client.get_orders(
-            created_after=created_after,
+            created_after=created_after_dt,
+            created_before=created_before_dt,
             max_results_per_page=max_results
         )
         
@@ -3854,9 +3875,12 @@ def sp_api_orders_list(request):
             'success': True,
             'orders': orders_data.get('Orders', []),
             'next_token': orders_data.get('NextToken'),
-            'marketplace': marketplace,
+            'marketplace': config.marketplace_id,
             'config_used': config.name,
-            'created_after': created_after.isoformat(),
+            'config_id': config.id,
+            'created_after': created_after_dt.isoformat(),
+            'created_before': created_before_dt.isoformat(),
+            'total_orders': len(orders_data.get('Orders', [])),
             'total_retrieved': len(orders_data.get('Orders', []))
         })
         
@@ -3874,14 +3898,24 @@ def sp_api_orders_list(request):
 def sp_api_order_detail(request, order_id):
     """Recupera dettagli di un ordine specifico."""
     try:
-        marketplace = request.GET.get('marketplace', 'IT')
+        config_id = request.GET.get('config_id')
         
-        # Trova configurazione attiva
-        config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
-        if not config:
-            return JsonResponse({
-                'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
-            }, status=404)
+        # Trova configurazione specifica per ID
+        if config_id:
+            try:
+                config = AmazonSPAPIConfig.objects.get(id=config_id)
+            except AmazonSPAPIConfig.DoesNotExist:
+                return JsonResponse({
+                    'error': f'Configurazione {config_id} non trovata'
+                }, status=404)
+        else:
+            # Fallback al vecchio comportamento per marketplace
+            marketplace = request.GET.get('marketplace', 'IT')
+            config = AmazonSPAPIConfig.get_config_for_marketplace(marketplace)
+            if not config:
+                return JsonResponse({
+                    'error': f'Nessuna configurazione attiva trovata per marketplace {marketplace}'
+                }, status=404)
         
         if not SP_API_AVAILABLE:
             return JsonResponse({
@@ -3901,8 +3935,9 @@ def sp_api_order_detail(request, order_id):
             'success': True,
             'order': order_data,
             'order_id': order_id,
-            'marketplace': marketplace,
-            'config_used': config.name
+            'marketplace': config.marketplace_id,
+            'config_used': config.name,
+            'config_id': config.id
         })
         
     except Exception as e:
