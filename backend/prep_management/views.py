@@ -4616,3 +4616,58 @@ def sp_api_authorization_status(request):
         logger.error(f"Errore monitoraggio autorizzazione SP-API: {e}")
         return JsonResponse({'error': str(e)}, status=500)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def debug_aws_fields(request):
+    """Debug endpoint per verificare i campi AWS nel modello."""
+    try:
+        # Prova a prendere una configurazione esistente
+        config = AmazonSPAPIConfig.objects.first()
+        if not config:
+            return JsonResponse({'error': 'Nessuna configurazione trovata'}, status=404)
+        
+        # Verifica se i campi AWS esistono nel modello
+        debug_info = {
+            'config_id': config.id,
+            'config_name': config.name,
+            'model_fields': [],
+            'aws_fields_check': {},
+            'migration_status': 'unknown'
+        }
+        
+        # Lista tutti i campi del modello
+        for field in config._meta.get_fields():
+            debug_info['model_fields'].append({
+                'name': field.name,
+                'type': type(field).__name__
+            })
+        
+        # Controlla specificamente i campi AWS
+        aws_fields = ['aws_access_key', 'aws_secret_key', 'role_arn']
+        for field_name in aws_fields:
+            try:
+                # Prova ad accedere al campo
+                value = getattr(config, field_name, 'FIELD_NOT_FOUND')
+                debug_info['aws_fields_check'][field_name] = {
+                    'exists': hasattr(config, field_name),
+                    'value_type': type(value).__name__,
+                    'is_none': value is None,
+                    'has_value': bool(value) if value != 'FIELD_NOT_FOUND' else False
+                }
+            except AttributeError as e:
+                debug_info['aws_fields_check'][field_name] = {
+                    'exists': False,
+                    'error': str(e)
+                }
+        
+        return JsonResponse({
+            'success': True,
+            'debug_info': debug_info
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': str(e),
+            'error_type': type(e).__name__
+        }, status=500)
+
