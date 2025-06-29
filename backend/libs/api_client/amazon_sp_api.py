@@ -158,6 +158,7 @@ class AmazonSPAPIClient:
         """
         Imposta le environment variables usando i nomi che la libreria python-amazon-sp-api cerca
         Dalla documentazione ufficiale: https://python-amazon-sp-api.readthedocs.io/en/latest/credentials.html
+        NOTA: La libreria usa lwa_client_id nelle env vars, non lwa_app_id
         """
         import os
         
@@ -166,7 +167,8 @@ class AmazonSPAPIClient:
         if self.credentials.get('refresh_token'):
             os.environ['refresh_token'] = self.credentials['refresh_token']
         if self.credentials.get('lwa_app_id'):
-            os.environ['lwa_app_id'] = self.credentials['lwa_app_id']
+            # ✅ CORREZIONE: La libreria cerca 'lwa_client_id' nelle env vars
+            os.environ['lwa_client_id'] = self.credentials['lwa_app_id']
         if self.credentials.get('lwa_client_secret'):
             os.environ['lwa_client_secret'] = self.credentials['lwa_client_secret']
         if self.credentials.get('aws_access_key'):
@@ -181,7 +183,8 @@ class AmazonSPAPIClient:
     def _get_constructor_kwargs(self) -> Dict[str, Any]:
         """
         Restituisce i kwargs per il costruttore delle API classes della libreria Saleweaver
-        Dalla documentazione: Orders(refresh_token="...", lwa_app_id="...", etc.)
+        Dalla documentazione: Orders(refresh_token="...", lwa_client_id="...", etc.)
+        NOTA: Il parametro è lwa_client_id, NON lwa_app_id!
         """
         kwargs = {}
         
@@ -189,7 +192,8 @@ class AmazonSPAPIClient:
         if self.credentials.get('refresh_token'):
             kwargs['refresh_token'] = self.credentials['refresh_token']
         if self.credentials.get('lwa_app_id'):
-            kwargs['lwa_app_id'] = self.credentials['lwa_app_id']
+            # ✅ CORREZIONE: La libreria Saleweaver usa 'lwa_client_id', non 'lwa_app_id'
+            kwargs['lwa_client_id'] = self.credentials['lwa_app_id']
         if self.credentials.get('lwa_client_secret'):
             kwargs['lwa_client_secret'] = self.credentials['lwa_client_secret']
         if self.credentials.get('aws_access_key'):
@@ -495,7 +499,7 @@ class AmazonSPAPIClient:
                         data={
                             'grant_type': 'refresh_token',
                             'refresh_token': self.credentials.get('refresh_token'),
-                            'client_id': self.credentials.get('lwa_app_id'),  # Note: this stays as lwa_app_id for LWA API
+                            'client_id': self.credentials.get('lwa_app_id'),  # ✅ LWA API usa 'client_id'
                             'client_secret': self.credentials.get('lwa_client_secret')
                         },
                         headers={'Content-Type': 'application/x-www-form-urlencoded'},
