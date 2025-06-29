@@ -4291,6 +4291,80 @@ def sp_api_test_connection(request, config_id):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def sp_api_debug_advanced(request, config_id):
+    """🔍 DEBUG AVANZATO SP-API: Analisi completa per identificare problemi tecnici"""
+    logger.info(f"🔍 SP-API Debug Avanzato: Starting analysis for config {config_id}")
+    
+    if not SP_API_AVAILABLE:
+        return Response({
+            'success': False,
+            'error_type': 'LIBRARY_NOT_AVAILABLE',
+            'message': 'SP-API library non installata',
+            'install_command': 'pip install python-amazon-sp-api'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    try:
+        # Recupera la configurazione
+        config = get_object_or_404(AmazonSPAPIConfig, id=config_id)
+        if not config.is_active:
+            return Response({
+                'success': False,
+                'error_type': 'CONFIG_INACTIVE',
+                'message': f'Configurazione {config_id} non attiva'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Inizializza client con debug avanzato
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        # Esegue debug avanzato
+        debug_results = client.debug_connection_advanced()
+        
+        # Incrementa contatore
+        config.total_api_calls += 1
+        if not debug_results.get('success'):
+            config.total_api_errors += 1
+        config.save()
+        
+        # Log risultati 
+        phases = debug_results.get('test_phases', {})
+        logger.info(f"🔍 Debug phases: {phases}")
+        
+        final_analysis = debug_results.get('final_analysis', {})
+        main_issue = final_analysis.get('main_issue', 'UNKNOWN')
+        logger.info(f"🎯 Main issue identified: {main_issue}")
+        
+        # Response con tutti i dettagli
+        response_data = {
+            'config_id': config_id,
+            'marketplace': config.marketplace,
+            'debug_timestamp': debug_results.get('timestamp'),
+            'test_phases': phases,
+            'main_issue': main_issue,
+            'success': debug_results.get('success', False),
+            'detailed_results': debug_results
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return Response({
+            'success': False,
+            'error_type': 'CONFIG_NOT_FOUND',
+            'message': f'Configurazione SP-API {config_id} non trovata'
+        }, status=status.HTTP_404_NOT_FOUND)
+        
+    except Exception as e:
+        logger.error(f"❌ Errore debug avanzato SP-API: {e}", exc_info=True)
+        return Response({
+            'success': False,
+            'error_type': 'DEBUG_EXCEPTION',
+            'message': f'Errore durante debug: {str(e)}',
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def sp_api_diagnostic_test(request, config_id):
     """Test diagnostico completo per SP-API con diversi marketplace e endpoint."""
     try:

@@ -154,20 +154,11 @@ class AmazonSPAPIClient:
         
         return endpoint
 
-    def _create_credentials_file(self) -> None:
+    def _create_credentials_file(self) -> Dict[str, Any]:
         """
-        ✅ SOLUZIONE DEFINITIVA: Crea file credentials.yml per libreria Saleweaver
+        ✅ SOLUZIONE DEFINITIVA: Crea file credentials.yml con DEBUG APPROFONDITO
         
-        Dalla documentazione ufficiale ReadTheDocs:
-        La libreria cerca file ~/.config/python-sp-api/credentials.yml con formato:
-        
-        version: '1.0'
-        default:
-          refresh_token: ''
-          lwa_app_id: ''
-          lwa_client_secret: ''
-        
-        Search paths (Linux/Railway): ~/.config/python-sp-api
+        Restituisce info complete sul file creato per debug
         """
         import os
         import yaml
@@ -198,10 +189,37 @@ class AmazonSPAPIClient:
         with open(config_file, 'w') as f:
             yaml.dump(credentials_data, f, default_flow_style=False)
         
-        logger.info(f"✅ File credentials.yml creato: {config_file}")
+        # Verifica che il file sia stato scritto correttamente
+        file_exists = config_file.exists()
+        file_size = config_file.stat().st_size if file_exists else 0
+        
+        # Leggi il contenuto per verifica
+        file_content = ""
+        if file_exists:
+            with open(config_file, 'r') as f:
+                file_content = f.read()
+        
+        debug_info = {
+            'config_dir': str(config_dir),
+            'config_file': str(config_file),
+            'file_exists': file_exists,
+            'file_size': file_size,
+            'credentials_summary': {
+                'refresh_token_length': len(self.credentials.get('refresh_token', '')),
+                'lwa_app_id_present': bool(self.credentials.get('lwa_app_id')),
+                'lwa_client_secret_present': bool(self.credentials.get('lwa_client_secret')),
+                'aws_access_key_present': bool(self.credentials.get('aws_access_key')),
+                'role_arn_present': bool(self.credentials.get('role_arn'))
+            },
+            'file_content_preview': file_content[:200] + '...' if len(file_content) > 200 else file_content
+        }
+        
+        logger.info(f"📁 File credentials.yml: {config_file} (size: {file_size} bytes)")
         
         # Imposta anche env vars come fallback
         self._set_env_vars_fallback()
+        
+        return debug_info
     
     def _set_env_vars_fallback(self) -> None:
         """Environment variables come fallback per AWS credentials"""
@@ -452,6 +470,210 @@ class AmazonSPAPIClient:
     # =============================================================================
     # UTILITY METHODS
     # =============================================================================
+    
+    def debug_connection_advanced(self) -> Dict[str, Any]:
+        """🔍 DEBUG AVANZATO: Analisi completa per problemi tecnici SP-API"""
+        if not SP_API_AVAILABLE:
+            return {
+                'success': False,
+                'error_type': 'LIBRARY_NOT_AVAILABLE',
+                'message': 'SP-API library non installata'
+            }
+            
+        if not self._validate_credentials():
+            return {
+                'success': False,
+                'error_type': 'CREDENTIALS_INVALID',
+                'message': 'Credenziali SP-API mancanti'
+            }
+
+        debug_result = {
+            'success': False,
+            'timestamp': datetime.utcnow().isoformat(),
+            'test_phases': {},
+            'credentials_debug': {},
+            'file_debug': {},
+            'lwa_debug': {},
+            'api_debug': {},
+            'final_analysis': {}
+        }
+
+        # 🔍 PHASE 1: Analisi Credenziali
+        logger.info("🔍 PHASE 1: Analisi credenziali...")
+        try:
+            debug_result['credentials_debug'] = {
+                'marketplace_id': self.marketplace_id,
+                'endpoint': self.endpoint,
+                'credentials_summary': {
+                    'refresh_token_length': len(self.credentials.get('refresh_token', '')),
+                    'lwa_app_id': self.credentials.get('lwa_app_id', ''),
+                    'lwa_client_secret_length': len(self.credentials.get('lwa_client_secret', '')),
+                    'aws_access_key_length': len(self.credentials.get('aws_access_key', '')),
+                    'aws_secret_key_length': len(self.credentials.get('aws_secret_key', '')),
+                    'role_arn': self.credentials.get('role_arn', '')
+                },
+                'validation': {
+                    'has_refresh_token': bool(self.credentials.get('refresh_token')),
+                    'has_lwa_app_id': bool(self.credentials.get('lwa_app_id')),
+                    'has_lwa_client_secret': bool(self.credentials.get('lwa_client_secret')),
+                    'has_aws_access_key': bool(self.credentials.get('aws_access_key')),
+                    'has_aws_secret_key': bool(self.credentials.get('aws_secret_key')),
+                    'has_role_arn': bool(self.credentials.get('role_arn'))
+                }
+            }
+            debug_result['test_phases']['credentials'] = 'PASSED'
+        except Exception as e:
+            debug_result['test_phases']['credentials'] = f'FAILED: {e}'
+
+        # 🔍 PHASE 2: File credentials.yml 
+        logger.info("🔍 PHASE 2: Creazione e verifica file credentials.yml...")
+        try:
+            file_debug = self._create_credentials_file()
+            debug_result['file_debug'] = file_debug
+            debug_result['test_phases']['file_creation'] = 'PASSED' if file_debug.get('file_exists') else 'FAILED'
+        except Exception as e:
+            debug_result['test_phases']['file_creation'] = f'FAILED: {e}'
+            debug_result['file_debug']['error'] = str(e)
+
+        # 🔍 PHASE 3: Test LWA Token Exchange diretto
+        logger.info("🔍 PHASE 3: Test LWA Token Exchange diretto...")
+        try:
+            import requests
+            
+            lwa_request_data = {
+                'grant_type': 'refresh_token',
+                'refresh_token': self.credentials.get('refresh_token'),
+                'client_id': self.credentials.get('lwa_app_id'),
+                'client_secret': self.credentials.get('lwa_client_secret')
+            }
+            
+            debug_result['lwa_debug']['request_data'] = {
+                'grant_type': lwa_request_data['grant_type'],
+                'client_id': lwa_request_data['client_id'],
+                'refresh_token_length': len(lwa_request_data['refresh_token']),
+                'client_secret_length': len(lwa_request_data['client_secret'])
+            }
+            
+            lwa_response = requests.post(
+                'https://api.amazon.com/auth/o2/token',
+                data=lwa_request_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=30
+            )
+            
+            debug_result['lwa_debug']['response'] = {
+                'status_code': lwa_response.status_code,
+                'headers': dict(lwa_response.headers),
+                'response_text': lwa_response.text[:500] + '...' if len(lwa_response.text) > 500 else lwa_response.text
+            }
+            
+            if lwa_response.status_code == 200:
+                lwa_data = lwa_response.json()
+                debug_result['lwa_debug']['success_data'] = {
+                    'access_token_length': len(lwa_data.get('access_token', '')),
+                    'token_type': lwa_data.get('token_type'),
+                    'expires_in': lwa_data.get('expires_in')
+                }
+                debug_result['test_phases']['lwa_exchange'] = 'PASSED'
+            else:
+                debug_result['test_phases']['lwa_exchange'] = f'FAILED: HTTP {lwa_response.status_code}'
+                
+        except Exception as e:
+            debug_result['test_phases']['lwa_exchange'] = f'EXCEPTION: {e}'
+            debug_result['lwa_debug']['exception'] = str(e)
+
+        # 🔍 PHASE 4: Test Saleweaver Library
+        logger.info("🔍 PHASE 4: Test Saleweaver library con file...")
+        if SP_API_AVAILABLE:
+            try:
+                # Test con Sellers API (più permissivo)
+                sellers_client = Sellers()
+                debug_result['api_debug']['client_type'] = str(type(sellers_client))
+                
+                # Prova get_account
+                response = sellers_client.get_account()
+                debug_result['api_debug']['get_account'] = {
+                    'response_type': str(type(response)),
+                    'has_payload': hasattr(response, 'payload'),
+                    'response_str': str(response)[:200] + '...' if len(str(response)) > 200 else str(response)
+                }
+                
+                if hasattr(response, 'payload'):
+                    debug_result['api_debug']['payload_data'] = response.payload
+                
+                debug_result['test_phases']['saleweaver_api'] = 'PASSED'
+                debug_result['success'] = True
+                debug_result['final_analysis']['result'] = 'SUCCESS: SP-API completamente funzionante'
+                
+            except Exception as saleweaver_error:
+                error_str = str(saleweaver_error)
+                debug_result['test_phases']['saleweaver_api'] = f'FAILED: {error_str}'
+                debug_result['api_debug']['error'] = error_str
+                debug_result['api_debug']['error_type'] = self._classify_saleweaver_error(error_str)
+
+        # 🔍 ANALISI FINALE
+        debug_result['final_analysis'] = self._analyze_debug_results(debug_result)
+        
+        return debug_result
+    
+    def _classify_saleweaver_error(self, error_str: str) -> str:
+        """Classifica errori Saleweaver per troubleshooting"""
+        error_lower = error_str.lower()
+        
+        if 'credentials are missing' in error_lower:
+            return 'CREDENTIALS_FILE_NOT_READ'
+        elif 'unauthorized_client' in error_lower:
+            return 'AMAZON_APP_AUTHORIZATION_ISSUE'
+        elif 'access to requested resource is denied' in error_lower:
+            return 'AMAZON_RESOURCE_ACCESS_DENIED'
+        elif 'invalid_client' in error_lower:
+            return 'LWA_CLIENT_ID_INVALID'
+        elif 'invalid_grant' in error_lower:
+            return 'REFRESH_TOKEN_EXPIRED_OR_INVALID'
+        elif 'timeout' in error_lower:
+            return 'NETWORK_TIMEOUT'
+        else:
+            return 'UNKNOWN_SALEWEAVER_ERROR'
+    
+    def _analyze_debug_results(self, debug_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Analizza risultati debug e fornisce diagnostica"""
+        phases = debug_result.get('test_phases', {})
+        
+        analysis = {
+            'phases_summary': phases,
+            'problem_diagnosis': [],
+            'recommendations': []
+        }
+        
+        # Analizza ogni fase
+        if phases.get('credentials') != 'PASSED':
+            analysis['problem_diagnosis'].append('❌ Credenziali non valide o mancanti')
+            analysis['recommendations'].append('🔧 Verificare configurazione database SP-API')
+            
+        if phases.get('file_creation') != 'PASSED':
+            analysis['problem_diagnosis'].append('❌ Impossibile creare file credentials.yml')
+            analysis['recommendations'].append('🔧 Verificare permessi filesystem su Railway')
+            
+        if phases.get('lwa_exchange') == 'PASSED':
+            analysis['problem_diagnosis'].append('✅ LWA Token Exchange funziona')
+            if phases.get('saleweaver_api') != 'PASSED':
+                analysis['problem_diagnosis'].append('❌ Problema specifico Saleweaver library')
+                analysis['recommendations'].append('🔧 Verificare lettura file credentials.yml')
+        elif 'HTTP 400' in str(phases.get('lwa_exchange', '')):
+            analysis['problem_diagnosis'].append('❌ LWA Token Exchange fallisce: problema autorizzazione Amazon')
+            analysis['recommendations'].append('🔧 Verificare App ID, Client Secret, Refresh Token in Amazon Seller Central')
+        
+        # Determina causa principale
+        if debug_result.get('success'):
+            analysis['main_issue'] = 'NO_ISSUES_FOUND'
+        elif phases.get('lwa_exchange') == 'PASSED' and phases.get('saleweaver_api') != 'PASSED':
+            analysis['main_issue'] = 'SALEWEAVER_LIBRARY_ISSUE'
+        elif 'HTTP 400' in str(phases.get('lwa_exchange', '')):
+            analysis['main_issue'] = 'AMAZON_AUTHORIZATION_ISSUE'
+        else:
+            analysis['main_issue'] = 'CONFIGURATION_ISSUE'
+            
+        return analysis
 
     def test_connection(self) -> Dict[str, Any]:
         """Testa la connessione alle SP-API con debug approfondito"""
