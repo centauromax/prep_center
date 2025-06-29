@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class AmazonSPAPIClient:
     """
     Client centralizzato per Amazon Selling Partner API
-    Usa la libreria python-amazon-sp-api di Saleweaver
+    Usa la libreria python-amazon-sp-api di Saleweaver con parametri ufficiali
     """
 
     def __init__(self, credentials: Optional[Dict[str, Any]] = None):
@@ -42,30 +42,66 @@ class AmazonSPAPIClient:
         Inizializza il client SP-API
         
         Args:
-            credentials: Dizionario con credenziali Amazon SP-API
+            credentials: Dizionario con credenziali Amazon SP-API (opzionale, usa env vars)
         """
         if not SP_API_AVAILABLE:
             logger.warning("SP-API library not available. Install with: pip install python-amazon-sp-api")
             
-        self.credentials = credentials or self._get_default_credentials()
-        self.marketplace = self._get_marketplace()
+        # Ottieni credenziali da parametri o environment variables
+        if credentials:
+            self.credentials = credentials
+        else:
+            self.credentials = self._get_credentials_from_env()
+            
+        self.marketplace_id = self._get_marketplace_id()
+        self.endpoint = self._get_endpoint()
         
         # Valida credenziali
         if SP_API_AVAILABLE and not self._validate_credentials():
             logger.error("Credenziali SP-API non valide o mancanti")
             
-        logger.info(f"Client SP-API inizializzato per marketplace: {self.marketplace}")
+        logger.info(f"Client SP-API inizializzato per marketplace: {self.marketplace_id}")
+        logger.info(f"Endpoint: {self.endpoint}")
 
-    def _get_default_credentials(self) -> Dict[str, Any]:
-        """Ottiene credenziali da environment variables"""
+    def _get_credentials_from_env(self) -> Dict[str, Any]:
+        """
+        Ottiene credenziali dalle environment variables usando i nomi ufficiali della libreria
+        Supporta sia i nomi ufficiali (SP_API_*) che quelli custom (AMAZON_SP_API_*)
+        """
         return {
-            'refresh_token': os.getenv('AMAZON_SP_API_REFRESH_TOKEN'),
-            'lwa_app_id': os.getenv('AMAZON_SP_API_LWA_APP_ID'),
-            'lwa_client_secret': os.getenv('AMAZON_SP_API_LWA_CLIENT_SECRET'),
-            'aws_access_key': os.getenv('AMAZON_SP_API_AWS_ACCESS_KEY'),
-            'aws_secret_key': os.getenv('AMAZON_SP_API_AWS_SECRET_KEY'),
-            'role_arn': os.getenv('AMAZON_SP_API_ROLE_ARN'),
-            'marketplace': os.getenv('AMAZON_SP_API_MARKETPLACE', 'IT')
+            # Credenziali LWA - prova prima nomi ufficiali, poi fallback su custom
+            'refresh_token': (
+                os.getenv('SP_API_REFRESH_TOKEN') or 
+                os.getenv('AMAZON_SP_API_REFRESH_TOKEN')
+            ),
+            'lwa_app_id': (
+                os.getenv('SP_API_CLIENT_ID') or 
+                os.getenv('AMAZON_SP_API_LWA_APP_ID')
+            ),
+            'lwa_client_secret': (
+                os.getenv('SP_API_CLIENT_SECRET') or 
+                os.getenv('AMAZON_SP_API_LWA_CLIENT_SECRET')
+            ),
+            
+            # Credenziali AWS - prova prima nomi ufficiali, poi fallback su custom
+            'aws_access_key': (
+                os.getenv('SP_API_AWS_ACCESS_KEY') or 
+                os.getenv('AMAZON_SP_API_AWS_ACCESS_KEY')
+            ),
+            'aws_secret_key': (
+                os.getenv('SP_API_AWS_SECRET_KEY') or 
+                os.getenv('AMAZON_SP_API_AWS_SECRET_KEY')
+            ),
+            'role_arn': (
+                os.getenv('SP_API_ROLE_ARN') or 
+                os.getenv('AMAZON_SP_API_ROLE_ARN')
+            ),
+            
+            # Configurazione marketplace e endpoint
+            'marketplace': (
+                os.getenv('SP_API_MARKETPLACE') or 
+                os.getenv('AMAZON_SP_API_MARKETPLACE', 'IT')
+            )
         }
 
     def _validate_credentials(self) -> bool:
@@ -79,12 +115,11 @@ class AmazonSPAPIClient:
             
         return True
 
-    def _get_marketplace(self) -> str:
-        """Ottiene il marketplace configurato"""
+    def _get_marketplace_id(self) -> str:
+        """Ottiene il marketplace ID configurato"""
         marketplace_code = self.credentials.get('marketplace', 'IT')
         
         # Mappa marketplace ID Amazon ufficiali
-        # Questi sono gli ID specifici richiesti dall'API Amazon SP-API
         marketplace_id_mapping = {
             'IT': 'APJ6JRA9NG5V4',  # Amazon.it
             'DE': 'A1PA6795UKMFR9', # Amazon.de  
@@ -97,6 +132,41 @@ class AmazonSPAPIClient:
         marketplace_id = marketplace_id_mapping.get(marketplace_code, 'APJ6JRA9NG5V4')
         logger.info(f"Marketplace {marketplace_code} mappato a ID: {marketplace_id}")
         return marketplace_id
+
+    def _get_endpoint(self) -> str:
+        """Ottiene l'endpoint SP-API corretto per il marketplace"""
+        marketplace_code = self.credentials.get('marketplace', 'IT')
+        
+        # Mappa endpoint per regione
+        if marketplace_code in ['IT', 'DE', 'FR', 'ES', 'GB']:
+            endpoint = 'https://sellingpartnerapi-eu.amazon.com'
+        elif marketplace_code == 'US':
+            endpoint = 'https://sellingpartnerapi-na.amazon.com'
+        else:
+            endpoint = 'https://sellingpartnerapi-eu.amazon.com'  # Default EU
+            
+        # Supporta override da environment
+        endpoint = (
+            os.getenv('SP_API_ENDPOINT') or 
+            os.getenv('AMAZON_SP_API_ENDPOINT') or 
+            endpoint
+        )
+        
+        return endpoint
+
+    def _get_api_credentials(self) -> Dict[str, Any]:
+        """
+        Restituisce le credenziali nel formato corretto per i costruttori API
+        """
+        return {
+            'refresh_token': self.credentials.get('refresh_token'),
+            'lwa_app_id': self.credentials.get('lwa_app_id'),
+            'lwa_client_secret': self.credentials.get('lwa_client_secret'),
+            'aws_access_key': self.credentials.get('aws_access_key'),
+            'aws_secret_key': self.credentials.get('aws_secret_key'),
+            'role_arn': self.credentials.get('role_arn'),
+            'endpoint': self.endpoint
+        }
 
     def _handle_api_error(self, e: Exception, operation: str) -> None:
         """Gestisce gli errori delle API calls"""
@@ -127,7 +197,7 @@ class AmazonSPAPIClient:
             # Prepara parametri
             params = {
                 'MaxResultsPerPage': max_results_per_page,
-                'MarketplaceIds': [self.marketplace]
+                'MarketplaceIds': [self.marketplace_id]
             }
 
             if created_after:
@@ -137,8 +207,8 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # Chiamata API
-            orders_client = Orders(credentials=self.credentials)
+            # Chiamata API con parametri individuali
+            orders_client = Orders(**self._get_api_credentials())
             response = orders_client.get_orders(**params)
             
             logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
@@ -153,7 +223,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials)
+            orders_client = Orders(**self._get_api_credentials())
             response = orders_client.get_order(order_id)
             
             logger.info(f"Recuperato ordine {order_id}")
@@ -168,7 +238,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials)
+            orders_client = Orders(**self._get_api_credentials())
             response = orders_client.get_order_items(order_id)
             
             logger.info(f"Recuperati items per ordine {order_id}")
@@ -192,7 +262,7 @@ class AmazonSPAPIClient:
             
         try:
             # Parametri di default
-            granularity_id = granularity_id or self.marketplace
+            granularity_id = granularity_id or self.marketplace_id
             start_date_time = start_date_time or datetime.utcnow() - timedelta(days=1)
 
             params = {
@@ -204,7 +274,7 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            inventories_client = Inventories(credentials=self.credentials)
+            inventories_client = Inventories(**self._get_api_credentials())
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
             logger.info("Recuperato riepilogo inventario")
@@ -229,7 +299,7 @@ class AmazonSPAPIClient:
         try:
             params = {
                 'reportType': report_type,
-                'marketplaceIds': marketplace_ids or [self.marketplace]
+                'marketplaceIds': marketplace_ids or [self.marketplace_id]
             }
 
             if start_time:
@@ -237,7 +307,7 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            reports_client = Reports(credentials=self.credentials)
+            reports_client = Reports(**self._get_api_credentials())
             response = reports_client.create_report(**params)
             
             logger.info(f"Report {report_type} creato")
@@ -252,7 +322,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            reports_client = Reports(credentials=self.credentials)
+            reports_client = Reports(**self._get_api_credentials())
             response = reports_client.get_report(report_id)
             
             logger.info(f"Recuperato report {report_id}")
@@ -271,7 +341,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials)
+            sellers_client = Sellers(**self._get_api_credentials())
             response = sellers_client.get_account()
             
             logger.info("Recuperate info account seller")
@@ -286,7 +356,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials)
+            sellers_client = Sellers(**self._get_api_credentials())
             response = sellers_client.get_marketplace_participation()
             
             logger.info("Recuperate info marketplace participation")
@@ -312,125 +382,124 @@ class AmazonSPAPIClient:
             return {
                 'success': False,
                 'message': 'Credenziali SP-API mancanti o non valide',
-                'error': 'Configura le variabili environment: AMAZON_SP_API_*'
+                'error': 'Configura le credenziali SP-API nel database'
             }
         
         # Debug delle credenziali
         debug_info = {
-            'marketplace': self.marketplace,
+            'marketplace_id': self.marketplace_id,
+            'endpoint': self.endpoint,
             'has_refresh_token': bool(self.credentials.get('refresh_token')),
             'refresh_token_length': len(self.credentials.get('refresh_token', '')),
             'has_lwa_app_id': bool(self.credentials.get('lwa_app_id')),
             'has_lwa_client_secret': bool(self.credentials.get('lwa_client_secret')),
+            'has_aws_access_key': bool(self.credentials.get('aws_access_key')),
+            'has_aws_secret_key': bool(self.credentials.get('aws_secret_key')),
+            'has_role_arn': bool(self.credentials.get('role_arn')),
             'credentials_summary': {
                 'refresh_token': f"{'*' * 10}...{self.credentials.get('refresh_token', '')[-4:]}" if self.credentials.get('refresh_token') else 'MISSING',
                 'lwa_app_id': self.credentials.get('lwa_app_id', 'MISSING'),
-                'lwa_client_secret': f"{'*' * 10}...{self.credentials.get('lwa_client_secret', '')[-4:]}" if self.credentials.get('lwa_client_secret') else 'MISSING'
+                'lwa_client_secret': f"{'*' * 10}...{self.credentials.get('lwa_client_secret', '')[-4:]}" if self.credentials.get('lwa_client_secret') else 'MISSING',
+                'aws_access_key': f"{'*' * 10}...{self.credentials.get('aws_access_key', '')[-4:]}" if self.credentials.get('aws_access_key') else 'MISSING',
+                'role_arn': self.credentials.get('role_arn', 'MISSING')
             }
         }
         
         try:
-            # Test diretto con LWA Token Exchange
-            # Prima di tutto testiamo se il refresh token è valido
-            import requests
+            # Test più semplice: marketplace participation (richiede meno permessi)
+            logger.info(f"[SP-API-TEST] Testing marketplace participation with endpoint: {self.endpoint}")
             
-            logger.info(f"[SP-API-TEST] Testing LWA token exchange with marketplace: {self.marketplace}")
-            
-            lwa_response = requests.post(
-                'https://api.amazon.com/auth/o2/token',
-                data={
-                    'grant_type': 'refresh_token',
-                    'refresh_token': self.credentials.get('refresh_token'),
-                    'client_id': self.credentials.get('lwa_app_id'),
-                    'client_secret': self.credentials.get('lwa_client_secret')
-                },
-                headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                timeout=30
-            )
-            
-            if lwa_response.status_code != 200:
-                return {
-                    'success': False,
-                    'message': f'LWA Token Exchange fallito: {lwa_response.status_code}',
-                    'error': f'LWA Error: {lwa_response.text}',
-                    'debug_info': debug_info,
-                    'lwa_status_code': lwa_response.status_code
-                }
-            
-            lwa_data = lwa_response.json()
-            access_token = lwa_data.get('access_token')
-            
-            if not access_token:
-                return {
-                    'success': False,
-                    'message': 'LWA Token Exchange riuscito ma nessun access token',
-                    'error': f'LWA Response: {lwa_data}',
-                    'debug_info': debug_info
-                }
-            
-            # Ora testiamo l'API con l'access token ottenuto
-            from datetime import datetime, timedelta
-            test_date = datetime.utcnow() - timedelta(days=1)
-            
-            orders_data = self.get_orders(
-                created_after=test_date,
-                max_results_per_page=1  # Solo 1 ordine per test
-            )
-            
+            participation_info = self.get_marketplace_participation()
             return {
                 'success': True,
-                'message': 'Connessione SP-API riuscita dopo LWA token exchange',
-                'test_method': 'get_orders',
-                'orders_count': len(orders_data.get('Orders', [])),
-                'debug_info': debug_info,
-                'lwa_token_valid': True
+                'message': 'Connessione SP-API riuscita',
+                'test_method': 'get_marketplace_participation',
+                'participation_info': participation_info,
+                'debug_info': debug_info
             }
             
         except Exception as e:
-            logger.error(f"Test connessione fallito: {e}")
+            logger.error(f"Marketplace participation test fallito: {e}")
             
-            # Fallback: prova marketplace participation (meno permessi)
+            # Fallback: prova account info
             try:
-                participation_info = self.get_marketplace_participation()
+                account_info = self.get_account_info()
                 return {
                     'success': True,
-                    'message': 'Connessione SP-API riuscita (marketplace participation)',
-                    'test_method': 'get_marketplace_participation',
-                    'participation_info': participation_info,
+                    'message': 'Connessione SP-API riuscita (account info)',
+                    'test_method': 'get_account_info',
+                    'account_info': account_info,
                     'debug_info': debug_info
                 }
             except Exception as e2:
-                logger.error(f"Fallback test fallito: {e2}")
+                logger.error(f"Account info test fallito: {e2}")
                 
-                # Ultimo fallback: prova account info
+                # Test diretto LWA Token Exchange
                 try:
-                    account_info = self.get_account_info()
-                    return {
-                        'success': True,
-                        'message': 'Connessione SP-API riuscita (account info)',
-                        'test_method': 'get_account_info',
-                        'account_info': account_info,
-                        'debug_info': debug_info
-                    }
+                    import requests
+                    
+                    logger.info(f"[SP-API-TEST] Testing direct LWA token exchange")
+                    
+                    lwa_response = requests.post(
+                        'https://api.amazon.com/auth/o2/token',
+                        data={
+                            'grant_type': 'refresh_token',
+                            'refresh_token': self.credentials.get('refresh_token'),
+                            'client_id': self.credentials.get('lwa_app_id'),
+                            'client_secret': self.credentials.get('lwa_client_secret')
+                        },
+                        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                        timeout=30
+                    )
+                    
+                    if lwa_response.status_code == 200:
+                        lwa_data = lwa_response.json()
+                        return {
+                            'success': True,
+                            'message': 'LWA Token Exchange riuscito - credenziali LWA corrette',
+                            'test_method': 'direct_lwa_token_exchange',
+                            'lwa_response': {
+                                'access_token_length': len(lwa_data.get('access_token', '')),
+                                'token_type': lwa_data.get('token_type'),
+                                'expires_in': lwa_data.get('expires_in')
+                            },
+                            'debug_info': debug_info,
+                            'note': 'LWA OK ma SP-API fallita - possibile problema AWS/permessi'
+                        }
+                    else:
+                        return {
+                            'success': False,
+                            'message': f'LWA Token Exchange fallito: {lwa_response.status_code}',
+                            'error': f'LWA Error: {lwa_response.text}',
+                            'debug_info': debug_info,
+                            'lwa_status_code': lwa_response.status_code,
+                            'detailed_errors': {
+                                'participation_error': str(e),
+                                'account_error': str(e2),
+                                'lwa_error': lwa_response.text
+                            }
+                        }
+                        
                 except Exception as e3:
                     import traceback
                     return {
                         'success': False,
-                        'message': f'Tutte le API SP-API sono fallite - possibile problema credenziali',
+                        'message': f'Tutti i test SP-API sono falliti',
                         'error': f'Primary error: {str(e)}',
                         'debug_info': debug_info,
                         'detailed_errors': {
-                            'orders_error': str(e),
-                            'orders_traceback': traceback.format_exc() if 'e' in locals() else 'N/A',
-                            'participation_error': str(e2),
-                            'account_error': str(e3),
+                            'participation_error': str(e),
+                            'account_error': str(e2),
+                            'lwa_error': str(e3),
                             'final_traceback': traceback.format_exc()
                         },
                         'troubleshooting': {
                             'check_refresh_token': 'Verifica che il refresh token sia corretto e non scaduto',
-                            'check_app_status': 'Verifica che l\'app Amazon sia autorizzata correttamente',
-                            'check_marketplace': f'Marketplace testato: {self.marketplace}',
-                            'check_credentials': 'Verifica LWA app ID e client secret'
+                            'check_app_authorization': 'Verifica che l\'app Amazon sia autorizzata correttamente in Seller Central',
+                            'check_marketplace': f'Marketplace testato: {self.marketplace_id}',
+                            'check_endpoint': f'Endpoint testato: {self.endpoint}',
+                            'check_aws_credentials': 'Verifica AWS access key, secret key e role ARN',
+                            'check_permissions': 'Verifica che l\'app abbia i permessi per Orders, Sellers, Reports API'
                         }
                     }
 
