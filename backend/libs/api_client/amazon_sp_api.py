@@ -156,24 +156,29 @@ class AmazonSPAPIClient:
 
     def _set_env_vars(self) -> None:
         """
-        Imposta le environment variables usando i nomi ufficiali della libreria
-        Questo è il metodo raccomandato dalla guida ufficiale
+        Imposta le environment variables usando i nomi che la libreria effettivamente cerca
+        Basato sull'errore: "Credentials are missing: lwa_app_id, lwa_client_secret"
         """
         import os
         
-        # Imposta environment variables con nomi ufficiali SP-API
+        # Imposta environment variables con i nomi che la libreria python-amazon-sp-api cerca
+        os.environ['refresh_token'] = self.credentials.get('refresh_token', '')
+        os.environ['lwa_app_id'] = self.credentials.get('lwa_app_id', '')
+        os.environ['lwa_client_secret'] = self.credentials.get('lwa_client_secret', '')
+        os.environ['aws_access_key'] = self.credentials.get('aws_access_key', '')
+        os.environ['aws_secret_key'] = self.credentials.get('aws_secret_key', '')
+        os.environ['role_arn'] = self.credentials.get('role_arn', '')
+        
+        # Anche i nomi "ufficiali" per compatibilità
         os.environ['SP_API_REFRESH_TOKEN'] = self.credentials.get('refresh_token', '')
-        os.environ['SP_API_CLIENT_ID'] = self.credentials.get('lwa_app_id', '')  # lwa_app_id → CLIENT_ID
+        os.environ['SP_API_CLIENT_ID'] = self.credentials.get('lwa_app_id', '')
         os.environ['SP_API_CLIENT_SECRET'] = self.credentials.get('lwa_client_secret', '')
         os.environ['SP_API_AWS_ACCESS_KEY'] = self.credentials.get('aws_access_key', '')
         os.environ['SP_API_AWS_SECRET_KEY'] = self.credentials.get('aws_secret_key', '')
         os.environ['SP_API_ROLE_ARN'] = self.credentials.get('role_arn', '')
         os.environ['SP_API_ENDPOINT'] = self.endpoint
         
-        # Marketplace ID per la libreria
-        os.environ['SP_API_MARKETPLACE'] = self.marketplace_id
-        
-        logger.info("Environment variables SP-API impostate secondo guida ufficiale")
+        logger.info(f"Environment variables SP-API impostate - lwa_app_id: {self.credentials.get('lwa_app_id', 'MISSING')[:20]}...")
 
 
 
