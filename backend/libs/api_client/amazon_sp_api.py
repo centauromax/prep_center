@@ -160,7 +160,7 @@ class AmazonSPAPIClient:
         """
         return {
             'refresh_token': self.credentials.get('refresh_token'),
-            'lwa_app_id': self.credentials.get('lwa_app_id'),
+            'lwa_client_id': self.credentials.get('lwa_app_id'),  # Corrected parameter name
             'lwa_client_secret': self.credentials.get('lwa_client_secret'),
             'aws_access_key': self.credentials.get('aws_access_key'),
             'aws_secret_key': self.credentials.get('aws_secret_key'),
@@ -445,7 +445,7 @@ class AmazonSPAPIClient:
                         data={
                             'grant_type': 'refresh_token',
                             'refresh_token': self.credentials.get('refresh_token'),
-                            'client_id': self.credentials.get('lwa_app_id'),
+                            'client_id': self.credentials.get('lwa_app_id'),  # Note: this stays as lwa_app_id for LWA API
                             'client_secret': self.credentials.get('lwa_client_secret')
                         },
                         headers={'Content-Type': 'application/x-www-form-urlencoded'},
