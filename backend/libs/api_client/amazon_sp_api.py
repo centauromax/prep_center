@@ -154,37 +154,66 @@ class AmazonSPAPIClient:
         
         return endpoint
 
-    def _set_env_vars(self) -> None:
+    def _create_credentials_file(self) -> None:
         """
-        ✅ CORREZIONE FONDAMENTALE: Imposta environment variables standard Saleweaver
+        ✅ SOLUZIONE DEFINITIVA: Crea file credentials.yml per libreria Saleweaver
         
-        Dalla documentazione GitHub ufficiale:
-        La libreria Saleweaver cerca automaticamente queste env vars:
-        - refresh_token
-        - lwa_app_id (CORRETTO, non lwa_client_id)
-        - lwa_client_secret
-        - aws_access_key
-        - aws_secret_key
-        - role_arn
+        Dalla documentazione ufficiale ReadTheDocs:
+        La libreria cerca file ~/.config/python-sp-api/credentials.yml con formato:
+        
+        version: '1.0'
+        default:
+          refresh_token: ''
+          lwa_app_id: ''
+          lwa_client_secret: ''
+        
+        Search paths (Linux/Railway): ~/.config/python-sp-api
         """
         import os
+        import yaml
+        from pathlib import Path
         
-        # ✅ Environment variables STANDARD che la libreria Saleweaver cerca
-        if self.credentials.get('refresh_token'):
-            os.environ['refresh_token'] = self.credentials['refresh_token']
-        if self.credentials.get('lwa_app_id'):
-            # ✅ STANDARD: La libreria usa 'lwa_app_id' (non lwa_client_id)
-            os.environ['lwa_app_id'] = self.credentials['lwa_app_id']
-        if self.credentials.get('lwa_client_secret'):
-            os.environ['lwa_client_secret'] = self.credentials['lwa_client_secret']
+        # Path per file di configurazione (Linux/Railway)
+        config_dir = Path.home() / '.config' / 'python-sp-api'
+        config_file = config_dir / 'credentials.yml'
+        
+        # Crea directory se non esiste
+        config_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Struttura file credentials.yml
+        credentials_data = {
+            'version': '1.0',
+            'default': {
+                'refresh_token': self.credentials.get('refresh_token', ''),
+                'lwa_app_id': self.credentials.get('lwa_app_id', ''),
+                'lwa_client_secret': self.credentials.get('lwa_client_secret', ''),
+                # AWS credentials sono opzionali nel file, possono rimanere in env vars
+                'aws_access_key': self.credentials.get('aws_access_key', ''),
+                'aws_secret_key': self.credentials.get('aws_secret_key', ''),
+                'role_arn': self.credentials.get('role_arn', '')
+            }
+        }
+        
+        # Scrivi file YAML
+        with open(config_file, 'w') as f:
+            yaml.dump(credentials_data, f, default_flow_style=False)
+        
+        logger.info(f"✅ File credentials.yml creato: {config_file}")
+        
+        # Imposta anche env vars come fallback
+        self._set_env_vars_fallback()
+    
+    def _set_env_vars_fallback(self) -> None:
+        """Environment variables come fallback per AWS credentials"""
+        import os
+        
+        # Solo AWS credentials come fallback (LWA usa il file)
         if self.credentials.get('aws_access_key'):
             os.environ['aws_access_key'] = self.credentials['aws_access_key']
         if self.credentials.get('aws_secret_key'):
             os.environ['aws_secret_key'] = self.credentials['aws_secret_key']
         if self.credentials.get('role_arn'):
             os.environ['role_arn'] = self.credentials['role_arn']
-        
-        logger.info(f"✅ Environment variables STANDARD Saleweaver impostate")
 
     def _get_constructor_kwargs(self) -> Dict[str, Any]:
         """
@@ -247,8 +276,8 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_orders(**params)
             
@@ -264,8 +293,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_order(order_id)
             
@@ -281,8 +310,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_order_items(order_id)
             
@@ -319,8 +348,8 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             inventories_client = Inventories()  # Nessun parametro!
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
@@ -354,8 +383,8 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             reports_client = Reports()  # Nessun parametro!
             response = reports_client.create_report(**params)
             
@@ -371,8 +400,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             reports_client = Reports()  # Nessun parametro!
             response = reports_client.get_report(report_id)
             
@@ -392,8 +421,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             sellers_client = Sellers()  # Nessun parametro!
             response = sellers_client.get_account()
             
@@ -409,8 +438,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
-            self._set_env_vars()
+            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            self._create_credentials_file()
             sellers_client = Sellers()  # Nessun parametro!
             response = sellers_client.get_marketplace_participation()
             
