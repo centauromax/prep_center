@@ -62,13 +62,22 @@ class AmazonSPAPIClient:
             'refresh_token': os.getenv('AMAZON_SP_API_REFRESH_TOKEN'),
             'lwa_app_id': os.getenv('AMAZON_SP_API_LWA_APP_ID'),
             'lwa_client_secret': os.getenv('AMAZON_SP_API_LWA_CLIENT_SECRET'),
+            'aws_access_key': os.getenv('AMAZON_SP_API_AWS_ACCESS_KEY'),
+            'aws_secret_key': os.getenv('AMAZON_SP_API_AWS_SECRET_KEY'),
+            'role_arn': os.getenv('AMAZON_SP_API_ROLE_ARN'),
             'marketplace': os.getenv('AMAZON_SP_API_MARKETPLACE', 'IT')
         }
 
     def _validate_credentials(self) -> bool:
         """Valida che tutte le credenziali necessarie siano presenti"""
-        required_fields = ['refresh_token', 'lwa_app_id', 'lwa_client_secret']
-        return all(self.credentials.get(field) for field in required_fields)
+        required_fields = ['refresh_token', 'lwa_app_id', 'lwa_client_secret', 'aws_access_key', 'aws_secret_key', 'role_arn']
+        missing_fields = [field for field in required_fields if not self.credentials.get(field)]
+        
+        if missing_fields:
+            logger.warning(f"Credenziali mancanti: {missing_fields}")
+            return False
+            
+        return True
 
     def _get_marketplace(self) -> str:
         """Ottiene il marketplace configurato"""

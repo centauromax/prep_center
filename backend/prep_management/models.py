@@ -47,6 +47,17 @@ class AmazonSPAPIConfig(models.Model):
     lwa_client_secret = models.CharField(verbose_name="LWA Client Secret", max_length=255,
                                        help_text="Secret dell'applicazione Login with Amazon")
     
+    # Credenziali AWS (necessarie per Signature V4)
+    aws_access_key = models.CharField(verbose_name="AWS Access Key ID", max_length=255,
+                                     null=True, blank=True,
+                                     help_text="Access Key ID del tuo IAM User AWS")
+    aws_secret_key = models.CharField(verbose_name="AWS Secret Access Key", max_length=255,
+                                     null=True, blank=True,
+                                     help_text="Secret Access Key del tuo IAM User AWS")
+    role_arn = models.CharField(verbose_name="AWS IAM Role ARN", max_length=255,
+                               null=True, blank=True,
+                               help_text="ARN del ruolo IAM per l'accesso alle SP-API (es: arn:aws:iam::123456789:role/SellingPartnerAPIRole)")
+    
     # Configurazione marketplace
     marketplace = models.CharField(verbose_name="Marketplace", max_length=2, 
                                  choices=MARKETPLACE_CHOICES, default='IT',
@@ -103,6 +114,9 @@ class AmazonSPAPIConfig(models.Model):
             'refresh_token': self.refresh_token,
             'lwa_app_id': self.lwa_app_id,
             'lwa_client_secret': self.lwa_client_secret,
+            'aws_access_key': self.aws_access_key,
+            'aws_secret_key': self.aws_secret_key,
+            'role_arn': self.role_arn,
             'marketplace': self.marketplace,
         }
     
