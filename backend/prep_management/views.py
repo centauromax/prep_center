@@ -4409,7 +4409,8 @@ def sp_api_diagnostic_test(request, config_id):
         
         # Test con il client interno
         try:
-            client = AmazonSPAPIClient(config)
+            credentials = config.get_credentials_dict()
+            client = AmazonSPAPIClient(credentials=credentials)
             
             # Test account info
             account_result = client.get_account_info()
@@ -4532,7 +4533,8 @@ def sp_api_authorization_status(request):
             
             # Test rapido solo per marketplace participation (meno invasivo)
             try:
-                client = AmazonSPAPIClient(config)
+                credentials = config.get_credentials_dict()
+                client = AmazonSPAPIClient(credentials=credentials)
                 
                 # Test LWA Token Exchange
                 lwa_test = client._test_lwa_token_exchange()
