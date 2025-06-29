@@ -4536,11 +4536,12 @@ def sp_api_authorization_status(request):
                 credentials = config.get_credentials_dict()
                 client = AmazonSPAPIClient(credentials=credentials)
                 
-                # Test LWA Token Exchange
-                lwa_test = client._test_lwa_token_exchange()
+                # Test connessione completo (include LWA)
+                lwa_test = client.test_connection()
                 config_result['test_results']['lwa'] = {
                     'success': lwa_test.get('success', False),
-                    'message': 'LWA Token Exchange OK' if lwa_test.get('success') else 'LWA Failed'
+                    'message': lwa_test.get('message', 'Test completed'),
+                    'debug_info': lwa_test.get('debug_info', {})
                 }
                 
                 if lwa_test.get('success'):
