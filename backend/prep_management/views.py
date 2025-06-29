@@ -3748,6 +3748,11 @@ def sp_api_config_list(request):
                 'success_rate': round(success_rate, 2),
                 'created_at': config.created_at.isoformat(),
                 'updated_at': config.updated_at.isoformat(),
+                # AWS Credentials (masked for security)
+                'aws_access_key': config.aws_access_key[:10] + '...' if config.aws_access_key else None,
+                'aws_secret_key': '***masked***' if config.aws_secret_key else None,
+                'role_arn': config.role_arn,
+                'has_aws_credentials': bool(config.aws_access_key and config.aws_secret_key and config.role_arn),
             })
         
         return JsonResponse({
