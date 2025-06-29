@@ -3888,7 +3888,7 @@ def sp_api_orders_list(request):
             'total_orders': len(orders_data.get('Orders', [])),
             'total_retrieved': len(orders_data.get('Orders', []))
         })
-        
+            
     except Exception as e:
         logger.error(f"Errore recupero ordini SP-API: {e}", exc_info=True)
         try:
@@ -4117,7 +4117,7 @@ def sp_api_account_info(request):
         config_id = request.GET.get('config_id')
         if not config_id:
             return JsonResponse({
-                'success': False, 
+                'success': False,
                 'error': 'config_id parameter required'
             })
 

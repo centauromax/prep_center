@@ -42,6 +42,10 @@ class AmazonSPAPIConfigAdmin(admin.ModelAdmin):
         ('Credenziali Amazon SP-API', {
             'fields': ('refresh_token', 'lwa_app_id', 'lwa_client_secret')
         }),
+        ('Credenziali AWS', {
+            'fields': ('aws_access_key', 'aws_secret_key', 'role_arn'),
+            'description': 'Credenziali AWS necessarie per l\'autenticazione Signature V4 delle SP-API'
+        }),
         ('Configurazioni tecniche', {
             'classes': ('collapse',),
             'fields': ('api_timeout', 'max_retries')
