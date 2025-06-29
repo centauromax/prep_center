@@ -195,8 +195,8 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # Chiamata API con dict credentials
-            orders_client = Orders(credentials=self.credentials, endpoint=self.endpoint)
+            # Chiamata API con dict credentials secondo documentazione ufficiale
+            orders_client = Orders(credentials=self.credentials)
             response = orders_client.get_orders(**params)
             
             logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
@@ -211,7 +211,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials, endpoint=self.endpoint)
+            orders_client = Orders(credentials=self.credentials)
             response = orders_client.get_order(order_id)
             
             logger.info(f"Recuperato ordine {order_id}")
@@ -226,7 +226,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials, endpoint=self.endpoint)
+            orders_client = Orders(credentials=self.credentials)
             response = orders_client.get_order_items(order_id)
             
             logger.info(f"Recuperati items per ordine {order_id}")
@@ -262,7 +262,7 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            inventories_client = Inventories(credentials=self.credentials, endpoint=self.endpoint)
+            inventories_client = Inventories(credentials=self.credentials)
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
             logger.info("Recuperato riepilogo inventario")
@@ -295,7 +295,7 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            reports_client = Reports(credentials=self.credentials, endpoint=self.endpoint)
+            reports_client = Reports(credentials=self.credentials)
             response = reports_client.create_report(**params)
             
             logger.info(f"Report {report_type} creato")
@@ -310,7 +310,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            reports_client = Reports(credentials=self.credentials, endpoint=self.endpoint)
+            reports_client = Reports(credentials=self.credentials)
             response = reports_client.get_report(report_id)
             
             logger.info(f"Recuperato report {report_id}")
@@ -329,7 +329,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials, endpoint=self.endpoint)
+            sellers_client = Sellers(credentials=self.credentials)
             response = sellers_client.get_account()
             
             logger.info("Recuperate info account seller")
@@ -344,7 +344,7 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials, endpoint=self.endpoint)
+            sellers_client = Sellers(credentials=self.credentials)
             response = sellers_client.get_marketplace_participation()
             
             logger.info("Recuperate info marketplace participation")
