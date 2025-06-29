@@ -156,19 +156,25 @@ class AmazonSPAPIClient:
 
     def _set_env_vars(self) -> None:
         """
-        Imposta le environment variables usando i nomi che la libreria python-amazon-sp-api cerca
-        Dalla documentazione ufficiale: https://python-amazon-sp-api.readthedocs.io/en/latest/credentials.html
-        NOTA: La libreria usa lwa_client_id nelle env vars, non lwa_app_id
+        ✅ CORREZIONE FONDAMENTALE: Imposta environment variables standard Saleweaver
+        
+        Dalla documentazione GitHub ufficiale:
+        La libreria Saleweaver cerca automaticamente queste env vars:
+        - refresh_token
+        - lwa_app_id (CORRETTO, non lwa_client_id)
+        - lwa_client_secret
+        - aws_access_key
+        - aws_secret_key
+        - role_arn
         """
         import os
         
-        # Environment variables che la libreria Saleweaver cerca automaticamente
-        # https://python-amazon-sp-api.readthedocs.io/en/latest/credentials.html#environment-variables
+        # ✅ Environment variables STANDARD che la libreria Saleweaver cerca
         if self.credentials.get('refresh_token'):
             os.environ['refresh_token'] = self.credentials['refresh_token']
         if self.credentials.get('lwa_app_id'):
-            # ✅ CORREZIONE: La libreria cerca 'lwa_client_id' nelle env vars
-            os.environ['lwa_client_id'] = self.credentials['lwa_app_id']
+            # ✅ STANDARD: La libreria usa 'lwa_app_id' (non lwa_client_id)
+            os.environ['lwa_app_id'] = self.credentials['lwa_app_id']
         if self.credentials.get('lwa_client_secret'):
             os.environ['lwa_client_secret'] = self.credentials['lwa_client_secret']
         if self.credentials.get('aws_access_key'):
@@ -178,32 +184,27 @@ class AmazonSPAPIClient:
         if self.credentials.get('role_arn'):
             os.environ['role_arn'] = self.credentials['role_arn']
         
-        logger.info(f"Environment variables SP-API impostate per libreria Saleweaver")
+        logger.info(f"✅ Environment variables STANDARD Saleweaver impostate")
 
     def _get_constructor_kwargs(self) -> Dict[str, Any]:
         """
-        Restituisce i kwargs per il costruttore delle API classes della libreria Saleweaver
-        Dalla documentazione: Orders(refresh_token="...", lwa_client_id="...", etc.)
-        NOTA: Il parametro è lwa_client_id, NON lwa_app_id!
-        """
-        kwargs = {}
+        ✅ NUOVO APPROCCIO: La libreria Saleweaver usa SOLO environment variables
         
-        # Solo aggiungi parametri se presenti (altrimenti la libreria usa env vars)
-        if self.credentials.get('refresh_token'):
-            kwargs['refresh_token'] = self.credentials['refresh_token']
-        if self.credentials.get('lwa_app_id'):
-            # ✅ CORREZIONE: La libreria Saleweaver usa 'lwa_client_id', non 'lwa_app_id'
-            kwargs['lwa_client_id'] = self.credentials['lwa_app_id']
-        if self.credentials.get('lwa_client_secret'):
-            kwargs['lwa_client_secret'] = self.credentials['lwa_client_secret']
-        if self.credentials.get('aws_access_key'):
-            kwargs['aws_access_key'] = self.credentials['aws_access_key']
-        if self.credentials.get('aws_secret_key'):
-            kwargs['aws_secret_key'] = self.credentials['aws_secret_key']
-        if self.credentials.get('role_arn'):
-            kwargs['role_arn'] = self.credentials['role_arn']
-            
-        return kwargs
+        Dalla documentazione ufficiale GitHub:
+        from sp_api.api import Orders
+        res = Orders().get_orders(...)  # Nessun parametro nel costruttore!
+        
+        La libreria legge automaticamente da env vars standard:
+        - refresh_token
+        - lwa_app_id (NON lwa_client_id)
+        - lwa_client_secret
+        - aws_access_key
+        - aws_secret_key  
+        - role_arn
+        """
+        # ✅ CORREZIONE FONDAMENTALE: Saleweaver non usa parametri nel costruttore
+        # Restituisce dict vuoto, tutte le credenziali sono via environment variables
+        return {}
 
 
 
@@ -246,9 +247,9 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente al costruttore
-            kwargs = self._get_constructor_kwargs()
-            orders_client = Orders(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_orders(**params)
             
             logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
@@ -263,9 +264,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            orders_client = Orders(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_order(order_id)
             
             logger.info(f"Recuperato ordine {order_id}")
@@ -280,9 +281,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            orders_client = Orders(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_order_items(order_id)
             
             logger.info(f"Recuperati items per ordine {order_id}")
@@ -318,9 +319,9 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            inventories_client = Inventories(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            inventories_client = Inventories()  # Nessun parametro!
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
             logger.info("Recuperato riepilogo inventario")
@@ -353,9 +354,9 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            reports_client = Reports(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            reports_client = Reports()  # Nessun parametro!
             response = reports_client.create_report(**params)
             
             logger.info(f"Report {report_type} creato")
@@ -370,9 +371,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            reports_client = Reports(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            reports_client = Reports()  # Nessun parametro!
             response = reports_client.get_report(report_id)
             
             logger.info(f"Recuperato report {report_id}")
@@ -391,9 +392,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            sellers_client = Sellers(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            sellers_client = Sellers()  # Nessun parametro!
             response = sellers_client.get_account()
             
             logger.info("Recuperate info account seller")
@@ -408,9 +409,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
-            kwargs = self._get_constructor_kwargs()
-            sellers_client = Sellers(**kwargs)
+            # ✅ APPROCCIO CORRETTO SALEWEAVER: Solo environment variables
+            self._set_env_vars()
+            sellers_client = Sellers()  # Nessun parametro!
             response = sellers_client.get_marketplace_participation()
             
             logger.info("Recuperate info marketplace participation")
