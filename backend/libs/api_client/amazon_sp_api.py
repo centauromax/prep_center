@@ -154,6 +154,27 @@ class AmazonSPAPIClient:
         
         return endpoint
 
+    def _set_env_vars(self) -> None:
+        """
+        Imposta le environment variables usando i nomi ufficiali della libreria
+        Questo è il metodo raccomandato dalla guida ufficiale
+        """
+        import os
+        
+        # Imposta environment variables con nomi ufficiali SP-API
+        os.environ['SP_API_REFRESH_TOKEN'] = self.credentials.get('refresh_token', '')
+        os.environ['SP_API_CLIENT_ID'] = self.credentials.get('lwa_app_id', '')  # lwa_app_id → CLIENT_ID
+        os.environ['SP_API_CLIENT_SECRET'] = self.credentials.get('lwa_client_secret', '')
+        os.environ['SP_API_AWS_ACCESS_KEY'] = self.credentials.get('aws_access_key', '')
+        os.environ['SP_API_AWS_SECRET_KEY'] = self.credentials.get('aws_secret_key', '')
+        os.environ['SP_API_ROLE_ARN'] = self.credentials.get('role_arn', '')
+        os.environ['SP_API_ENDPOINT'] = self.endpoint
+        
+        # Marketplace ID per la libreria
+        os.environ['SP_API_MARKETPLACE'] = self.marketplace_id
+        
+        logger.info("Environment variables SP-API impostate secondo guida ufficiale")
+
 
 
     def _handle_api_error(self, e: Exception, operation: str) -> None:
@@ -195,8 +216,9 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # Chiamata API con dict credentials secondo documentazione ufficiale
-            orders_client = Orders(credentials=self.credentials)
+            # Imposta environment variables secondo guida ufficiale (metodo raccomandato)
+            self._set_env_vars()
+            orders_client = Orders()
             response = orders_client.get_orders(**params)
             
             logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
@@ -211,7 +233,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials)
+            self._set_env_vars()
+            orders_client = Orders()
             response = orders_client.get_order(order_id)
             
             logger.info(f"Recuperato ordine {order_id}")
@@ -226,7 +249,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            orders_client = Orders(credentials=self.credentials)
+            self._set_env_vars()
+            orders_client = Orders()
             response = orders_client.get_order_items(order_id)
             
             logger.info(f"Recuperati items per ordine {order_id}")
@@ -262,7 +286,8 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            inventories_client = Inventories(credentials=self.credentials)
+            self._set_env_vars()
+            inventories_client = Inventories()
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
             logger.info("Recuperato riepilogo inventario")
@@ -295,7 +320,8 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            reports_client = Reports(credentials=self.credentials)
+            self._set_env_vars()
+            reports_client = Reports()
             response = reports_client.create_report(**params)
             
             logger.info(f"Report {report_type} creato")
@@ -310,7 +336,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            reports_client = Reports(credentials=self.credentials)
+            self._set_env_vars()
+            reports_client = Reports()
             response = reports_client.get_report(report_id)
             
             logger.info(f"Recuperato report {report_id}")
@@ -329,7 +356,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials)
+            self._set_env_vars()
+            sellers_client = Sellers()
             response = sellers_client.get_account()
             
             logger.info("Recuperate info account seller")
@@ -344,7 +372,8 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            sellers_client = Sellers(credentials=self.credentials)
+            self._set_env_vars()
+            sellers_client = Sellers()
             response = sellers_client.get_marketplace_participation()
             
             logger.info("Recuperate info marketplace participation")
