@@ -156,43 +156,50 @@ class AmazonSPAPIClient:
 
     def _set_env_vars(self) -> None:
         """
-        Imposta le environment variables usando i nomi che la libreria effettivamente cerca
-        Basato sull'errore: "Credentials are missing: lwa_app_id, lwa_client_secret"
+        Imposta le environment variables usando i nomi che la libreria python-amazon-sp-api cerca
+        Dalla documentazione ufficiale: https://python-amazon-sp-api.readthedocs.io/en/latest/credentials.html
         """
         import os
         
-        # Imposta environment variables con i nomi che la libreria python-amazon-sp-api cerca
-        os.environ['refresh_token'] = self.credentials.get('refresh_token', '')
-        os.environ['lwa_app_id'] = self.credentials.get('lwa_app_id', '')
-        os.environ['lwa_client_secret'] = self.credentials.get('lwa_client_secret', '')
-        os.environ['aws_access_key'] = self.credentials.get('aws_access_key', '')
-        os.environ['aws_secret_key'] = self.credentials.get('aws_secret_key', '')
-        os.environ['role_arn'] = self.credentials.get('role_arn', '')
+        # Environment variables che la libreria Saleweaver cerca automaticamente
+        # https://python-amazon-sp-api.readthedocs.io/en/latest/credentials.html#environment-variables
+        if self.credentials.get('refresh_token'):
+            os.environ['refresh_token'] = self.credentials['refresh_token']
+        if self.credentials.get('lwa_app_id'):
+            os.environ['lwa_app_id'] = self.credentials['lwa_app_id']
+        if self.credentials.get('lwa_client_secret'):
+            os.environ['lwa_client_secret'] = self.credentials['lwa_client_secret']
+        if self.credentials.get('aws_access_key'):
+            os.environ['aws_access_key'] = self.credentials['aws_access_key']
+        if self.credentials.get('aws_secret_key'):
+            os.environ['aws_secret_key'] = self.credentials['aws_secret_key']
+        if self.credentials.get('role_arn'):
+            os.environ['role_arn'] = self.credentials['role_arn']
         
-        # Anche i nomi "ufficiali" per compatibilità
-        os.environ['SP_API_REFRESH_TOKEN'] = self.credentials.get('refresh_token', '')
-        os.environ['SP_API_CLIENT_ID'] = self.credentials.get('lwa_app_id', '')
-        os.environ['SP_API_CLIENT_SECRET'] = self.credentials.get('lwa_client_secret', '')
-        os.environ['SP_API_AWS_ACCESS_KEY'] = self.credentials.get('aws_access_key', '')
-        os.environ['SP_API_AWS_SECRET_KEY'] = self.credentials.get('aws_secret_key', '')
-        os.environ['SP_API_ROLE_ARN'] = self.credentials.get('role_arn', '')
-        os.environ['SP_API_ENDPOINT'] = self.endpoint
-        
-        logger.info(f"Environment variables SP-API impostate - lwa_app_id: {self.credentials.get('lwa_app_id', 'MISSING')[:20]}...")
+        logger.info(f"Environment variables SP-API impostate per libreria Saleweaver")
 
-    def _get_library_credentials_dict(self) -> Dict[str, Any]:
+    def _get_constructor_kwargs(self) -> Dict[str, Any]:
         """
-        Restituisce le credenziali nel formato che la libreria python-amazon-sp-api si aspetta
-        Basato sull'errore della libreria e test empirici
+        Restituisce i kwargs per il costruttore delle API classes della libreria Saleweaver
+        Dalla documentazione: Orders(refresh_token="...", lwa_app_id="...", etc.)
         """
-        return {
-            'refresh_token': self.credentials.get('refresh_token'),
-            'lwa_app_id': self.credentials.get('lwa_app_id'),
-            'lwa_client_secret': self.credentials.get('lwa_client_secret'), 
-            'aws_access_key': self.credentials.get('aws_access_key'),
-            'aws_secret_key': self.credentials.get('aws_secret_key'),
-            'role_arn': self.credentials.get('role_arn'),
-        }
+        kwargs = {}
+        
+        # Solo aggiungi parametri se presenti (altrimenti la libreria usa env vars)
+        if self.credentials.get('refresh_token'):
+            kwargs['refresh_token'] = self.credentials['refresh_token']
+        if self.credentials.get('lwa_app_id'):
+            kwargs['lwa_app_id'] = self.credentials['lwa_app_id']
+        if self.credentials.get('lwa_client_secret'):
+            kwargs['lwa_client_secret'] = self.credentials['lwa_client_secret']
+        if self.credentials.get('aws_access_key'):
+            kwargs['aws_access_key'] = self.credentials['aws_access_key']
+        if self.credentials.get('aws_secret_key'):
+            kwargs['aws_secret_key'] = self.credentials['aws_secret_key']
+        if self.credentials.get('role_arn'):
+            kwargs['role_arn'] = self.credentials['role_arn']
+            
+        return kwargs
 
 
 
@@ -235,9 +242,9 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # Usa dict credentials con nomi che la libreria si aspetta
-            credentials_dict = self._get_library_credentials_dict()
-            orders_client = Orders(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente al costruttore
+            kwargs = self._get_constructor_kwargs()
+            orders_client = Orders(**kwargs)
             response = orders_client.get_orders(**params)
             
             logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
@@ -252,8 +259,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            credentials_dict = self._get_library_credentials_dict()
-            orders_client = Orders(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            orders_client = Orders(**kwargs)
             response = orders_client.get_order(order_id)
             
             logger.info(f"Recuperato ordine {order_id}")
@@ -268,8 +276,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            credentials_dict = self._get_library_credentials_dict()
-            orders_client = Orders(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            orders_client = Orders(**kwargs)
             response = orders_client.get_order_items(order_id)
             
             logger.info(f"Recuperati items per ordine {order_id}")
@@ -305,8 +314,9 @@ class AmazonSPAPIClient:
             if seller_skus:
                 params['seller_skus'] = seller_skus
 
-            credentials_dict = self._get_library_credentials_dict()
-            inventories_client = Inventories(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            inventories_client = Inventories(**kwargs)
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
             logger.info("Recuperato riepilogo inventario")
@@ -339,8 +349,9 @@ class AmazonSPAPIClient:
             if end_time:
                 params['dataEndTime'] = end_time.isoformat()
 
-            credentials_dict = self._get_library_credentials_dict()
-            reports_client = Reports(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            reports_client = Reports(**kwargs)
             response = reports_client.create_report(**params)
             
             logger.info(f"Report {report_type} creato")
@@ -355,8 +366,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            credentials_dict = self._get_library_credentials_dict()
-            reports_client = Reports(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            reports_client = Reports(**kwargs)
             response = reports_client.get_report(report_id)
             
             logger.info(f"Recuperato report {report_id}")
@@ -375,8 +387,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            credentials_dict = self._get_library_credentials_dict()
-            sellers_client = Sellers(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            sellers_client = Sellers(**kwargs)
             response = sellers_client.get_account()
             
             logger.info("Recuperate info account seller")
@@ -391,8 +404,9 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            credentials_dict = self._get_library_credentials_dict()
-            sellers_client = Sellers(credentials=credentials_dict)
+            # ✅ APPROCCIO CORRETTO: Passa parametri direttamente
+            kwargs = self._get_constructor_kwargs()
+            sellers_client = Sellers(**kwargs)
             response = sellers_client.get_marketplace_participation()
             
             logger.info("Recuperate info marketplace participation")
