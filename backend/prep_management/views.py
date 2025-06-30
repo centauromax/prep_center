@@ -4895,15 +4895,23 @@ def sp_api_sales_analysis_data(request):
         
         # Step 1: Ottieni inventario
         logger.info("📦 [SALES-ANALYSIS] Getting inventory...")
-        inventory_result = client.get_inventory_summary()
-        
-        if not inventory_result.get('success'):
+        try:
+            inventory_result = client.get_inventory_summary()
+            
+            # get_inventory_summary restituisce direttamente i dati (non wrapped in success)
+            if isinstance(inventory_result, dict) and 'inventorySummaries' in inventory_result:
+                inventory_summaries = inventory_result.get('inventorySummaries', [])
+            else:
+                # Fallback: cerca nella struttura annidata
+                inventory_summaries = inventory_result.get('inventory', {}).get('inventorySummaries', [])
+                
+        except Exception as e:
+            logger.error(f"❌ [SALES-ANALYSIS] Inventory Error: {e}")
             return JsonResponse({
-                'error': f"Errore inventario: {inventory_result.get('error', 'Unknown error')}",
-                'inventory_result': inventory_result
+                'error': f"Errore inventario: {str(e)}",
+                'details': str(e)
             }, status=400)
         
-        inventory_summaries = inventory_result.get('inventory', {}).get('inventorySummaries', [])
         logger.info(f"📊 [SALES-ANALYSIS] Found {len(inventory_summaries)} products in inventory")
         
         if not inventory_summaries:
@@ -5011,9 +5019,10 @@ def sp_api_sales_analysis_data(request):
                 # Prendi la prima parola come brand (può essere migliorato)
                 brand = product_name.split()[0] if product_name.split() else 'Unknown'
             
-            # Quantità in inventario
+            # Quantità in inventario (struttura: inventoryDetails.fulfillableQuantity)
+            inventory_details = inventory_item.get('inventoryDetails', {})
             total_quantity = inventory_item.get('totalQuantity', 0)
-            fulfillable_quantity = inventory_item.get('fulfillableQuantity', 0)
+            fulfillable_quantity = inventory_details.get('fulfillableQuantity', 0)
             
             # Vendite
             sales_data = sales_by_sku.get(sku, {})
@@ -5033,22 +5042,22 @@ def sp_api_sales_analysis_data(request):
                 'asin': asin,
                 'product_name': product_name,
                 'brand': brand,
-                'total_inventory': total_quantity,
-                'fulfillable_inventory': fulfillable_quantity,
-                'total_sold': total_sold,
-                'orders_count': orders_count,
-                'sales_velocity_per_month': round(sales_velocity, 2),
-                'days_coverage': round(days_coverage, 1) if days_coverage else 0,
-                'performance_rating': 'high' if total_sold > sales_velocity * 6 else 'medium' if total_sold > 0 else 'low'
+                'total_quantity': total_quantity,  # JavaScript si aspetta total_quantity
+                'available_quantity': fulfillable_quantity,  # JavaScript si aspetta available_quantity
+                'total_sales': total_sold,  # JavaScript si aspetta total_sales
+                'total_orders': orders_count,  # JavaScript si aspetta total_orders
+                'velocity_per_month': round(sales_velocity, 2),  # JavaScript si aspetta velocity_per_month
+                'inventory_coverage_days': round(days_coverage, 1) if days_coverage else 0,  # JavaScript si aspetta inventory_coverage_days
+                'performance': 'High' if total_sold > sales_velocity * 6 else 'Medium' if total_sold > 0 else 'Low'  # JavaScript si aspetta performance (con maiuscola)
             })
         
         # Step 5: Ordinamento: prima per vendite (decrescente), poi per brand (crescente)
-        products_analysis.sort(key=lambda x: (-x['total_sold'], x['brand']))
+        products_analysis.sort(key=lambda x: (-x['total_sales'], x['brand']))
         
         # Statistiche riassuntive
-        total_inventory = sum(p['total_inventory'] for p in products_analysis)
-        total_sales = sum(p['total_sold'] for p in products_analysis)
-        products_with_sales = len([p for p in products_analysis if p['total_sold'] > 0])
+        total_inventory = sum(p['total_quantity'] for p in products_analysis)
+        total_sales = sum(p['total_sales'] for p in products_analysis)
+        products_with_sales = len([p for p in products_analysis if p['total_sales'] > 0])
         
         analysis_summary = {
             'total_products': len(products_analysis),
@@ -5066,11 +5075,17 @@ def sp_api_sales_analysis_data(request):
         
         return JsonResponse({
             'success': True,
-            'products': products_analysis,
-            'analysis_summary': analysis_summary,
+            'data': products_analysis,  # JavaScript si aspetta 'data'
+            'stats': {  # JavaScript si aspetta 'stats'
+                'total_products': analysis_summary['total_products'],
+                'total_sales': analysis_summary['total_sales'],
+                'total_inventory': analysis_summary['total_inventory'],
+                'total_brands': analysis_summary['brands_count']
+            },
             'config_used': config.name,
             'marketplace': config.marketplace,
-            'analysis_timestamp': timezone.now().isoformat()
+            'analysis_timestamp': timezone.now().isoformat(),
+            'full_analysis_summary': analysis_summary  # Dati completi per eventuali usi futuri
         })
         
     except Exception as e:
