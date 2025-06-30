@@ -382,11 +382,13 @@ class AmazonSPAPIClient:
             granularity_id = granularity_id or self.marketplace_id
             start_date_time = start_date_time or datetime.utcnow() - timedelta(days=1)
 
-            # Prepara parametri URL per SP-API
+            # Prepara parametri URL per SP-API (con marketplaceIds OBBLIGATORIO!)
             params = {
                 'granularityType': granularity_type,
-                'granularityId': granularity_id,
-                'startDateTime': start_date_time.isoformat()
+                'granularityId': granularity_id, 
+                'startDateTime': start_date_time.isoformat(),
+                'marketplaceIds': self.marketplace_id,  # 🚨 PARAMETRO OBBLIGATORIO!
+                'details': True  # Per dettagli inventory completi
             }
 
             if seller_skus:
@@ -436,7 +438,9 @@ class AmazonSPAPIClient:
             params = {
                 'granularity_type': granularity_type,
                 'granularity_id': granularity_id,
-                'start_date_time': start_date_time.isoformat()
+                'start_date_time': start_date_time.isoformat(),
+                'marketplaceIds': [self.marketplace_id],  # 🚨 PARAMETRO OBBLIGATORIO (array per Saleweaver)
+                'details': True  # Per dettagli inventory completi
             }
 
             if seller_skus:
