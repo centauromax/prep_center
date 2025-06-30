@@ -343,6 +343,10 @@ class AmazonSPAPIClient:
         except Exception as e:
             self._handle_api_error(e, f"get_order({order_id})")
 
+    def get_order_details(self, order_id: str) -> Dict[str, Any]:
+        """Alias per get_order - per compatibilità con UI"""
+        return self.get_order(order_id)
+
     def get_order_items(self, order_id: str) -> Dict[str, Any]:
         """Recupera items di un ordine"""
         if not SP_API_AVAILABLE:
