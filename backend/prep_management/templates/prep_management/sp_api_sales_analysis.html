@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SP-API Sales Analysis - Prep Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+    <style>
+        .performance-high { background-color: #d4edda; }
+        .performance-medium { background-color: #fff3cd; }
+        .performance-low { background-color: #f8d7da; }
+        .stats-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px; }
+        .analysis-controls { background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 9999; }
+        .loading-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3"></div>
+            <h5>Analisi in corso...</h5>
+            <p class="mb-0">Combinando dati inventario e vendite</p>
+            <div class="progress mt-3" style="height: 6px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2><i class="fas fa-chart-line text-primary"></i> SP-API Sales Analysis</h2>
+                        <p class="text-muted mb-0">Analisi vendite prodotti combinando inventario Amazon e ordini</p>
+                    </div>
+                    <div>
+                        <a href="/prep_management/sp-api/test-orders/" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Torna a Test SP-API
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="alertArea"></div>
+
+        <div class="analysis-controls">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="configSelect" class="form-label">
+                        <i class="fas fa-cog"></i> Configurazione SP-API
+                    </label>
+                    <select class="form-select" id="configSelect">
+                        <option value="">Caricamento configurazioni...</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="monthsSelect" class="form-label">
+                        <i class="fas fa-calendar"></i> Periodo Analisi
+                    </label>
+                    <select class="form-select" id="monthsSelect">
+                        <option value="3">Ultimi 3 mesi</option>
+                        <option value="6">Ultimi 6 mesi</option>
+                        <option value="12" selected>Ultimo anno</option>
+                        <option value="24">Ultimi 2 anni</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="brandFilter" class="form-label">
+                        <i class="fas fa-filter"></i> Filtra per Brand
+                    </label>
+                    <select class="form-select" id="brandFilter">
+                        <option value="">Tutti i brand</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" id="startAnalysisBtn">
+                        <i class="fas fa-play"></i> Avvia Analisi
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4" id="statsSection" style="display: none;">
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card stats-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-boxes fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="totalProducts">0</h4>
+                        <p class="mb-0">Prodotti Totali</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card stats-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="totalSales">0</h4>
+                        <p class="mb-0">Unità Vendute</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card stats-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-warehouse fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="totalInventory">0</h4>
+                        <p class="mb-0">Inventario Totale</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-3">
+                <div class="card stats-card h-100">
+                    <div class="card-body text-center">
+                        <i class="fas fa-tags fa-2x mb-2"></i>
+                        <h4 class="mb-1" id="totalBrands">0</h4>
+                        <p class="mb-0">Brand Unici</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" id="resultsSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table"></i> Prodotti Ordinati per Vendite
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" id="exportBtn">
+                                <i class="fas fa-download"></i> Esporta CSV
+                            </button>
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-outline-secondary" id="showAllBtn">Tutti</button>
+                                <button class="btn btn-sm btn-outline-success" id="showHighBtn">Top</button>
+                                <button class="btn btn-sm btn-outline-warning" id="showMediumBtn">Medi</button>
+                                <button class="btn btn-sm btn-outline-danger" id="showLowBtn">Bassi</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="productsTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Prodotto</th>
+                                        <th>Brand</th>
+                                        <th>SKU</th>
+                                        <th>ASIN</th>
+                                        <th>Vendite</th>
+                                        <th>Ordini</th>
+                                        <th>Inventario</th>
+                                        <th>Disponibile</th>
+                                        <th>Velocità/Mese</th>
+                                        <th>Copertura (gg)</th>
+                                        <th>Performance</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+    <script>
+        let salesData = [];
+        let productsTable;
+
+        $(document).ready(function() {
+            loadConfigurations();
+            initializeEventHandlers();
+            
+            // Inizializza DataTable
+            productsTable = $('#productsTable').DataTable({
+                pageLength: 25,
+                order: [[5, 'desc']],
+                responsive: true,
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/it-IT.json'
+                },
+                columnDefs: [
+                    {
+                        targets: [5, 6, 7, 8, 9, 10],
+                        className: 'text-end'
+                    }
+                ]
+            });
+        });
+
+        function loadConfigurations() {
+            fetch('/prep_management/sp-api/config/')
+                .then(response => response.json())
+                .then(data => {
+                    const select = document.getElementById('configSelect');
+                    select.innerHTML = '<option value="">Seleziona configurazione...</option>';
+                    
+                    data.configs.forEach(config => {
+                        const option = document.createElement('option');
+                        option.value = config.id;
+                        option.textContent = `${config.name} (${config.marketplace})`;
+                        if (config.is_active) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Errore caricamento configurazioni:', error);
+                    showAlert('Errore nel caricamento delle configurazioni', 'danger');
+                });
+        }
+
+        function initializeEventHandlers() {
+            document.getElementById('startAnalysisBtn').addEventListener('click', startAnalysis);
+            document.getElementById('exportBtn').addEventListener('click', exportToCSV);
+            
+            // Performance filter buttons
+            document.getElementById('showAllBtn').addEventListener('click', () => filterByPerformance('all'));
+            document.getElementById('showHighBtn').addEventListener('click', () => filterByPerformance('high'));
+            document.getElementById('showMediumBtn').addEventListener('click', () => filterByPerformance('medium'));
+            document.getElementById('showLowBtn').addEventListener('click', () => filterByPerformance('low'));
+        }
+
+        function startAnalysis() {
+            const configId = document.getElementById('configSelect').value;
+            const months = document.getElementById('monthsSelect').value;
+            
+            if (!configId) {
+                showAlert('Seleziona una configurazione SP-API', 'warning');
+                return;
+            }
+
+            showLoading(true);
+            updateProgress(10);
+
+            fetch(`/prep_management/sp-api/sales-analysis/data/?config_id=${configId}&months=${months}`)
+                .then(response => {
+                    updateProgress(50);
+                    return response.json();
+                })
+                .then(data => {
+                    updateProgress(90);
+                    if (data.success) {
+                        salesData = data.data;
+                        displayResults(data);
+                        updateBrandFilter();
+                    } else {
+                        throw new Error(data.error || 'Errore nell\'analisi');
+                    }
+                })
+                .catch(error => {
+                    console.error('Errore analisi:', error);
+                    showAlert(`Errore nell'analisi: ${error.message}`, 'danger');
+                })
+                .finally(() => {
+                    updateProgress(100);
+                    setTimeout(() => showLoading(false), 500);
+                });
+        }
+
+        function displayResults(data) {
+            // Aggiorna statistiche
+            document.getElementById('totalProducts').textContent = data.stats.total_products.toLocaleString();
+            document.getElementById('totalSales').textContent = data.stats.total_sales.toLocaleString();
+            document.getElementById('totalInventory').textContent = data.stats.total_inventory.toLocaleString();
+            document.getElementById('totalBrands').textContent = data.stats.total_brands;
+
+            // Mostra sezioni
+            document.getElementById('statsSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            // Aggiorna tabella
+            productsTable.clear();
+            
+            data.data.forEach((product, index) => {
+                const performanceClass = `performance-${product.performance.toLowerCase()}`;
+                const performanceBadge = getPerformanceBadge(product.performance);
+                
+                productsTable.row.add([
+                    index + 1,
+                    product.product_name || 'N/D',
+                    product.brand || 'N/D',
+                    product.sku,
+                    product.asin || 'N/D',
+                    product.total_sales.toLocaleString(),
+                    product.total_orders.toLocaleString(),
+                    product.total_quantity.toLocaleString(),
+                    product.available_quantity.toLocaleString(),
+                    product.velocity_per_month.toFixed(1),
+                    product.inventory_coverage_days === 999 ? '∞' : product.inventory_coverage_days,
+                    performanceBadge
+                ]).node().className = performanceClass;
+            });
+
+            productsTable.draw();
+            showAlert(`Analisi completata: ${data.data.length} prodotti analizzati`, 'success');
+        }
+
+        function getPerformanceBadge(performance) {
+            const badges = {
+                'High': '<span class="badge bg-success">Top</span>',
+                'Medium': '<span class="badge bg-warning">Medio</span>',
+                'Low': '<span class="badge bg-danger">Basso</span>'
+            };
+            return badges[performance] || performance;
+        }
+
+        function updateBrandFilter() {
+            const brands = [...new Set(salesData.map(product => product.brand).filter(Boolean))].sort();
+            const select = document.getElementById('brandFilter');
+            
+            select.innerHTML = '<option value="">Tutti i brand</option>';
+            brands.forEach(brand => {
+                const option = document.createElement('option');
+                option.value = brand;
+                option.textContent = brand;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', function() {
+                if (this.value) {
+                    productsTable.column(2).search(this.value).draw();
+                } else {
+                    productsTable.column(2).search('').draw();
+                }
+            });
+        }
+
+        function filterByPerformance(type) {
+            const buttons = document.querySelectorAll('[id$="Btn"]');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(`show${type.charAt(0).toUpperCase() + type.slice(1)}Btn`).classList.add('active');
+
+            if (type === 'all') {
+                productsTable.column(11).search('').draw();
+            } else {
+                const searchTerm = type === 'high' ? 'Top' : type === 'medium' ? 'Medio' : 'Basso';
+                productsTable.column(11).search(searchTerm).draw();
+            }
+        }
+
+        function exportToCSV() {
+            if (!salesData.length) {
+                showAlert('Nessun dato da esportare', 'warning');
+                return;
+            }
+
+            const headers = ['Rank', 'Prodotto', 'Brand', 'SKU', 'ASIN', 'Vendite', 'Ordini', 'Inventario', 'Disponibile', 'Velocità/Mese', 'Copertura_gg', 'Performance'];
+            const rows = salesData.map((product, index) => [
+                index + 1,
+                product.product_name || 'N/D',
+                product.brand || 'N/D',
+                product.sku,
+                product.asin || 'N/D',
+                product.total_sales,
+                product.total_orders,
+                product.total_quantity,
+                product.available_quantity,
+                product.velocity_per_month.toFixed(1),
+                product.inventory_coverage_days === 999 ? 'Infinito' : product.inventory_coverage_days,
+                product.performance
+            ]);
+
+            const csvContent = [headers, ...rows].map(row => 
+                row.map(cell => `"${cell}"`).join(',')
+            ).join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `sales_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'block' : 'none';
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+
+        function showAlert(message, type) {
+            const alertArea = document.getElementById('alertArea');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            alertArea.appendChild(alertDiv);
+
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

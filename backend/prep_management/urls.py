@@ -94,4 +94,8 @@ urlpatterns = [
     path('sp-api/account/', views.sp_api_account_info, name='sp_api_account_info'),
     path('sp-api/test-orders/', views.sp_api_test_orders_page, name='sp_api_test_orders_page'),
     path('sp-api/debug-aws-fields/', views.debug_aws_fields, name='debug_aws_fields'),
+    
+    # 🚀 SP-API Sales Analysis endpoints
+    path('sp-api/sales-analysis/', views.sp_api_sales_analysis_page, name='sp_api_sales_analysis_page'),
+    path('sp-api/sales-analysis/data/', views.sp_api_sales_analysis_data, name='sp_api_sales_analysis_data'),
 ]

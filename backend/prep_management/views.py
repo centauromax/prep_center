@@ -4864,3 +4864,220 @@ def debug_aws_fields(request):
             'error_type': type(e).__name__
         }, status=500)
 
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_sales_analysis_page(request):
+    """Pagina per analisi vendite prodotti SP-API"""
+    return render(request, 'prep_management/sp_api_sales_analysis.html')
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def sp_api_sales_analysis_data(request):
+    """API endpoint per analisi vendite combinando inventario e ordini"""
+    try:
+        # Parametri
+        config_id = request.GET.get('config_id')
+        months = int(request.GET.get('months', 12))  # Default 12 mesi
+        
+        if not config_id:
+            return JsonResponse({'error': 'config_id è richiesto'}, status=400)
+        
+        try:
+            config = AmazonSPAPIConfig.objects.get(id=config_id)
+        except AmazonSPAPIConfig.DoesNotExist:
+            return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
+        
+        # Crea client SP-API
+        credentials = config.get_credentials_dict()
+        client = AmazonSPAPIClient(credentials=credentials)
+        
+        logger.info(f"🔍 [SALES-ANALYSIS] Starting analysis for config {config_id}, months: {months}")
+        
+        # Step 1: Ottieni inventario
+        logger.info("📦 [SALES-ANALYSIS] Getting inventory...")
+        inventory_result = client.get_inventory_summary()
+        
+        if not inventory_result.get('success'):
+            return JsonResponse({
+                'error': f"Errore inventario: {inventory_result.get('error', 'Unknown error')}",
+                'inventory_result': inventory_result
+            }, status=400)
+        
+        inventory_summaries = inventory_result.get('inventory', {}).get('inventorySummaries', [])
+        logger.info(f"📊 [SALES-ANALYSIS] Found {len(inventory_summaries)} products in inventory")
+        
+        if not inventory_summaries:
+            return JsonResponse({
+                'success': True,
+                'message': 'Nessun prodotto in inventario',
+                'products': [],
+                'analysis_summary': {
+                    'total_products': 0,
+                    'total_inventory': 0,
+                    'total_sales': 0,
+                    'analysis_period_months': months
+                }
+            })
+        
+        # Step 2: Ottieni ordini dell'ultimo anno
+        from datetime import datetime, timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=months * 30)  # Approssimazione
+        
+        logger.info(f"📅 [SALES-ANALYSIS] Getting orders from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        
+        # Ottieni ordini in batch (SP-API ha limiti)
+        all_orders = []
+        current_date = start_date
+        batch_size_days = 30  # Batch di 30 giorni per volta
+        
+        while current_date < end_date:
+            batch_end = min(current_date + timedelta(days=batch_size_days), end_date)
+            
+            logger.info(f"🔄 [SALES-ANALYSIS] Getting orders batch: {current_date.strftime('%Y-%m-%d')} to {batch_end.strftime('%Y-%m-%d')}")
+            
+            try:
+                orders_result = client.get_orders(
+                    created_after=current_date,
+                    created_before=batch_end
+                )
+                
+                if orders_result.get('success'):
+                    batch_orders = orders_result.get('orders', [])
+                    all_orders.extend(batch_orders)
+                    logger.info(f"✅ [SALES-ANALYSIS] Got {len(batch_orders)} orders in this batch")
+                else:
+                    logger.warning(f"⚠️ [SALES-ANALYSIS] Failed to get orders for batch: {orders_result.get('error')}")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ [SALES-ANALYSIS] Exception getting orders batch: {e}")
+            
+            current_date = batch_end + timedelta(days=1)
+        
+        logger.info(f"📊 [SALES-ANALYSIS] Total orders collected: {len(all_orders)}")
+        
+        # Step 3: Calcola vendite per SKU/ASIN
+        sales_by_sku = {}
+        
+        # Per ogni ordine, ottieni gli items (questo è complesso ma necessario)
+        for i, order in enumerate(all_orders):
+            if i % 50 == 0:  # Log progress ogni 50 ordini
+                logger.info(f"🔄 [SALES-ANALYSIS] Processing order {i+1}/{len(all_orders)}")
+            
+            try:
+                order_id = order.get('AmazonOrderId') or order.get('amazon_order_id')
+                if not order_id:
+                    continue
+                
+                # Ottieni items dell'ordine
+                items_result = client.get_order_items(order_id)
+                if items_result.get('success'):
+                    items = items_result.get('order_items', [])
+                    
+                    for item in items:
+                        sku = item.get('SellerSKU') or item.get('seller_sku')
+                        asin = item.get('ASIN') or item.get('asin')
+                        quantity = int(item.get('QuantityOrdered', 0) or item.get('quantity_ordered', 0))
+                        
+                        if sku:
+                            if sku not in sales_by_sku:
+                                sales_by_sku[sku] = {
+                                    'sku': sku,
+                                    'asin': asin,
+                                    'total_quantity_sold': 0,
+                                    'orders_count': 0
+                                }
+                            
+                            sales_by_sku[sku]['total_quantity_sold'] += quantity
+                            sales_by_sku[sku]['orders_count'] += 1
+                        
+            except Exception as e:
+                logger.warning(f"⚠️ [SALES-ANALYSIS] Error processing order {order_id}: {e}")
+                continue
+        
+        logger.info(f"📈 [SALES-ANALYSIS] Sales calculated for {len(sales_by_sku)} unique SKUs")
+        
+        # Step 4: Combina inventario con vendite
+        products_analysis = []
+        
+        for inventory_item in inventory_summaries:
+            sku = inventory_item.get('sellerSku')
+            asin = inventory_item.get('asin')
+            product_name = inventory_item.get('productName', '')
+            
+            # Estrai brand dal nome prodotto (logica semplice)
+            brand = 'Unknown'
+            if product_name:
+                # Prendi la prima parola come brand (può essere migliorato)
+                brand = product_name.split()[0] if product_name.split() else 'Unknown'
+            
+            # Quantità in inventario
+            total_quantity = inventory_item.get('totalQuantity', 0)
+            fulfillable_quantity = inventory_item.get('fulfillableQuantity', 0)
+            
+            # Vendite
+            sales_data = sales_by_sku.get(sku, {})
+            total_sold = sales_data.get('total_quantity_sold', 0)
+            orders_count = sales_data.get('orders_count', 0)
+            
+            # Calcola velocità di vendita (unità per mese)
+            sales_velocity = total_sold / months if months > 0 else 0
+            
+            # Calcola giorni di copertura inventario
+            days_coverage = 0
+            if sales_velocity > 0:
+                days_coverage = (fulfillable_quantity / sales_velocity) * 30  # Per mese
+            
+            products_analysis.append({
+                'sku': sku,
+                'asin': asin,
+                'product_name': product_name,
+                'brand': brand,
+                'total_inventory': total_quantity,
+                'fulfillable_inventory': fulfillable_quantity,
+                'total_sold': total_sold,
+                'orders_count': orders_count,
+                'sales_velocity_per_month': round(sales_velocity, 2),
+                'days_coverage': round(days_coverage, 1) if days_coverage else 0,
+                'performance_rating': 'high' if total_sold > sales_velocity * 6 else 'medium' if total_sold > 0 else 'low'
+            })
+        
+        # Step 5: Ordinamento: prima per vendite (decrescente), poi per brand (crescente)
+        products_analysis.sort(key=lambda x: (-x['total_sold'], x['brand']))
+        
+        # Statistiche riassuntive
+        total_inventory = sum(p['total_inventory'] for p in products_analysis)
+        total_sales = sum(p['total_sold'] for p in products_analysis)
+        products_with_sales = len([p for p in products_analysis if p['total_sold'] > 0])
+        
+        analysis_summary = {
+            'total_products': len(products_analysis),
+            'products_with_sales': products_with_sales,
+            'products_without_sales': len(products_analysis) - products_with_sales,
+            'total_inventory': total_inventory,
+            'total_sales': total_sales,
+            'analysis_period_months': months,
+            'top_selling_product': products_analysis[0] if products_analysis else None,
+            'brands_count': len(set(p['brand'] for p in products_analysis)),
+            'average_sales_per_product': round(total_sales / len(products_analysis), 2) if products_analysis else 0
+        }
+        
+        logger.info(f"✅ [SALES-ANALYSIS] Analysis completed: {len(products_analysis)} products analyzed")
+        
+        return JsonResponse({
+            'success': True,
+            'products': products_analysis,
+            'analysis_summary': analysis_summary,
+            'config_used': config.name,
+            'marketplace': config.marketplace,
+            'analysis_timestamp': timezone.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ [SALES-ANALYSIS] Error: {e}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=500)
+
