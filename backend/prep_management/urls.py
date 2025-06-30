@@ -81,6 +81,7 @@ urlpatterns = [
     path('sp-api/config/', views.sp_api_config_list, name='sp_api_config_list'),
     path('sp-api/test/<int:config_id>/', views.sp_api_test_connection, name='sp_api_test_connection'),
     path('sp-api/test-lwa/<int:config_id>/', views.sp_api_test_lwa_only, name='sp_api_test_lwa_only'),
+    path('sp-api/test-raw/<int:config_id>/', views.sp_api_test_raw_call, name='sp_api_test_raw_call'),
     path('sp-api/debug-advanced/<int:config_id>/', views.sp_api_debug_advanced, name='sp_api_debug_advanced'),
     path('sp-api/diagnostic/<int:config_id>/', views.sp_api_diagnostic_test, name='sp_api_diagnostic_test'),
     path('sp-api/create-us-test/', views.sp_api_create_us_test_config, name='sp_api_create_us_test_config'),

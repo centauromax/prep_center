@@ -4167,6 +4167,104 @@ def sp_api_test_orders_page(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+def sp_api_test_raw_call(request, config_id):
+    """🔍 TEST RAW SP-API: Chiamata diretta con access token per debug"""
+    logger.info(f"🔍 SP-API Raw Call Test: config {config_id}")
+    
+    try:
+        config = get_object_or_404(AmazonSPAPIConfig, id=config_id)
+        
+        # Step 1: Ottieni access token via LWA
+        lwa_response = requests.post(
+            'https://api.amazon.com/auth/o2/token',
+            data={
+                'grant_type': 'refresh_token',
+                'refresh_token': config.refresh_token,
+                'client_id': config.lwa_app_id,
+                'client_secret': config.lwa_client_secret
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            timeout=30
+        )
+        
+        if lwa_response.status_code != 200:
+            return Response({
+                'success': False,
+                'error': 'LWA Token Exchange failed',
+                'lwa_error': lwa_response.text
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        lwa_data = lwa_response.json()
+        access_token = lwa_data['access_token']
+        
+        # Step 2: Test chiamata diretta SP-API
+        # Proviamo marketplace participation (endpoint più basic)
+        sp_api_url = f"{config.get_endpoint()}/sellers/v1/marketplaceParticipations"
+        
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'x-amz-access-token': access_token,
+            'Content-Type': 'application/json'
+        }
+        
+        logger.info(f"🔍 Testing direct SP-API call to: {sp_api_url}")
+        logger.info(f"🔍 Headers: {headers}")
+        
+        sp_response = requests.get(
+            sp_api_url,
+            headers=headers,
+            timeout=30
+        )
+        
+        # Risultati del test
+        result = {
+            'success': sp_response.status_code == 200,
+            'lwa_success': True,
+            'access_token_length': len(access_token),
+            'sp_api_test': {
+                'url': sp_api_url,
+                'method': 'GET',
+                'status_code': sp_response.status_code,
+                'headers_sent': headers,
+                'response_headers': dict(sp_response.headers),
+                'response_body': sp_response.text[:500] + '...' if len(sp_response.text) > 500 else sp_response.text
+            },
+            'config_info': {
+                'marketplace': config.marketplace,
+                'endpoint': config.get_endpoint(),
+                'marketplace_id': config.get_marketplace_id()
+            }
+        }
+        
+        if sp_response.status_code == 200:
+            try:
+                sp_data = sp_response.json()
+                result['sp_api_data'] = sp_data
+                result['message'] = '✅ SP-API Raw Call SUCCESS!'
+            except:
+                result['message'] = '✅ SP-API Call successful but non-JSON response'
+        else:
+            result['message'] = f'❌ SP-API Call failed: HTTP {sp_response.status_code}'
+            result['error_analysis'] = {
+                'is_authentication_error': sp_response.status_code == 401,
+                'is_authorization_error': sp_response.status_code == 403,
+                'is_not_found_error': sp_response.status_code == 404,
+                'is_client_error': 400 <= sp_response.status_code < 500,
+                'is_server_error': sp_response.status_code >= 500
+            }
+        
+        return Response(result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"❌ Errore SP-API raw test: {e}", exc_info=True)
+        return Response({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
 def sp_api_test_lwa_only(request, config_id):
     """Testa SOLO l'LWA Token Exchange per una configurazione SP-API specifica."""
     try:
