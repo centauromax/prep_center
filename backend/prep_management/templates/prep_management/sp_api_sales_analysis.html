@@ -208,7 +208,7 @@
                     const select = document.getElementById('configSelect');
                     select.innerHTML = '<option value="">Seleziona configurazione...</option>';
                     
-                    data.configs.forEach(config => {
+                    data.configurations.forEach(config => {
                         const option = document.createElement('option');
                         option.value = config.id;
                         option.textContent = `${config.name} (${config.marketplace})`;
