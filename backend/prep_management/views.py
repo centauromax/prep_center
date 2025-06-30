@@ -4199,7 +4199,19 @@ def sp_api_test_raw_call(request, config_id):
         
         # Step 2: Test chiamata diretta SP-API
         # Proviamo marketplace participation (endpoint più basic)
-        sp_api_url = f"{config.get_endpoint()}/sellers/v1/marketplaceParticipations"
+        
+        # Mappa marketplace -> endpoint Amazon
+        marketplace_endpoints = {
+            'IT': 'https://sellingpartnerapi-eu.amazon.com',
+            'DE': 'https://sellingpartnerapi-eu.amazon.com', 
+            'FR': 'https://sellingpartnerapi-eu.amazon.com',
+            'ES': 'https://sellingpartnerapi-eu.amazon.com',
+            'GB': 'https://sellingpartnerapi-eu.amazon.com',
+            'US': 'https://sellingpartnerapi-na.amazon.com'
+        }
+        
+        endpoint = marketplace_endpoints.get(config.marketplace, 'https://sellingpartnerapi-eu.amazon.com')
+        sp_api_url = f"{endpoint}/sellers/v1/marketplaceParticipations"
         
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -4231,8 +4243,8 @@ def sp_api_test_raw_call(request, config_id):
             },
             'config_info': {
                 'marketplace': config.marketplace,
-                'endpoint': config.get_endpoint(),
-                'marketplace_id': config.get_marketplace_id()
+                'endpoint': endpoint,
+                'name': config.name
             }
         }
         
