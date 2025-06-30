@@ -480,7 +480,8 @@ class AmazonSPAPIClient:
 
         except Exception as e:
             logger.error(f"❌ SP-API Custom Error: {e}")
-            self._handle_api_error(e, "get_account_info_custom")
+            # NON chiamare _handle_api_error che fa raise - invece rilancia direttamente
+            raise Exception(f"Custom SP-API Error: {str(e)}")
     
     def _get_access_token(self) -> str:
         """Ottiene access token via LWA (sappiamo che funziona!)"""

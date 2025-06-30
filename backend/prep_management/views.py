@@ -4129,12 +4129,18 @@ def sp_api_account_info(request):
                 'error': 'SP-API library not available'
             })
         
-        client = AmazonSPAPIClient(
-            refresh_token=config.refresh_token,
-            lwa_app_id=config.lwa_app_id,
-            lwa_client_secret=config.lwa_client_secret,
-            marketplace=config.marketplace
-        )
+        # ✅ CORREZIONE: Passa credenziali come dizionario
+        credentials = {
+            'refresh_token': config.refresh_token,
+            'lwa_app_id': config.lwa_app_id,
+            'lwa_client_secret': config.lwa_client_secret,
+            'aws_access_key': config.aws_access_key,
+            'aws_secret_key': config.aws_secret_key,
+            'role_arn': config.role_arn,
+            'marketplace': config.marketplace
+        }
+        
+        client = AmazonSPAPIClient(credentials=credentials)
         
         # Ottieni info account
         account_info = client.get_account_info()
