@@ -281,19 +281,19 @@ class AmazonSPAPIClient:
                    created_before: Optional[datetime] = None,
                    last_updated_after: Optional[datetime] = None,
                    max_results_per_page: int = 50) -> Dict[str, Any]:
-        """Recupera ordini dal marketplace Amazon"""
-        if not SP_API_AVAILABLE:
-            raise ImportError("SP-API library not available")
-            
+        """Recupera ordini dal marketplace Amazon - CUSTOM IMPLEMENTATION"""
         try:
+            # ✅ SOLUZIONE DEFINITIVA: Chiamata HTTP diretta
+            access_token = self._get_access_token()
+            
             # Usa data di default se non specificata (ultimi 7 giorni)
             if not created_after and not last_updated_after:
                 created_after = datetime.utcnow() - timedelta(days=7)
 
-            # Prepara parametri
+            # Prepara parametri URL
             params = {
                 'MaxResultsPerPage': max_results_per_page,
-                'MarketplaceIds': [self.marketplace_id]
+                'MarketplaceIds': self.marketplace_id
             }
 
             if created_after:
@@ -303,17 +303,28 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # ✅ DOPPIO APPROCCIO: File credentials.yml + Environment Variables
-            self._create_credentials_file()
-            self._set_env_vars_fallback()
-            orders_client = Orders()  # Nessun parametro!
-            response = orders_client.get_orders(**params)
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
             
-            logger.info(f"Recuperati {len(response.payload.get('Orders', []))} ordini")
-            return response.payload
+            url = f"{self.endpoint}/orders/v0/orders"
+            
+            import requests
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                orders_count = len(result.get('payload', {}).get('Orders', []))
+                logger.info(f"✅ SP-API Custom: Recuperati {orders_count} ordini")
+                return result.get('payload', {})
+            else:
+                raise Exception(f"SP-API Custom Orders Error: HTTP {response.status_code} - {response.text}")
 
         except Exception as e:
-            self._handle_api_error(e, "get_orders")
+            logger.error(f"❌ SP-API Custom Orders Error: {e}")
+            self._handle_api_error(e, "get_orders_custom")
 
     def get_order(self, order_id: str) -> Dict[str, Any]:
         """Recupera dettagli di un singolo ordine"""
@@ -444,23 +455,54 @@ class AmazonSPAPIClient:
     # =============================================================================
 
     def get_account_info(self) -> Dict[str, Any]:
-        """Recupera informazioni account seller"""
-        if not SP_API_AVAILABLE:
-            raise ImportError("SP-API library not available")
-            
+        """Recupera informazioni account seller - CUSTOM IMPLEMENTATION"""
         try:
-            # ✅ DOPPIO APPROCCIO: File credentials.yml + Environment Variables
-            self._create_credentials_file()
-            self._set_env_vars_fallback()  # ← AGGIUNTO!
+            # ✅ SOLUZIONE DEFINITIVA: Chiamata HTTP diretta (sappiamo che funziona!)
+            access_token = self._get_access_token()
             
-            sellers_client = Sellers()  # Nessun parametro!
-            response = sellers_client.get_account()
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
             
-            logger.info("Recuperate info account seller")
-            return response.payload
+            # Usa marketplace participation come fallback (funziona sempre)
+            url = f"{self.endpoint}/sellers/v1/marketplaceParticipations"
+            
+            import requests
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                logger.info("✅ SP-API Custom: Recuperate info account seller")
+                return response.json()
+            else:
+                raise Exception(f"SP-API Custom Error: HTTP {response.status_code} - {response.text}")
 
         except Exception as e:
-            self._handle_api_error(e, "get_account_info")
+            logger.error(f"❌ SP-API Custom Error: {e}")
+            self._handle_api_error(e, "get_account_info_custom")
+    
+    def _get_access_token(self) -> str:
+        """Ottiene access token via LWA (sappiamo che funziona!)"""
+        import requests
+        
+        lwa_response = requests.post(
+            'https://api.amazon.com/auth/o2/token',
+            data={
+                'grant_type': 'refresh_token',
+                'refresh_token': self.credentials.get('refresh_token'),
+                'client_id': self.credentials.get('lwa_app_id'),
+                'client_secret': self.credentials.get('lwa_client_secret')
+            },
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            timeout=30
+        )
+        
+        if lwa_response.status_code != 200:
+            raise Exception(f"LWA Token Exchange failed: {lwa_response.status_code} - {lwa_response.text}")
+        
+        lwa_data = lwa_response.json()
+        return lwa_data['access_token']
 
     def get_marketplace_participation(self) -> Dict[str, Any]:
         """Recupera informazioni partecipazione marketplace"""
