@@ -3880,7 +3880,7 @@ def sp_api_orders_list(request):
             'success': True,
             'orders': orders_data.get('Orders', []),
             'next_token': orders_data.get('NextToken'),
-            'marketplace': config.marketplace_id,
+            'marketplace': config.marketplace,
             'config_used': config.name,
             'config_id': config.id,
             'created_after': created_after_dt.isoformat(),
@@ -3940,7 +3940,7 @@ def sp_api_order_detail(request, order_id):
             'success': True,
             'order': order_data,
             'order_id': order_id,
-            'marketplace': config.marketplace_id,
+            'marketplace': config.marketplace,
             'config_used': config.name,
             'config_id': config.id
         })
