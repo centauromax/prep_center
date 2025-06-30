@@ -256,25 +256,33 @@
             const col = document.createElement('div');
             col.className = 'col-lg-4 col-md-6 mb-3';
             
-            const statusClass = getStatusBadgeClass(order.order_status);
-            const totalAmount = order.order_total ? `€${order.order_total.amount}` : 'N/D';
+            // Amazon SP-API usa campi con lettere maiuscole
+            const orderId = order.AmazonOrderId || order.amazon_order_id;
+            const orderStatus = order.OrderStatus || order.order_status;
+            const purchaseDate = order.PurchaseDate || order.purchase_date;
+            const fulfillmentChannel = order.FulfillmentChannel || order.fulfillment_channel;
+            const marketplaceId = order.MarketplaceId || order.marketplace_id;
+            const orderTotal = order.OrderTotal || order.order_total;
+            
+            const statusClass = getStatusBadgeClass(orderStatus);
+            const totalAmount = orderTotal ? `€${orderTotal.Amount || orderTotal.amount}` : 'N/D';
             
             col.innerHTML = `
                 <div class="card order-card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <strong>${order.amazon_order_id}</strong>
-                        <span class="badge bg-${statusClass} status-badge">${order.order_status}</span>
+                        <strong>${orderId}</strong>
+                        <span class="badge bg-${statusClass} status-badge">${orderStatus}</span>
                     </div>
                     <div class="card-body">
                         <p class="card-text small">
-                            <i class="fas fa-calendar"></i> <strong>Data:</strong> ${formatDate(order.purchase_date)}<br>
+                            <i class="fas fa-calendar"></i> <strong>Data:</strong> ${formatDate(purchaseDate)}<br>
                             <i class="fas fa-euro-sign"></i> <strong>Totale:</strong> ${totalAmount}<br>
-                            <i class="fas fa-truck"></i> <strong>Tipo:</strong> ${order.fulfillment_channel || 'N/D'}<br>
-                            <i class="fas fa-map-marker-alt"></i> <strong>Marketplace:</strong> ${order.marketplace_id || 'N/D'}
+                            <i class="fas fa-truck"></i> <strong>Tipo:</strong> ${fulfillmentChannel || 'N/D'}<br>
+                            <i class="fas fa-map-marker-alt"></i> <strong>Marketplace:</strong> ${marketplaceId || 'N/D'}
                         </p>
                     </div>
                     <div class="card-footer">
-                        <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${order.amazon_order_id}')">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewOrderDetails('${orderId}')">
                             <i class="fas fa-eye"></i> Dettagli
                         </button>
                     </div>
@@ -335,12 +343,27 @@
 
         // Show order details modal
         function showOrderModal(order) {
-            // Simple alert for now - you can implement a proper modal
-            alert(`Dettagli Ordine ${order.amazon_order_id}:\n\n` +
-                  `Status: ${order.order_status}\n` +
-                  `Data: ${formatDate(order.purchase_date)}\n` +
-                  `Totale: ${order.order_total ? order.order_total.amount + ' ' + order.order_total.currency_code : 'N/D'}\n` +
-                  `Items: ${order.number_of_items_shipped || 0} spediti, ${order.number_of_items_unshipped || 0} non spediti`);
+            // Gestisce sia i campi Amazon SP-API (maiuscoli) che quelli normalizzati (minuscoli)
+            const orderId = order.AmazonOrderId || order.amazon_order_id;
+            const orderStatus = order.OrderStatus || order.order_status;
+            const purchaseDate = order.PurchaseDate || order.purchase_date;
+            const orderTotal = order.OrderTotal || order.order_total;
+            const itemsShipped = order.NumberOfItemsShipped || order.number_of_items_shipped || 0;
+            const itemsUnshipped = order.NumberOfItemsUnshipped || order.number_of_items_unshipped || 0;
+            const fulfillmentChannel = order.FulfillmentChannel || order.fulfillment_channel;
+            const salesChannel = order.SalesChannel || order.sales_channel;
+            
+            const totalText = orderTotal ? 
+                `${orderTotal.Amount || orderTotal.amount} ${orderTotal.CurrencyCode || orderTotal.currency_code}` : 
+                'N/D';
+            
+            alert(`Dettagli Ordine ${orderId}:\n\n` +
+                  `Status: ${orderStatus}\n` +
+                  `Data Acquisto: ${formatDate(purchaseDate)}\n` +
+                  `Totale: ${totalText}\n` +
+                  `Canale Vendita: ${salesChannel || 'N/D'}\n` +
+                  `Fulfillment: ${fulfillmentChannel || 'N/D'}\n` +
+                  `Items: ${itemsShipped} spediti, ${itemsUnshipped} non spediti`);
         }
 
         // Quick test functions
@@ -352,11 +375,21 @@
             }
             
             try {
-                const response = await fetch(`/prep_management/sp-api/test/${configId}/`);
+                const response = await fetch(`/prep_management/sp-api/test/${configId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
                 const data = await response.json();
                 
                 if (data.success) {
                     showAlert('✅ Connessione riuscita!', 'success');
+                    updateCurrentInfo({
+                        marketplace: data.config_used || '-',
+                        name: data.config_used || '-'
+                    });
                 } else {
                     showAlert(`❌ Connessione fallita: ${data.error}`, 'danger');
                 }
@@ -373,14 +406,25 @@
             }
             
             try {
-                const response = await fetch(`/prep_management/sp-api/account/?config_id=${configId}`);
+                const response = await fetch(`/prep_management/sp-api/test-raw/${configId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
                 const data = await response.json();
                 
                 if (data.success) {
-                    const info = data.account_info;
-                    alert(`Account Info:\n\nSeller ID: ${info.seller_id}\nMarketplace: ${info.marketplace_id}\nNome: ${info.name || 'N/D'}`);
+                    const marketplaces = data.sp_api_data?.payload || [];
+                    const marketplaceInfo = marketplaces.length > 0 ? marketplaces[0] : {};
+                    alert(`Account Info (${marketplaces.length} marketplace(s)):\n\n` +
+                          `Store: ${marketplaceInfo.storeName || 'N/D'}\n` +
+                          `Marketplace: ${marketplaceInfo.marketplace?.name || 'N/D'}\n` +
+                          `Participating: ${marketplaceInfo.participation?.isParticipating ? 'Sì' : 'No'}`);
+                    showAlert('✅ Account info caricato!', 'success');
                 } else {
-                    showAlert(`❌ Errore: ${data.error}`, 'danger');
+                    showAlert(`❌ Errore: ${data.message || data.error}`, 'danger');
                 }
             } catch (error) {
                 showAlert(`❌ Errore: ${error.message}`, 'danger');
@@ -402,11 +446,27 @@
                     const total = data.inventory_summary ? data.inventory_summary.length : 0;
                     showAlert(`✅ Inventario caricato: ${total} prodotti`, 'success');
                 } else {
-                    showAlert(`❌ Errore: ${data.error}`, 'danger');
+                    showAlert(`⚠️ Inventario non disponibile (problemi libreria Saleweaver): ${data.error}`, 'warning');
                 }
             } catch (error) {
                 showAlert(`❌ Errore: ${error.message}`, 'danger');
             }
+        }
+
+        // Get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
         }
 
         // UI Helper functions
