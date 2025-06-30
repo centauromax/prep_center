@@ -459,10 +459,25 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    const total = data.inventory_summary ? data.inventory_summary.length : 0;
-                    showAlert(`✅ Inventario caricato: ${total} prodotti`, 'success');
+                    // ✅ CORREZIONE: Usa il campo corretto dalla risposta API
+                    const inventorySummaries = data.inventory?.inventorySummaries || [];
+                    const total = inventorySummaries.length;
+                    
+                    // Mostra anche marketplace e config per debug
+                    const marketplace = data.marketplace || 'N/D';
+                    const config = data.config_used || 'N/D';
+                    
+                    showAlert(`✅ Inventario caricato: ${total} prodotti (${config} - ${marketplace})`, 'success');
+                    
+                    // Debug: mostra primi 3 prodotti se disponibili
+                    if (total > 0) {
+                        const sampleProducts = inventorySummaries.slice(0, 3).map(item => 
+                            `${item.productName?.substring(0, 50) || 'N/D'}... (${item.totalQuantity || 0} unità)`
+                        ).join('\n');
+                        console.log('Sample products:', sampleProducts);
+                    }
                 } else {
-                    showAlert(`⚠️ Inventario non disponibile (problemi libreria Saleweaver): ${data.error}`, 'warning');
+                    showAlert(`⚠️ Inventario non disponibile: ${data.error}`, 'warning');
                 }
             } catch (error) {
                 showAlert(`❌ Errore: ${error.message}`, 'danger');
