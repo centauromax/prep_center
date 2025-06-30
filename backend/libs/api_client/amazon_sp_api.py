@@ -373,15 +373,66 @@ class AmazonSPAPIClient:
                               granularity_id: Optional[str] = None,
                               start_date_time: Optional[datetime] = None,
                               seller_skus: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Recupera riepilogo inventario"""
-        if not SP_API_AVAILABLE:
-            raise ImportError("SP-API library not available")
-            
+        """Recupera riepilogo inventario - CUSTOM HTTP IMPLEMENTATION"""
         try:
+            # ✅ SOLUZIONE CUSTOM HTTP (come per gli ordini)
+            access_token = self._get_access_token()
+            
             # Parametri di default
             granularity_id = granularity_id or self.marketplace_id
             start_date_time = start_date_time or datetime.utcnow() - timedelta(days=1)
 
+            # Prepara parametri URL per SP-API
+            params = {
+                'granularityType': granularity_type,
+                'granularityId': granularity_id,
+                'startDateTime': start_date_time.isoformat()
+            }
+
+            if seller_skus:
+                # SP-API accetta seller SKUs come query parameter separato
+                params['sellerSkus'] = ','.join(seller_skus)
+
+            headers = {
+                'Authorization': f'Bearer {access_token}',
+                'x-amz-access-token': access_token,
+                'Content-Type': 'application/json'
+            }
+            
+            url = f"{self.endpoint}/fba/inventory/v1/summaries"
+            
+            import requests
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                inventory_items = result.get('payload', {}).get('inventorySummaries', [])
+                logger.info(f"✅ SP-API Custom: Recuperati {len(inventory_items)} inventory items")
+                return result.get('payload', {})
+            else:
+                logger.warning(f"⚠️ SP-API Custom Inventory Error: HTTP {response.status_code} - {response.text}")
+                # Fallback a Saleweaver se custom HTTP fallisce
+                return self._get_inventory_summary_saleweaver(granularity_type, granularity_id, start_date_time, seller_skus)
+
+        except Exception as e:
+            logger.error(f"❌ SP-API Custom Inventory Error: {e}")
+            # Fallback a Saleweaver
+            try:
+                return self._get_inventory_summary_saleweaver(granularity_type, granularity_id, start_date_time, seller_skus)
+            except Exception as fallback_error:
+                logger.error(f"❌ Anche Saleweaver fallback fallito: {fallback_error}")
+                raise Exception(f"Entrambi Custom HTTP e Saleweaver falliti. Custom: {e}, Saleweaver: {fallback_error}")
+
+    def _get_inventory_summary_saleweaver(self, 
+                                          granularity_type: str,
+                                          granularity_id: Optional[str],
+                                          start_date_time: Optional[datetime],
+                                          seller_skus: Optional[List[str]]) -> Dict[str, Any]:
+        """Fallback Saleweaver per inventory (manteniamo per compatibilità)"""
+        if not SP_API_AVAILABLE:
+            raise ImportError("SP-API library not available")
+            
+        try:
             params = {
                 'granularity_type': granularity_type,
                 'granularity_id': granularity_id,
@@ -396,11 +447,11 @@ class AmazonSPAPIClient:
             inventories_client = Inventories()  # Nessun parametro!
             response = inventories_client.get_inventory_summary_marketplace(**params)
             
-            logger.info("Recuperato riepilogo inventario")
+            logger.info("Recuperato riepilogo inventario via Saleweaver")
             return response.payload
 
         except Exception as e:
-            self._handle_api_error(e, "get_inventory_summary")
+            self._handle_api_error(e, "get_inventory_summary_saleweaver")
 
     # =============================================================================
     # REPORTS API
