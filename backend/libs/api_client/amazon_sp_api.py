@@ -222,16 +222,25 @@ class AmazonSPAPIClient:
         return debug_info
     
     def _set_env_vars_fallback(self) -> None:
-        """Environment variables come fallback per AWS credentials"""
+        """Environment variables come fallback - ORA INCLUDE ANCHE LWA!"""
         import os
         
-        # Solo AWS credentials come fallback (LWA usa il file)
+        # ✅ NUOVO APPROCCIO: Environment variables per TUTTE le credenziali
+        # Test se Saleweaver preferisce env vars al file credentials.yml
+        if self.credentials.get('refresh_token'):
+            os.environ['refresh_token'] = self.credentials['refresh_token']
+        if self.credentials.get('lwa_app_id'):
+            os.environ['lwa_app_id'] = self.credentials['lwa_app_id']
+        if self.credentials.get('lwa_client_secret'):
+            os.environ['lwa_client_secret'] = self.credentials['lwa_client_secret']
         if self.credentials.get('aws_access_key'):
             os.environ['aws_access_key'] = self.credentials['aws_access_key']
         if self.credentials.get('aws_secret_key'):
             os.environ['aws_secret_key'] = self.credentials['aws_secret_key']
         if self.credentials.get('role_arn'):
             os.environ['role_arn'] = self.credentials['role_arn']
+        
+        logger.info("🔧 Set environment variables per tutte le credenziali SP-API")
 
     def _get_constructor_kwargs(self) -> Dict[str, Any]:
         """
@@ -294,8 +303,9 @@ class AmazonSPAPIClient:
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.isoformat()
 
-            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            # ✅ DOPPIO APPROCCIO: File credentials.yml + Environment Variables
             self._create_credentials_file()
+            self._set_env_vars_fallback()
             orders_client = Orders()  # Nessun parametro!
             response = orders_client.get_orders(**params)
             
@@ -439,8 +449,10 @@ class AmazonSPAPIClient:
             raise ImportError("SP-API library not available")
             
         try:
-            # ✅ SOLUZIONE DEFINITIVA SALEWEAVER: File credentials.yml
+            # ✅ DOPPIO APPROCCIO: File credentials.yml + Environment Variables
             self._create_credentials_file()
+            self._set_env_vars_fallback()  # ← AGGIUNTO!
+            
             sellers_client = Sellers()  # Nessun parametro!
             response = sellers_client.get_account()
             
