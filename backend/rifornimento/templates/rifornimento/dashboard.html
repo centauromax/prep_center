@@ -1,0 +1,282 @@
+{% extends 'fbaprepcenter_base.html' %}
+{% load static %}
+
+{% block title %}Rifornimento - Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-stats {
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+    .card-stats:hover {
+        transform: translateY(-2px);
+    }
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: white;
+    }
+    .stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0;
+    }
+    .low-stock-row {
+        border-left: 4px solid #dc3545;
+    }
+    .good-stock-row {
+        border-left: 4px solid #28a745;
+    }
+    .badge-urgent {
+        background-color: #dc3545;
+    }
+    .badge-high {
+        background-color: #fd7e14;
+    }
+    .badge-normal {
+        background-color: #17a2b8;
+    }
+    .badge-low {
+        background-color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-0"><i class="fas fa-warehouse me-2"></i>Dashboard Rifornimenti</h1>
+            <p class="text-muted">Gestisci prodotti e richieste di rifornimento</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Statistiche principali -->
+    <div class="row mb-4">
+        <!-- Prodotti totali -->
+        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
+            <div class="card card-stats h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon" style="background-color: #007bff;">
+                        <i class="fas fa-boxes"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h4 class="stat-number text-primary">{{ total_products|default:0 }}</h4>
+                        <p class="mb-0 text-muted">Prodotti Attivi</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prodotti da rifornire -->
+        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
+            <div class="card card-stats h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon" style="background-color: #dc3545;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h4 class="stat-number text-danger">{{ products_need_restocking|default:0 }}</h4>
+                        <p class="mb-0 text-muted">Da Rifornire</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Richieste in attesa -->
+        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
+            <div class="card card-stats h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon" style="background-color: #ffc107;">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h4 class="stat-number text-warning">{{ pending_requests|default:0 }}</h4>
+                        <p class="mb-0 text-muted">In Attesa</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Richieste in ritardo -->
+        <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
+            <div class="card card-stats h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon" style="background-color: #6f42c1;">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h4 class="stat-number text-dark">{{ overdue_requests|default:0 }}</h4>
+                        <p class="mb-0 text-muted">In Ritardo</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu azioni rapide -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0"><i class="fas fa-bolt me-2"></i>Azioni Rapide</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'rifornimento:product_list' %}" class="btn btn-outline-primary btn-lg w-100">
+                                <i class="fas fa-boxes me-2"></i>Visualizza Prodotti
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'rifornimento:product_list' %}?stock=low" class="btn btn-outline-danger btn-lg w-100">
+                                <i class="fas fa-exclamation-triangle me-2"></i>Prodotti da Rifornire
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'rifornimento:request_list' %}" class="btn btn-outline-success btn-lg w-100">
+                                <i class="fas fa-list me-2"></i>Richieste Rifornimento
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-2">
+                            <a href="{% url 'admin:rifornimento_rifornimentorequest_add' %}" class="btn btn-outline-info btn-lg w-100">
+                                <i class="fas fa-plus me-2"></i>Nuova Richiesta
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Prodotti con stock basso -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="fas fa-exclamation-triangle me-2 text-danger"></i>Prodotti da Rifornire</h5>
+                    <a href="{% url 'rifornimento:product_list' %}?stock=low" class="btn btn-sm btn-outline-danger">
+                        Vedi Tutti
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if low_stock_products %}
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Prodotto</th>
+                                        <th>Brand</th>
+                                        <th>Stock Attuale</th>
+                                        <th>Stock Minimo</th>
+                                        <th>Azione</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for product in low_stock_products %}
+                                    <tr class="{% if product.current_stock <= product.minimum_stock %}low-stock-row{% else %}good-stock-row{% endif %}">
+                                        <td>
+                                            <strong>{{ product.sku }}</strong><br>
+                                            <small class="text-muted">{{ product.title|truncatechars:50 }}</small>
+                                        </td>
+                                        <td>{{ product.brand|default:"—" }}</td>
+                                        <td>
+                                            <span class="badge {% if product.current_stock <= product.minimum_stock %}bg-danger{% else %}bg-success{% endif %}">
+                                                {{ product.current_stock }}
+                                            </span>
+                                        </td>
+                                        <td>{{ product.minimum_stock }}</td>
+                                        <td>
+                                            <a href="{% url 'admin:rifornimento_product_change' product.id %}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                            <h5>Ottimo! Nessun prodotto ha bisogno di rifornimento</h5>
+                            <p class="text-muted">Tutti i prodotti hanno stock sufficienti</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Richieste recenti -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0"><i class="fas fa-clock me-2 text-info"></i>Richieste Recenti</h5>
+                    <a href="{% url 'rifornimento:request_list' %}" class="btn btn-sm btn-outline-info">
+                        Vedi Tutte
+                    </a>
+                </div>
+                <div class="card-body">
+                    {% if recent_requests %}
+                        {% for request in recent_requests %}
+                        <div class="d-flex align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                            <div class="me-3">
+                                <span class="badge 
+                                    {% if request.priority == 'urgent' %}badge-urgent
+                                    {% elif request.priority == 'high' %}badge-high
+                                    {% elif request.priority == 'normal' %}badge-normal
+                                    {% else %}badge-low{% endif %}">
+                                    {{ request.get_priority_display }}
+                                </span>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">
+                                    <a href="{% url 'rifornimento:request_detail' request.id %}" class="text-decoration-none">
+                                        {{ request.request_number }}
+                                    </a>
+                                </h6>
+                                <small class="text-muted">{{ request.title|truncatechars:40 }}</small><br>
+                                <small class="text-muted">{{ request.created_at|timesince }} fa</small>
+                            </div>
+                            <div>
+                                <span class="badge 
+                                    {% if request.status == 'draft' %}bg-secondary
+                                    {% elif request.status == 'pending' %}bg-warning
+                                    {% elif request.status == 'approved' %}bg-info
+                                    {% elif request.status == 'received' %}bg-success
+                                    {% else %}bg-primary{% endif %}">
+                                    {{ request.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-inbox fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">Nessuna richiesta ancora creata</p>
+                            <a href="{% url 'admin:rifornimento_rifornimentorequest_add' %}" class="btn btn-sm btn-primary">
+                                Crea la prima richiesta
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

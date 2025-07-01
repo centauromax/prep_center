@@ -67,6 +67,14 @@ def homepage(request):
             'icon': 'fas fa-pallet',
             'color': 'secondary',
             'type': 'django'
+        },
+        {
+            'name': 'Rifornimento',
+            'description': 'Gestione richieste di rifornimento e stock prodotti',
+            'url': '/rifornimento/',
+            'icon': 'fas fa-warehouse',
+            'color': 'danger',
+            'type': 'django'
         }
     ]
     

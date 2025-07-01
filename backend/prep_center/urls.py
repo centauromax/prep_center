@@ -33,6 +33,7 @@ urlpatterns += i18n_patterns(
     path('return_management/', include('return_management.urls')),
     path('picture_check/', include('picture_check.urls')),
     path('pallet_label/', include('pallet_label.urls')),
+    path('rifornimento/', include('rifornimento.urls')),  # 🆕 App Rifornimento
     
     prefix_default_language=False
 )

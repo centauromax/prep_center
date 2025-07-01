@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 # Prep Center Version
-VERSION = "7.0"
+VERSION = "7.1"
 
 import os
 from pathlib import Path
@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     'prep_management',
     'picture_check',
     'pallet_label',
+    'rifornimento',  # 🆕 App per gestione rifornimenti
 ]
 
 MIDDLEWARE = [
