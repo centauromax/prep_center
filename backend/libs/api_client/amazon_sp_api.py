@@ -297,11 +297,12 @@ class AmazonSPAPIClient:
             }
 
             if created_after:
-                params['CreatedAfter'] = created_after.isoformat()
+                # Assicura formato UTC corretto per Amazon
+                params['CreatedAfter'] = created_after.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             if created_before:
-                params['CreatedBefore'] = created_before.isoformat()
+                params['CreatedBefore'] = created_before.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             if last_updated_after:
-                params['LastUpdatedAfter'] = last_updated_after.isoformat()
+                params['LastUpdatedAfter'] = last_updated_after.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -316,15 +317,33 @@ class AmazonSPAPIClient:
             
             if response.status_code == 200:
                 result = response.json()
-                orders_count = len(result.get('payload', {}).get('Orders', []))
+                orders_data = result.get('payload', {})
+                orders_count = len(orders_data.get('Orders', []))
                 logger.info(f"✅ SP-API Custom: Recuperati {orders_count} ordini")
-                return result.get('payload', {})
+                return {
+                    'success': True,
+                    'orders': orders_data.get('Orders', []),
+                    'orders_count': orders_count,
+                    'raw_payload': orders_data
+                }
             else:
-                raise Exception(f"SP-API Custom Orders Error: HTTP {response.status_code} - {response.text}")
+                error_msg = f"SP-API Custom Orders Error: HTTP {response.status_code} - {response.text}"
+                logger.error(f"❌ {error_msg}")
+                return {
+                    'success': False,
+                    'error': error_msg,
+                    'orders': []
+                }
 
         except Exception as e:
-            logger.error(f"❌ SP-API Custom Orders Error: {e}")
+            error_msg = f"SP-API Custom Orders Error: {e}"
+            logger.error(f"❌ {error_msg}")
             self._handle_api_error(e, "get_orders_custom")
+            return {
+                'success': False,
+                'error': error_msg,
+                'orders': []
+            }
 
     def get_order(self, order_id: str) -> Dict[str, Any]:
         """Recupera dettagli di un singolo ordine"""

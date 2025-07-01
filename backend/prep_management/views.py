@@ -4927,22 +4927,44 @@ def sp_api_sales_analysis_data(request):
                 }
             })
         
-        # Step 2: Ottieni ordini dell'ultimo anno
+        # Step 2: Ottieni ordini dell'ultimo periodo
         from datetime import datetime, timedelta
-        end_date = datetime.now()
+        
+        # Amazon richiede date almeno 2 minuti nel passato
+        now = datetime.now()
+        end_date = now - timedelta(minutes=3)  # 3 minuti fa per sicurezza
         start_date = end_date - timedelta(days=months * 30)  # Approssimazione
         
-        logger.info(f"📅 [SALES-ANALYSIS] Getting orders from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        logger.info(f"📅 [SALES-ANALYSIS] Getting orders from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}")
+        
+        # Test preliminare con un piccolo batch
+        test_start = end_date - timedelta(days=7)  # Ultimi 7 giorni per test
+        logger.info(f"🧪 [SALES-ANALYSIS] Testing orders API with last 7 days: {test_start.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}")
+        
+        try:
+            test_result = client.get_orders(
+                created_after=test_start,
+                created_before=end_date
+            )
+            
+            if test_result.get('success'):
+                test_orders = test_result.get('orders', [])
+                logger.info(f"✅ [SALES-ANALYSIS] Test successful! Found {len(test_orders)} orders in last 7 days")
+            else:
+                logger.warning(f"⚠️ [SALES-ANALYSIS] Test failed: {test_result.get('error')}")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ [SALES-ANALYSIS] Test exception: {e}")
         
         # Ottieni ordini in batch (SP-API ha limiti)
         all_orders = []
         current_date = start_date
-        batch_size_days = 30  # Batch di 30 giorni per volta
+        batch_size_days = 14  # Batch più piccoli per evitare timeout
         
         while current_date < end_date:
             batch_end = min(current_date + timedelta(days=batch_size_days), end_date)
             
-            logger.info(f"🔄 [SALES-ANALYSIS] Getting orders batch: {current_date.strftime('%Y-%m-%d')} to {batch_end.strftime('%Y-%m-%d')}")
+            logger.info(f"🔄 [SALES-ANALYSIS] Getting orders batch: {current_date.strftime('%Y-%m-%d %H:%M')} to {batch_end.strftime('%Y-%m-%d %H:%M')}")
             
             try:
                 orders_result = client.get_orders(
@@ -4955,7 +4977,8 @@ def sp_api_sales_analysis_data(request):
                     all_orders.extend(batch_orders)
                     logger.info(f"✅ [SALES-ANALYSIS] Got {len(batch_orders)} orders in this batch")
                 else:
-                    logger.warning(f"⚠️ [SALES-ANALYSIS] Failed to get orders for batch: {orders_result.get('error')}")
+                    error_msg = orders_result.get('error', 'Unknown error')
+                    logger.warning(f"⚠️ [SALES-ANALYSIS] Failed to get orders for batch: {error_msg}")
                 
             except Exception as e:
                 logger.warning(f"⚠️ [SALES-ANALYSIS] Exception getting orders batch: {e}")
