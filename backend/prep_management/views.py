@@ -5119,3 +5119,52 @@ def sp_api_sales_analysis_data(request):
             'traceback': traceback.format_exc()
         }, status=500)
 
+@api_view(['POST'])
+def update_marketplace_id_endpoint(request):
+    """
+    🔧 ENDPOINT TEMPORANEO: Aggiorna marketplace_id per configurazione SP-API
+    
+    POST /prep_management/sp-api/update-marketplace-id/
+    Body: {
+        "config_id": 1,
+        "marketplace_id": "APJ6JRA9NG5V4"
+    }
+    """
+    try:
+        config_id = request.data.get('config_id', 1)
+        marketplace_id = request.data.get('marketplace_id', 'APJ6JRA9NG5V4')
+        
+        # Trova e aggiorna configurazione
+        config = AmazonSPAPIConfig.objects.get(id=config_id)
+        old_marketplace_id = config.marketplace_id
+        
+        config.marketplace_id = marketplace_id
+        config.save()
+        
+        return Response({
+            'success': True,
+            'message': f'Configurazione {config.name} aggiornata con successo',
+            'data': {
+                'config_id': config.id,
+                'config_name': config.name,
+                'marketplace': config.marketplace,
+                'old_marketplace_id': old_marketplace_id,
+                'new_marketplace_id': marketplace_id,
+                'is_active': config.is_active
+            }
+        }, status=200)
+        
+    except AmazonSPAPIConfig.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': f'Configurazione con ID {config_id} non trovata',
+            'available_configs': list(AmazonSPAPIConfig.objects.values('id', 'name', 'marketplace'))
+        }, status=404)
+        
+    except Exception as e:
+        logger.error(f"Errore aggiornamento marketplace_id: {str(e)}")
+        return Response({
+            'success': False,
+            'error': f'Errore durante aggiornamento: {str(e)}'
+        }, status=500)
+

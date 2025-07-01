@@ -98,4 +98,7 @@ urlpatterns = [
     # 🚀 SP-API Sales Analysis endpoints
     path('sp-api/sales-analysis/', views.sp_api_sales_analysis_page, name='sp_api_sales_analysis_page'),
     path('sp-api/sales-analysis/data/', views.sp_api_sales_analysis_data, name='sp_api_sales_analysis_data'),
+    
+    # 🔧 Endpoint temporaneo per fix marketplace_id
+    path('sp-api/update-marketplace-id/', views.update_marketplace_id_endpoint, name='update_marketplace_id_endpoint'),
 ]
