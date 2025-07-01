@@ -4931,7 +4931,7 @@ def sp_api_sales_analysis_data(request):
         from datetime import datetime, timedelta
         
         # Amazon richiede date almeno 2 minuti nel passato
-        now = datetime.now()
+        now = datetime.utcnow()  # ✅ FIX: UTC come tutti gli altri endpoint
         end_date = now - timedelta(minutes=3)  # 3 minuti fa per sicurezza
         start_date = end_date - timedelta(days=months * 30)  # Approssimazione
         
