@@ -62,6 +62,11 @@ class AmazonSPAPIConfig(models.Model):
     marketplace = models.CharField(verbose_name="Marketplace", max_length=2, 
                                  choices=MARKETPLACE_CHOICES, default='IT',
                                  help_text="Marketplace Amazon di riferimento")
+
+    # ✅ CAMPO CRITICO AGGIUNTO: Marketplace ID specifico Amazon
+    marketplace_id = models.CharField(verbose_name="Marketplace ID", max_length=20, 
+                                     null=True, blank=True,
+                                     help_text="ID specifico del marketplace Amazon (es: APJ6JRA9NG5V4 per Amazon.it)")
     
     # Configurazioni tecniche
     api_timeout = models.PositiveIntegerField(verbose_name="Timeout API (secondi)", default=30)
