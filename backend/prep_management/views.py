@@ -3886,7 +3886,9 @@ def sp_api_orders_list(request):
             'created_after': created_after_dt.isoformat(),
             'created_before': created_before_dt.isoformat(),
             'total_orders': len(orders_data.get('Orders', [])),
-            'total_retrieved': len(orders_data.get('Orders', []))
+            'total_retrieved': len(orders_data.get('Orders', [])),
+            'debug_marketplace_id_used': client.marketplace_id,  # ✅ DEBUG: Mostra quale marketplace_id usa il client
+            'debug_config_marketplace_id': config.marketplace_id  # ✅ DEBUG: Mostra marketplace_id dal database
         })
             
     except Exception as e:
