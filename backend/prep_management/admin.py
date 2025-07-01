@@ -30,14 +30,14 @@ class PrepBusinessConfigAdmin(admin.ModelAdmin):
 
 @admin.register(AmazonSPAPIConfig)
 class AmazonSPAPIConfigAdmin(admin.ModelAdmin):
-    list_display = ('name', 'marketplace', 'is_active', 'is_sandbox', 'last_test_success', 'total_api_calls', 'get_success_rate_display', 'updated_at')
+    list_display = ('name', 'marketplace', 'marketplace_id', 'is_active', 'is_sandbox', 'last_test_success', 'total_api_calls', 'get_success_rate_display', 'updated_at')
     list_filter = ('marketplace', 'is_active', 'is_sandbox', 'last_test_success', 'created_at')
     search_fields = ('name', 'lwa_app_id')
     readonly_fields = ('created_at', 'updated_at', 'last_test_at', 'last_test_success', 'last_test_message', 'total_api_calls', 'total_api_errors')
     
     fieldsets = (
         (None, {
-            'fields': ('name', 'marketplace', 'is_active', 'is_sandbox')
+            'fields': ('name', 'marketplace', 'marketplace_id', 'is_active', 'is_sandbox')
         }),
         ('Credenziali Amazon SP-API', {
             'fields': ('refresh_token', 'lwa_app_id', 'lwa_client_secret')
