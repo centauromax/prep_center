@@ -3829,6 +3829,10 @@ def sp_api_orders_list(request):
         created_before = request.GET.get('created_before')
         max_results = int(request.GET.get('max_results', 50))
         
+        # ✅ NUOVO: Parametri per filtri ordini
+        order_statuses = request.GET.get('order_statuses')  # Comma-separated: Pending,Unshipped,Shipped
+        fulfillment_channels = request.GET.get('fulfillment_channels')  # Comma-separated: AFN,MFN
+        
         # Trova configurazione specifica per ID
         if config_id:
             try:
@@ -3867,28 +3871,44 @@ def sp_api_orders_list(request):
         else:
             created_before_dt = datetime.utcnow()
         
-        # Recupera ordini
+        # ✅ NUOVO: Prepara filtri opzionali
+        order_statuses_list = None
+        if order_statuses:
+            order_statuses_list = [status.strip() for status in order_statuses.split(',')]
+            
+        fulfillment_channels_list = None
+        if fulfillment_channels:
+            fulfillment_channels_list = [channel.strip() for channel in fulfillment_channels.split(',')]
+        
+        # Recupera ordini con nuovi parametri
         orders_data = client.get_orders(
             created_after=created_after_dt,
             created_before=created_before_dt,
-            max_results_per_page=max_results
+            max_results_per_page=max_results,
+            order_statuses=order_statuses_list,
+            fulfillment_channels=fulfillment_channels_list
         )
         
         config.increment_api_call_count()
         
         return JsonResponse({
             'success': True,
-            'orders': orders_data.get('Orders', []),
-            'next_token': orders_data.get('NextToken'),
+            'orders': orders_data.get('orders', []),
+            'next_token': orders_data.get('next_token'),
             'marketplace': config.marketplace,
             'config_used': config.name,
             'config_id': config.id,
             'created_after': created_after_dt.isoformat(),
             'created_before': created_before_dt.isoformat(),
-            'total_orders': len(orders_data.get('Orders', [])),
-            'total_retrieved': len(orders_data.get('Orders', [])),
+            'total_orders': len(orders_data.get('orders', [])),
+            'total_retrieved': len(orders_data.get('orders', [])),
             'debug_marketplace_id_used': client.marketplace_id,  # ✅ DEBUG: Mostra quale marketplace_id usa il client
-            'debug_config_marketplace_id': config.marketplace_id  # ✅ DEBUG: Mostra marketplace_id dal database
+            'debug_config_marketplace_id': config.marketplace_id,  # ✅ DEBUG: Mostra marketplace_id dal database
+            'debug_params': orders_data.get('debug_params', {}),  # ✅ DEBUG: Mostra parametri API usati
+            'debug_filters': {  # ✅ DEBUG: Mostra filtri applicati
+                'order_statuses': order_statuses_list,
+                'fulfillment_channels': fulfillment_channels_list
+            }
         })
             
     except Exception as e:

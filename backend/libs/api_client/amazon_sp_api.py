@@ -285,8 +285,19 @@ class AmazonSPAPIClient:
                    created_after: Optional[datetime] = None,
                    created_before: Optional[datetime] = None,
                    last_updated_after: Optional[datetime] = None,
-                   max_results_per_page: int = 50) -> Dict[str, Any]:
-        """Recupera ordini dal marketplace Amazon - CUSTOM IMPLEMENTATION"""
+                   max_results_per_page: int = 50,
+                   order_statuses: Optional[List[str]] = None,
+                   fulfillment_channels: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Recupera ordini dal marketplace Amazon - CUSTOM IMPLEMENTATION
+        
+        Args:
+            created_after: Data creazione dopo
+            created_before: Data creazione prima  
+            last_updated_after: Data ultimo aggiornamento dopo
+            max_results_per_page: Numero massimo risultati per pagina
+            order_statuses: Lista stati ordini (Pending, Unshipped, PartiallyShipped, Shipped, Canceled, Unfulfillable)
+            fulfillment_channels: Lista canali fulfillment (AFN per FBA, MFN per FBM)
+        """
         try:
             # ✅ SOLUZIONE DEFINITIVA: Chiamata HTTP diretta
             access_token = self._get_access_token()
@@ -308,6 +319,15 @@ class AmazonSPAPIClient:
                 params['CreatedBefore'] = created_before.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
             if last_updated_after:
                 params['LastUpdatedAfter'] = last_updated_after.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+            
+            # ✅ NUOVO: Filtri per stato ordini e canale fulfillment
+            if order_statuses:
+                # Supporta lista di stati: Pending, Unshipped, PartiallyShipped, Shipped, Canceled, Unfulfillable
+                params['OrderStatuses'] = ','.join(order_statuses)
+            
+            if fulfillment_channels:
+                # AFN = Amazon Fulfillment Network (FBA), MFN = Merchant Fulfillment Network (FBM)
+                params['FulfillmentChannels'] = ','.join(fulfillment_channels)
 
             headers = {
                 'Authorization': f'Bearer {access_token}',
@@ -329,7 +349,8 @@ class AmazonSPAPIClient:
                     'success': True,
                     'orders': orders_data.get('Orders', []),
                     'orders_count': orders_count,
-                    'raw_payload': orders_data
+                    'raw_payload': orders_data,
+                    'debug_params': params  # ✅ DEBUG: Mostra parametri usati
                 }
             else:
                 error_msg = f"SP-API Custom Orders Error: HTTP {response.status_code} - {response.text}"
@@ -337,7 +358,8 @@ class AmazonSPAPIClient:
                 return {
                     'success': False,
                     'error': error_msg,
-                    'orders': []
+                    'orders': [],
+                    'debug_params': params
                 }
 
         except Exception as e:
@@ -347,7 +369,8 @@ class AmazonSPAPIClient:
             return {
                 'success': False,
                 'error': error_msg,
-                'orders': []
+                'orders': [],
+                'debug_params': params if 'params' in locals() else {}
             }
 
     def get_order(self, order_id: str) -> Dict[str, Any]:
