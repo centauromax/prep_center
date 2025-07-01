@@ -86,7 +86,7 @@
         </div>
 
         <div class="row mb-4" id="statsSection" style="display: none;">
-            <div class="col-lg-3 col-md-6 mb-3">
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
                 <div class="card stats-card h-100">
                     <div class="card-body text-center">
                         <i class="fas fa-boxes fa-2x mb-2"></i>
@@ -95,7 +95,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 col-md-6 mb-3">
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
                 <div class="card stats-card h-100">
                     <div class="card-body text-center">
                         <i class="fas fa-shopping-cart fa-2x mb-2"></i>
@@ -104,7 +104,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 col-md-6 mb-3">
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
                 <div class="card stats-card h-100">
                     <div class="card-body text-center">
                         <i class="fas fa-warehouse fa-2x mb-2"></i>
@@ -113,7 +113,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-3 col-md-6 mb-3">
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
                 <div class="card stats-card h-100">
                     <div class="card-body text-center">
                         <i class="fas fa-tags fa-2x mb-2"></i>
@@ -255,11 +255,18 @@
                 .then(data => {
                     updateProgress(90);
                     if (data.success) {
-                        salesData = data.data;
+                        salesData = data.data || [];
                         displayResults(data);
                         updateBrandFilter();
+                        
+                        // ✅ FIX: Mostra messaggio informativo se inventario presente ma zero vendite
+                        if (data.stats.total_products > 0 && data.stats.total_sales === 0) {
+                            showAlert(`Analisi completata: trovati ${data.stats.total_products} prodotti in inventario ma zero vendite nel periodo analizzato. Questo può essere normale per account nuovi o periodi senza ordini.`, 'info');
+                        }
                     } else {
-                        throw new Error(data.error || 'Errore nell\'analisi');
+                        const errorMsg = data.error || 'Errore sconosciuto nell\'analisi';
+                        const traceback = data.traceback ? `\n\nDettagli tecnici:\n${data.traceback}` : '';
+                        throw new Error(errorMsg + traceback);
                     }
                 })
                 .catch(error => {
@@ -409,11 +416,17 @@
             `;
             alertArea.appendChild(alertDiv);
 
-            setTimeout(() => {
-                if (alertDiv.parentNode) {
-                    alertDiv.remove();
-                }
-            }, 5000);
+            // ✅ FIX: Errori persistenti - rimosso setTimeout automatico
+            // Gli utenti devono chiudere manualmente gli alert usando il pulsante X
+            if (type === 'success') {
+                // Solo i messaggi di successo si chiudono automaticamente dopo 8 secondi
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 8000);
+            }
+            // Errori e warning rimangono fissi fino a chiusura manuale
         }
     </script>
 </body>

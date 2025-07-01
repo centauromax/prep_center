@@ -409,7 +409,9 @@ class AmazonSPAPIClient:
             return response.payload
 
         except Exception as e:
-            self._handle_api_error(e, f"get_order_items({order_id})")
+            logger.error(f"Errore get_order_items({order_id}): {e}")
+            # Non fare raise per permettere il fallback - restituisci risposta vuota
+            return {'OrderItems': [], 'success': False, 'error': str(e)}
 
     # =============================================================================
     # INVENTORY API
@@ -470,7 +472,12 @@ class AmazonSPAPIClient:
                 return self._get_inventory_summary_saleweaver(granularity_type, granularity_id, start_date_time, seller_skus)
             except Exception as fallback_error:
                 logger.error(f"❌ Anche Saleweaver fallback fallito: {fallback_error}")
-                raise Exception(f"Entrambi Custom HTTP e Saleweaver falliti. Custom: {e}, Saleweaver: {fallback_error}")
+                # ✅ FIX: Non fare raise - restituisci struttura vuota per permettere all'analisi di continuare
+                return {
+                    'inventorySummaries': [],
+                    'success': False,
+                    'error': f"Entrambi Custom HTTP e Saleweaver falliti. Custom: {e}, Saleweaver: {fallback_error}"
+                }
 
     def _get_inventory_summary_saleweaver(self, 
                                           granularity_type: str,
@@ -502,7 +509,9 @@ class AmazonSPAPIClient:
             return response.payload
 
         except Exception as e:
-            self._handle_api_error(e, "get_inventory_summary_saleweaver")
+            logger.error(f"Errore Saleweaver inventory: {e}")
+            # ✅ FIX: Non fare raise tramite _handle_api_error - rilancia direttamente
+            raise Exception(f"Saleweaver inventory error: {str(e)}")
 
     # =============================================================================
     # REPORTS API

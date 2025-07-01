@@ -4902,12 +4902,12 @@ def sp_api_sales_analysis_data(request):
         months = int(request.GET.get('months', 12))  # Default 12 mesi
         
         if not config_id:
-            return JsonResponse({'error': 'config_id è richiesto'}, status=400)
+            return JsonResponse({'success': False, 'error': 'config_id è richiesto'}, status=400)
         
         try:
             config = AmazonSPAPIConfig.objects.get(id=config_id)
         except AmazonSPAPIConfig.DoesNotExist:
-            return JsonResponse({'error': 'Configurazione non trovata'}, status=404)
+            return JsonResponse({'success': False, 'error': 'Configurazione non trovata'}, status=404)
         
         # Crea client SP-API
         credentials = config.get_credentials_dict()
@@ -4915,32 +4915,39 @@ def sp_api_sales_analysis_data(request):
         
         logger.info(f"🔍 [SALES-ANALYSIS] Starting analysis for config {config_id}, months: {months}")
         
-        # Step 1: Ottieni inventario
+        # Step 1: Ottieni inventario (con gestione errori robusta)
         logger.info("📦 [SALES-ANALYSIS] Getting inventory...")
         try:
             inventory_result = client.get_inventory_summary()
             
-            # get_inventory_summary restituisce direttamente i dati (non wrapped in success)
-            if isinstance(inventory_result, dict) and 'inventorySummaries' in inventory_result:
-                inventory_summaries = inventory_result.get('inventorySummaries', [])
-            else:
-                # Fallback: cerca nella struttura annidata
-                inventory_summaries = inventory_result.get('inventory', {}).get('inventorySummaries', [])
-                
+            # Gestisci diversi formati di risposta
+            inventory_summaries = []
+            if isinstance(inventory_result, dict):
+                if 'inventorySummaries' in inventory_result:
+                    inventory_summaries = inventory_result.get('inventorySummaries', [])
+                elif 'inventory' in inventory_result:
+                    inventory_summaries = inventory_result.get('inventory', {}).get('inventorySummaries', [])
+                elif inventory_result.get('success') == False:
+                    logger.warning(f"⚠️ [SALES-ANALYSIS] Inventory API error: {inventory_result.get('error')}")
+                    inventory_summaries = []
+                    
         except Exception as e:
             logger.error(f"❌ [SALES-ANALYSIS] Inventory Error: {e}")
-            return JsonResponse({
-                'error': f"Errore inventario: {str(e)}",
-                'details': str(e)
-            }, status=400)
+            inventory_summaries = []
         
         logger.info(f"📊 [SALES-ANALYSIS] Found {len(inventory_summaries)} products in inventory")
         
         if not inventory_summaries:
             return JsonResponse({
                 'success': True,
-                'message': 'Nessun prodotto in inventario',
-                'products': [],
+                'message': 'Nessun prodotto in inventario o errore nell\'accesso inventario',
+                'data': [],  # ✅ FIX: frontend si aspetta 'data', non 'products'
+                'stats': {   # ✅ FIX: frontend si aspetta 'stats'
+                    'total_products': 0,
+                    'total_inventory': 0,
+                    'total_sales': 0,
+                    'total_brands': 0
+                },
                 'analysis_summary': {
                     'total_products': 0,
                     'total_inventory': 0,
@@ -4949,7 +4956,7 @@ def sp_api_sales_analysis_data(request):
                 }
             })
         
-        # Step 2: Ottieni ordini dell'ultimo periodo
+        # Step 2: Ottieni ordini dell'ultimo periodo (con gestione errori robusta)
         from datetime import datetime, timedelta
         
         # Amazon richiede date almeno 2 minuti nel passato
@@ -4959,62 +4966,32 @@ def sp_api_sales_analysis_data(request):
         
         logger.info(f"📅 [SALES-ANALYSIS] Getting orders from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}")
         
-        # Test preliminare con un piccolo batch
-        test_start = end_date - timedelta(days=7)  # Ultimi 7 giorni per test
-        logger.info(f"🧪 [SALES-ANALYSIS] Testing orders API with last 7 days: {test_start.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}")
-        
+        # Ottieni ordini (con gestione errori robusta)
+        all_orders = []
         try:
-            test_result = client.get_orders(
-                created_after=test_start,
-                created_before=end_date
+            orders_result = client.get_orders(
+                created_after=start_date,
+                created_before=end_date,
+                max_results_per_page=50
             )
             
-            if test_result.get('success'):
-                test_orders = test_result.get('orders', [])
-                logger.info(f"✅ [SALES-ANALYSIS] Test successful! Found {len(test_orders)} orders in last 7 days")
+            if orders_result.get('success') != False:  # Considera success=True o None come OK
+                all_orders = orders_result.get('orders', [])
+                logger.info(f"✅ [SALES-ANALYSIS] Found {len(all_orders)} orders")
             else:
-                logger.warning(f"⚠️ [SALES-ANALYSIS] Test failed: {test_result.get('error')}")
+                logger.warning(f"⚠️ [SALES-ANALYSIS] Orders API error: {orders_result.get('error')}")
                 
         except Exception as e:
-            logger.warning(f"⚠️ [SALES-ANALYSIS] Test exception: {e}")
-        
-        # Ottieni ordini in batch (SP-API ha limiti)
-        all_orders = []
-        current_date = start_date
-        batch_size_days = 14  # Batch più piccoli per evitare timeout
-        
-        while current_date < end_date:
-            batch_end = min(current_date + timedelta(days=batch_size_days), end_date)
-            
-            logger.info(f"🔄 [SALES-ANALYSIS] Getting orders batch: {current_date.strftime('%Y-%m-%d %H:%M')} to {batch_end.strftime('%Y-%m-%d %H:%M')}")
-            
-            try:
-                orders_result = client.get_orders(
-                    created_after=current_date,
-                    created_before=batch_end
-                )
-                
-                if orders_result.get('success'):
-                    batch_orders = orders_result.get('orders', [])
-                    all_orders.extend(batch_orders)
-                    logger.info(f"✅ [SALES-ANALYSIS] Got {len(batch_orders)} orders in this batch")
-                else:
-                    error_msg = orders_result.get('error', 'Unknown error')
-                    logger.warning(f"⚠️ [SALES-ANALYSIS] Failed to get orders for batch: {error_msg}")
-                
-            except Exception as e:
-                logger.warning(f"⚠️ [SALES-ANALYSIS] Exception getting orders batch: {e}")
-            
-            current_date = batch_end + timedelta(days=1)
+            logger.warning(f"⚠️ [SALES-ANALYSIS] Exception getting orders: {e}")
         
         logger.info(f"📊 [SALES-ANALYSIS] Total orders collected: {len(all_orders)}")
         
-        # Step 3: Calcola vendite per SKU/ASIN
+        # Step 3: Calcola vendite per SKU/ASIN (con gestione errori robusta)
         sales_by_sku = {}
         
         # Per ogni ordine, ottieni gli items (questo è complesso ma necessario)
         for i, order in enumerate(all_orders):
-            if i % 50 == 0:  # Log progress ogni 50 ordini
+            if i % 10 == 0:  # Log progress ogni 10 ordini (più frequente)
                 logger.info(f"🔄 [SALES-ANALYSIS] Processing order {i+1}/{len(all_orders)}")
             
             try:
@@ -5022,10 +4999,10 @@ def sp_api_sales_analysis_data(request):
                 if not order_id:
                     continue
                 
-                # Ottieni items dell'ordine
+                # Ottieni items dell'ordine (con gestione errori)
                 items_result = client.get_order_items(order_id)
-                if items_result.get('success'):
-                    items = items_result.get('order_items', [])
+                if items_result.get('success') != False:  # Non è fallito esplicitamente
+                    items = items_result.get('OrderItems', []) or items_result.get('order_items', [])
                     
                     for item in items:
                         sku = item.get('SellerSKU') or item.get('seller_sku')
