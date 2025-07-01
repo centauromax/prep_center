@@ -123,6 +123,7 @@ class AmazonSPAPIConfig(models.Model):
             'aws_secret_key': self.aws_secret_key,
             'role_arn': self.role_arn,
             'marketplace': self.marketplace,
+            'marketplace_id': self.marketplace_id,  # ✅ FIX: Passa marketplace_id dal database
         }
     
     def increment_api_call_count(self, is_error: bool = False):

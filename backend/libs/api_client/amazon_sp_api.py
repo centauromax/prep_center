@@ -116,10 +116,15 @@ class AmazonSPAPIClient:
         return True
 
     def _get_marketplace_id(self) -> str:
-        """Ottiene il marketplace ID configurato"""
-        marketplace_code = self.credentials.get('marketplace', 'IT')
+        """Ottiene il marketplace ID configurato - UPDATED: usa database first, fallback su mapping"""
+        # ✅ PRIORITÀ 1: Usa marketplace_id dal database se disponibile
+        db_marketplace_id = self.credentials.get('marketplace_id')
+        if db_marketplace_id:
+            logger.info(f"✅ Usando marketplace_id dal database: {db_marketplace_id}")
+            return db_marketplace_id
         
-        # Mappa marketplace ID Amazon ufficiali
+        # ❌ FALLBACK: Mapping hardcoded solo se database non ha il valore
+        marketplace_code = self.credentials.get('marketplace', 'IT')
         marketplace_id_mapping = {
             'IT': 'APJ6JRA9NG5V4',  # Amazon.it
             'DE': 'A1PA6795UKMFR9', # Amazon.de  
@@ -130,7 +135,7 @@ class AmazonSPAPIClient:
         }
         
         marketplace_id = marketplace_id_mapping.get(marketplace_code, 'APJ6JRA9NG5V4')
-        logger.info(f"Marketplace {marketplace_code} mappato a ID: {marketplace_id}")
+        logger.warning(f"⚠️ Fallback: marketplace_id non trovato nel database, usando mapping per {marketplace_code}: {marketplace_id}")
         return marketplace_id
 
     def _get_endpoint(self) -> str:
