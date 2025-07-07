@@ -14,3 +14,5 @@ pandas==2.2.2
 python-dotenv==1.0.1
 python-amazon-sp-api==1.9.38
 PyYAML==6.0.1
+reportlab==4.2.2
+Pillow==10.3.0
